@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "iss",
+    "sub",
+    "aud",
+    "exp",
+    "iat",
+    "jti",
+    "client_id",
+    "scope",
+    "hukid_token_class",
+    "hukid_grant",
+    "auth_time",
+    "amr",
+    "acr"
+  ],
+  "properties": {
+    "iss": {
+      "type": "string",
+      "format": "uri"
+    },
+    "sub": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "aud": {
+      "const": "https://api.hukid.pe/operator"
+    },
+    "exp": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "iat": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "jti": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "client_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "scope": {
+      "type": "string",
+      "pattern": "(^| )operator:read( |$)"
+    },
+    "hukid_token_class": {
+      "const": "operator"
+    },
+    "hukid_grant": {
+      "const": "authorization_code"
+    },
+    "auth_time": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "acr": {
+      "const": "urn:hukid:test:mfa"
+    },
+    "amr": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true,
+      "allOf": [
+        {
+          "contains": {
+            "const": "pwd"
+          }
+        },
+        {
+          "contains": {
+            "const": "otp"
+          }
+        }
+      ]
+    }
+  },
+  "description": "Decoded test access-token claims only. A passing schema is not authentication: signature/ES256/kid/typ/issuer/client/time must be verified separately. Audience arrays, including one-element arrays, are rejected by this console contract. hukid_grant denotes original human grant, also after refresh."
+}

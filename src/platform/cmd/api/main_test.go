@@ -20,11 +20,13 @@ func TestAuthConfigurationIsExplicitAndTestOnly(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Setenv("HUKID_ENV", tc.environment)
 			t.Setenv("HUKID_AUTH_POLICY", tc.file)
-			for _, name := range []string{"HUKID_SESSION_DATABASE_URL", "HUKID_OIDC_CLIENT_SECRET", "HUKID_AUTH_KEY", "HUKID_AUTH_KEY_VERSION"} {
+			for _, name := range []string{"HUKID_SESSION_DATABASE_URL", "HUKID_OIDC_CLIENT_SECRET", "HUKID_AUTH_KEY", "HUKID_AUTH_KEY_VERSION", "HUKID_CONTEXT_DATABASE_URL", "HUKID_TENANT_DATABASE_URL"} {
 				t.Setenv(name, "")
 			}
 			if tc.name == "isolated_test" {
 				t.Setenv("HUKID_SESSION_DATABASE_URL", "postgresql://127.0.0.1:5432/hukid_test_config?sslmode=disable")
+				t.Setenv("HUKID_CONTEXT_DATABASE_URL", "postgresql://127.0.0.1:5432/hukid_test_config?sslmode=disable")
+				t.Setenv("HUKID_TENANT_DATABASE_URL", "postgresql://127.0.0.1:5432/hukid_test_config?sslmode=disable")
 				t.Setenv("HUKID_OIDC_CLIENT_SECRET", "configuration-test-only")
 				t.Setenv("HUKID_AUTH_KEY", base64.StdEncoding.EncodeToString(make([]byte, 32)))
 				t.Setenv("HUKID_AUTH_KEY_VERSION", "config-test")
@@ -40,6 +42,8 @@ func TestPartialRuntimeConfigurationFailsClosed(t *testing.T) {
 	valid := map[string]string{
 		"HUKID_ENV": "test", "HUKID_AUTH_POLICY": "../../config/auth.test.json",
 		"HUKID_SESSION_DATABASE_URL": "postgresql://127.0.0.1:5432/hukid_test_config?sslmode=disable",
+		"HUKID_CONTEXT_DATABASE_URL": "postgresql://127.0.0.1:5432/hukid_test_config?sslmode=disable",
+		"HUKID_TENANT_DATABASE_URL":  "postgresql://127.0.0.1:5432/hukid_test_config?sslmode=disable",
 		"HUKID_OIDC_CLIENT_SECRET":   "configuration-test-only",
 		"HUKID_AUTH_KEY":             base64.StdEncoding.EncodeToString(make([]byte, 32)), "HUKID_AUTH_KEY_VERSION": "config-test",
 	}

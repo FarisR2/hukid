@@ -137,7 +137,7 @@ func (c *Client) checkTimes(e evidence) bool {
 }
 
 // Validate keeps ID-token authentication distinct from operator access authority.
-// AUTH-T05 will provide a separate Bearer-only entry point for Management.
+// Management uses VerifyOperator independently of ID-token authentication.
 func (c *Client) Validate(ctx context.Context, rawID, access string, nonceHash []byte) (authentication.VerifiedLogin, error) {
 	invalid := authentication.ErrCallback
 	for _, raw := range []string{rawID, access} {
@@ -176,16 +176,14 @@ func (c *Client) Validate(ctx context.Context, rawID, access string, nonceHash [
 	if len(id.Audience) != 1 || id.Audience[0] != c.policy.ClientID {
 		return authentication.VerifiedLogin{}, invalid
 	}
-	payload, err := c.keys.VerifySignature(ctx, access)
+	ae, err := c.operatorEvidence(ctx, access)
 	if err != nil {
+		if errors.Is(err, authentication.ErrMFA) {
+			return authentication.VerifiedLogin{}, err
+		}
 		return authentication.VerifiedLogin{}, invalid
 	}
-	var ae evidence
-	if json.Unmarshal(payload, &ae) != nil || !c.checkTimes(ae) {
-		return authentication.VerifiedLogin{}, invalid
-	}
-	var audience string
-	if json.Unmarshal(ae.Audience, &audience) != nil || audience != c.policy.Audience || ae.Issuer != c.policy.Issuer || ae.Subject != id.Subject || ae.Client != c.policy.ClientID || ae.Class != "operator" || ae.Grant != "authorization_code" || !slices.Contains(strings.Fields(ae.Scope), "operator:read") || ae.JTI == "" || len(ae.JTI) > 128 {
+	if ae.Subject != id.Subject {
 		return authentication.VerifiedLogin{}, invalid
 	}
 	if ae.AuthTime != ie.AuthTime || ae.ACR != ie.ACR || !sameMethods(ae.AMR, ie.AMR) {
@@ -195,6 +193,43 @@ func (c *Client) Validate(ctx context.Context, rawID, access string, nonceHash [
 		return authentication.VerifiedLogin{}, authentication.ErrMFA
 	}
 	return authentication.VerifiedLogin{Issuer: ae.Issuer, Subject: ae.Subject, AuthTime: time.Unix(ae.AuthTime, 0), AMR: ae.AMR, ACR: ae.ACR}, nil
+}
+
+// VerifyOperator accepts access authority alone; an ID token can never substitute it.
+func (c *Client) VerifyOperator(ctx context.Context, raw string) (authentication.Operator, error) {
+	e, err := c.operatorEvidence(ctx, raw)
+	if err != nil {
+		return authentication.Operator{}, err
+	}
+	return authentication.Operator{Issuer: e.Issuer, Subject: e.Subject}, nil
+}
+
+func (c *Client) operatorEvidence(ctx context.Context, raw string) (evidence, error) {
+	invalid := authentication.ErrCredential
+	if len(raw) == 0 || len(raw) > 64<<10 {
+		return evidence{}, invalid
+	}
+	parsed, err := jose.ParseSigned(raw, []jose.SignatureAlgorithm{jose.ES256})
+	if err != nil || len(parsed.Signatures) != 1 || !uniqueClaims(parsed.UnsafePayloadWithoutVerification()) {
+		return evidence{}, invalid
+	}
+	h := parsed.Signatures[0].Header
+	if h.KeyID == "" || h.ExtraHeaders[jose.HeaderType] != "at+jwt" || h.JSONWebKey != nil || h.ExtraHeaders[jose.HeaderKey("jku")] != nil || h.ExtraHeaders[jose.HeaderKey("x5u")] != nil {
+		return evidence{}, invalid
+	}
+	payload, err := c.keys.VerifySignature(ctx, raw)
+	if err != nil {
+		return evidence{}, invalid
+	}
+	var e evidence
+	var audience string
+	if json.Unmarshal(payload, &e) != nil || !c.checkTimes(e) || json.Unmarshal(e.Audience, &audience) != nil || audience != c.policy.Audience || e.Issuer != c.policy.Issuer || e.Subject == "" || len(e.Subject) > 128 || e.Client != c.policy.ClientID || e.Class != "operator" || e.Grant != "authorization_code" || !slices.Contains(strings.Fields(e.Scope), "operator:read") || e.JTI == "" || len(e.JTI) > 128 || !sameMethods(e.AMR, e.AMR) {
+		return evidence{}, invalid
+	}
+	if c.policy.CheckMFA(time.Unix(e.AuthTime, 0), c.now(), e.AMR, e.ACR, false) != nil {
+		return evidence{}, authentication.ErrMFA
+	}
+	return e, nil
 }
 
 func sameMethods(a, b []string) bool {

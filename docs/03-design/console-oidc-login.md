@@ -40,6 +40,8 @@ Con todas las variables de autenticación ausentes, Platform conserva sólo live
 | `HUKID_AUTH_POLICY` | Ruta a política completa validada |
 | `HUKID_LISTEN_ADDR` | IP loopback/puerto cuyo origen coincide exactamente con consoleOrigin; por defecto 127.0.0.1:8080 |
 | `HUKID_SESSION_DATABASE_URL` | Credencial externa de rol runtime de sesión; IP loopback, DB hukid_test_*, sin fallback y sslmode=disable sólo para laboratorio |
+| `HUKID_CONTEXT_DATABASE_URL` | Desde AUTH-T05: credencial separada hukid_context_runtime para la misma DB test |
+| `HUKID_TENANT_DATABASE_URL` | Desde AUTH-T05: credencial separada hukid_tenant_runtime para la misma DB test |
 | `HUKID_OIDC_CLIENT_SECRET` | Secreto del cliente test registrado, externo al repo |
 | `HUKID_AUTH_KEY` | Clave externa de 32 bytes codificada en Base64 estándar |
 | `HUKID_AUTH_KEY_VERSION` | Identificador no vacío de la clave; máximo 128 caracteres |
@@ -50,8 +52,8 @@ Configuración parcial/productiva, origen incoherente, rol inseguro o dependenci
 
 Las pruebas Go unitarias cubren cifrado/AAD, entropía, límites temporales, callbacks de un uso, concurrencia, retornos, HTTP/rate limiting y JWT negativos con firmas reales/claves efímeras. `npm run test:postgres` añade el binario Go real → IdP oidc-provider → callback → PostgreSQL, cookies, identidades nuevas sin membership, nonce/PKCE, binding/issuer, replay concurrente, expiración, OAuth denial, IdP caído y rollback de sesión. También prueba upgrade 0002→0003 con datos y grants mínimos. Son agentes HTTP, no navegador ni factores reales.
 
-AUTH-T05 implementará middleware Management y /me. AUTH-T06 completará lectura/rotación de sesiones, coordinación refresh, logout y tratamiento de cookies anteriores; un nuevo login de AUTH-T04 crea una familia nueva y no implementa esa rotación. AUTH-T07/T08 añadirán step-up/CSRF de comandos e interfaz. AUTH-T09 integrará auditoría y AUTH-T10 operación/gate A4.
+AUTH-T05 implementa [middleware Management y /me](console-operator-context.md), incluida lectura mínima de generación inicial. AUTH-T06 completará actividad/rotación de sesiones, coordinación refresh, logout y tratamiento de cookies anteriores; un nuevo login de AUTH-T04 crea una familia nueva y no implementa esa rotación. AUTH-T07/T08 añadirán step-up/CSRF de comandos e interfaz. AUTH-T09 integrará auditoría y AUTH-T10 operación/gate A4.
 
-No hay limpieza automática de transacciones abandonadas o sesiones expiradas, rotación/recuperación de claves ni gestión productiva de secretos. Eliminar o cambiar la única clave configurada impide descifrar sus envelopes. El laboratorio usa bases descartables; antes de operación persistente se requieren retención/purga, invalidación y gestión de claves en sus tareas. No se promete logout ni acceso protegido por existir una cookie inicial.
+No hay limpieza automática de transacciones abandonadas o sesiones expiradas, rotación/recuperación de claves ni gestión productiva de secretos. Eliminar o cambiar la única clave configurada impide descifrar sus envelopes. El laboratorio usa bases descartables; antes de operación persistente se requieren retención/purga, invalidación y gestión de claves en sus tareas. Las lecturas protegidas actuales se limitan a AUTH-T05; logout sigue pendiente.
 
 Fuentes: [go-oidc v3.21.0](https://github.com/coreos/go-oidc/tree/v3.21.0), [OIDC Core](https://openid.net/specs/openid-connect-core-1_0.html), [RFC 9207](https://www.rfc-editor.org/rfc/rfc9207.html), [RFC 9700](https://www.rfc-editor.org/rfc/rfc9700.html).

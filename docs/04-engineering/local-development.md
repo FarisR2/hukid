@@ -1,6 +1,6 @@
 # Desarrollo local de HukID
 
-Estado: AUTH-T01–T04 entregan bootstrap, contratos, PostgreSQL y [login/callback OIDC con sesión inicial](../03-design/console-oidc-login.md) de laboratorio. La consola React aún no renderiza pantallas; middleware Management, /me, refresh/logout y sesión operativa siguen pendientes.
+Estado: AUTH-T01–T05 entregan bootstrap, contratos, PostgreSQL, [login/callback OIDC](../03-design/console-oidc-login.md) y [middleware operator y /me](../03-design/console-operator-context.md) de laboratorio. La consola React aún no renderiza pantallas; refresh/logout, comandos y sesión operativa completa siguen pendientes.
 
 Existe [contrato y laboratorio OIDC](../03-design/console-auth-contract.md), con política test, matriz y reglas Go. El IdP sólo se inicia desde tests y simula MFA; no arranca con Platform. AUTH-T04 conecta HTTP con la [persistencia de consola](../03-design/console-persistence.md) cuando se proporciona configuración test completa.
 
@@ -100,7 +100,7 @@ npm run dev:console
 
 ## Configuración e IdP
 
-Este bootstrap no acepta tokens, no almacena sesiones, no contiene credenciales, no carga `.env` automáticamente y no tiene modo productivo. Las rutas `/console/auth`, `/console/api` y `/v1/operator` no están implementadas. El endpoint operativo `/healthz` no sustituye el OpenAPI de AUTH-T02.
+Sin configuración sólo se expone liveness. Con configuración test completa se habilitan login/callback, /console/api/me y las dos lecturas /v1/operator. No contiene credenciales, no carga `.env` automáticamente y no tiene modo productivo. Los cuatro comandos de sesión restantes siguen pendientes. El endpoint operativo `/healthz` no sustituye el OpenAPI de AUTH-T02.
 
 AUTH-T02 configura un fixture `oidc-provider` en `tests/fixtures`, ligado a `127.0.0.1:19090` durante `npm run test:auth`. Requiere ese puerto libre. El runner establece explícitamente `NODE_ENV=test` y `HUKID_TEST_IDP=1`; el fixture rechaza flags productivos, genera claves y secreto de cliente en memoria y termina al finalizar. El cliente confidencial usa `client_secret_basic` con secreto efímero; esto no selecciona autenticación de cliente productiva. El fixture usa adapter en memoria y emite una advertencia esperada. Las interacciones automáticas del harness no autentican a personas ni comprueban OTP reales.
 
@@ -114,7 +114,7 @@ $env:HUKID_AUTH_POLICY = (Resolve-Path src/platform/config/auth.test.json).Path
 npm run dev:platform
 ```
 
-Esto valida la política y sólo arranca liveness; no conecta el IdP ni habilita login. Si se configura cualquiera de esas variables, ambas son obligatorias. Configuración inexistente, incoherente o entorno distinto de `test` falla antes de abrir el puerto. Sin ambas variables sigue disponible el bootstrap liveness-only. Para volver a ese modo en la misma terminal, usar `Remove-Item Env:HUKID_ENV,Env:HUKID_AUTH_POLICY -ErrorAction SilentlyContinue`. HTTP/Secure=false sólo se permite en este laboratorio loopback. Los TTL/MFA productivos siguen sin aprobarse.
+Este ejemplo está incompleto para el runtime actual y falla antes de escuchar: desde AUTH-T04 se exige también configuración de credenciales/clave, y desde AUTH-T05 tres DSN separados. La configuración completa se describe en [login](../03-design/console-oidc-login.md#http-y-configuración) y [contexto operator](../03-design/console-operator-context.md#sesión-y-dependencias). Sin variables de autenticación se conserva liveness-only. Para volver a ese modo, retirar todas las variables HUKID de autenticación de la terminal. HTTP/Secure=false sólo se permite en este laboratorio loopback. Los TTL/MFA productivos siguen sin aprobarse.
 
 Decisiones y alcance: [ADR-0002](../decisions/ADR-0002.md), [FEAT-001](../features/FEAT-001-authentication/plan.md), [pendientes](../05-delivery/documentation-gaps.md).
 
@@ -153,4 +153,14 @@ Para reproducir la verificación del login no hace falta aprovisionar un IdP man
 
 Para una ejecución manual de laboratorio se necesitan IdP test registrado, DB test migrada y login SQL runtime provisionados por separado. Las variables, cookies y limitaciones se mantienen en [login AUTH-T04](../03-design/console-oidc-login.md), con decisión en [ADR-0005](../decisions/ADR-0005.md). `npm run dev:platform` sin variables conserva liveness solamente. Una política aislada sin credenciales/clave ya no habilita el proceso: falla antes de escuchar.
 
-El siguiente incremento es AUTH-T05, middleware operator y /me. AUTH-T06 conserva lectura/rotación de sesiones, refresh y logout. No se han validado factores reales, proveedor productivo, purga/rotación de claves, navegador, carga o restore; la consola y el gate A4 siguen pendientes.
+El incremento posterior AUTH-T05 se describe abajo. AUTH-T06 conserva actividad/rotación de sesiones, refresh y logout. No se han validado factores reales, proveedor productivo, purga/rotación de claves, navegador, carga o restore; la consola y el gate A4 siguen pendientes.
+
+## Evidencia AUTH-T05 — 2026-11-04
+
+Se verifican middleware Bearer, contexto tenant y composición /console/api/me mediante checks Go y pruebas PostgreSQL/HTTP con binario e IdP reales de laboratorio. La suite DB contiene once pruebas superiores con subcasos: añade roles, dos tenants, revalidación de suspensión/revocación y conexión reutilizada sin contexto residual. Los tests HTTP recorren acceso pendiente, selección provisionada sólo por test, rechazo de tenant ajeno, suspensión con credencial vigente y expiración. Tokens y cookie no aparecen en respuestas de identidad.
+
+El runtime exige HUKID_CONTEXT_DATABASE_URL y HUKID_TENANT_DATABASE_URL adicionales a la configuración AUTH-T04, para la misma base de laboratorio con credenciales distintas y roles hukid_context_runtime/hukid_tenant_runtime. No hay migraciones nuevas ni provisioning HTTP; el harness genera los tres logins. Los pools rechazan roles runtime combinados. Detalle único de comportamiento/límites: [AUTH-T05](../03-design/console-operator-context.md).
+
+`npm run check`, `npm run test:postgres`, `npm run build` y `npm run smoke` aprobaron en Windows con los toolchains locales fijados. El validador documental comprobó 74 Markdown y sus enlaces/anclas. Los procesos/clúster de las pruebas se detuvieron al finalizar. El sandbox bloqueó inicialmente temporales/caché; las ejecuciones finales Go/PostgreSQL/build usaron permisos externos al sandbox, sin cambiar controles del repositorio.
+
+El siguiente trabajo es AUTH-T06. /me todavía no extiende idle ni renueva access tokens. No se ejecutó navegador ni MFA real y no se habilitaron comandos de sesión o despliegue productivo.

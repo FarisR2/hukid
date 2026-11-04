@@ -1586,7 +1586,7 @@
       "get": {
         "operationId": "consoleMe",
         "summary": "Componer identidad y contexto de la sesión",
-        "description": "AUTH-T02 contract only; handler is not implemented. All responses are no-store and correlated; codes/cookies/tokens must not be logged.",
+        "description": "AUTH-T05 read-only handler for the isolated test profile. Initial session generation only; no idle extension, refresh, logout or tenant switch. All responses are no-store and correlated; codes/cookies/tokens must not be logged.",
         "security": [
           {
             "consoleSession": []
@@ -1840,14 +1840,14 @@
             }
           }
         },
-        "x-implementation-status": "not-implemented"
+        "x-implementation-status": "implemented-test-only"
       }
     },
     "/v1/operator/me": {
       "get": {
         "operationId": "operatorMe",
         "summary": "Leer identidad y tenants propios sin contexto activo",
-        "description": "AUTH-T02 contract only; handler is not implemented. All responses are no-store and correlated; codes/cookies/tokens must not be logged.",
+        "description": "AUTH-T05 Bearer-only handler for the isolated test profile. Verifies operator authority before local identity discovery. All responses are no-store and correlated; codes/cookies/tokens must not be logged.",
         "security": [
           {
             "operatorBearer": []
@@ -2084,7 +2084,7 @@
             }
           }
         },
-        "x-implementation-status": "not-implemented",
+        "x-implementation-status": "implemented-test-only",
         "x-required-scopes": [
           "operator:read"
         ]
@@ -2094,7 +2094,7 @@
       "get": {
         "operationId": "operatorTenantContext",
         "summary": "Leer capacidades efectivas del propio operador",
-        "description": "AUTH-T02 contract only; handler is not implemented. All responses are no-store and correlated; codes/cookies/tokens must not be logged.",
+        "description": "AUTH-T05 handler for the isolated test profile. Revalidates active local membership and tenant on every request; issuerIds is empty until issuer assignments exist. All responses are no-store and correlated; codes/cookies/tokens must not be logged.",
         "security": [
           {
             "operatorBearer": []
@@ -2383,7 +2383,7 @@
             }
           }
         },
-        "x-implementation-status": "not-implemented",
+        "x-implementation-status": "implemented-test-only",
         "x-required-scopes": [
           "operator:read"
         ]

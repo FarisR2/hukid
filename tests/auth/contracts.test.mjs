@@ -21,7 +21,7 @@ test('AUTH-T02 OpenAPI is valid and keeps browser and operator security separate
   assert.deepEqual(contract.paths['/console/auth/callback'].get.security, [{oidcTransaction:[]}]);
   assert.ok(contract.paths['/console/auth/callback'].get.parameters.find(p => p.name === 'iss' && p.required));
   for (const {route, method, op} of operations) {
-    assert.equal(op['x-implementation-status'], ['/console/auth/login','/console/auth/callback'].includes(route) ? 'implemented-test-only' : 'not-implemented');
+    assert.equal(op['x-implementation-status'], ['/console/auth/login','/console/auth/callback','/console/api/me','/v1/operator/me','/v1/operator/tenants/{tenantId}/context'].includes(route) ? 'implemented-test-only' : 'not-implemented');
     if (route.startsWith('/v1/')) {
       assert.deepEqual(op.security, [{operatorBearer:[]}]);
       assert.deepEqual(op['x-required-scopes'], ['operator:read']);

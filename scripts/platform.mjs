@@ -7,7 +7,7 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 const platform = path.join(root, 'src', 'platform');
 const localGo = path.join(root, '.cache', 'toolchains', 'go1.27.3', 'go', 'bin', 'go.exe');
 const executable = process.env.HUKID_GO || (process.platform === 'win32' && existsSync(localGo) ? localGo : 'go');
-const env = { ...process.env, GOTOOLCHAIN: 'local', GOCACHE: path.join(root, '.cache', 'go-build') };
+const env = { ...process.env, GOTOOLCHAIN: 'local', GOCACHE: path.join(root, '.cache', 'go-build'), GOMODCACHE: path.join(root, '.cache', 'go-mod') };
 
 function run(args, capture = false, tool = executable) {
   const result = spawnSync(tool, args, {
@@ -25,8 +25,8 @@ function run(args, capture = false, tool = executable) {
 }
 
 const command = process.argv[2];
-if (!['dev', 'check', 'build'].includes(command)) {
-  console.error('Uso: node scripts/platform.mjs dev|check|build');
+if (!['dev', 'check', 'build', 'test:postgres', 'migrate:test', 'bootstrap:test'].includes(command)) {
+  console.error('Uso: node scripts/platform.mjs dev|check|build|test:postgres|migrate:test|bootstrap:test');
   process.exit(1);
 }
 const version = run(['version'], true).trim();
@@ -36,6 +36,9 @@ if (!/^go version go1\.27\.3\s/.test(version)) {
 }
 
 if (command === 'dev') run(['run', './cmd/api']);
+if (command === 'migrate:test') run(['run', './cmd/testdb', 'migrate']);
+if (command === 'bootstrap:test') run(['run', './cmd/testdb', 'bootstrap']);
+if (command === 'test:postgres') run(['test', '-tags=integration', '-count=1', '-timeout=120s', './internal/adapters/postgres']);
 if (command === 'check') {
   const goroot = run(['env', 'GOROOT'], true).trim();
   const gofmt = path.join(goroot, 'bin', process.platform === 'win32' ? 'gofmt.exe' : 'gofmt');

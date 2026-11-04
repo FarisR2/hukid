@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"hukid.local/platform/internal/authentication"
 	"hukid.local/platform/internal/bootstrap"
 )
 
@@ -20,7 +21,28 @@ func main() {
 	}
 }
 
+func validateAuthConfiguration() error {
+	policyPath := os.Getenv("HUKID_AUTH_POLICY")
+	environment := os.Getenv("HUKID_ENV")
+	if policyPath == "" && environment == "" {
+		return nil // Liveness-only bootstrap; no authentication routes exist.
+	}
+	if policyPath == "" {
+		return errors.New("HUKID_AUTH_POLICY is required when HUKID_ENV is set")
+	}
+	file, err := os.Open(policyPath)
+	if err != nil {
+		return errors.New("cannot open auth policy")
+	}
+	defer file.Close()
+	_, err = authentication.LoadPolicy(file, environment)
+	return err
+}
+
 func run() error {
+	if err := validateAuthConfiguration(); err != nil {
+		return err
+	}
 	address, err := bootstrap.ListenAddress(os.Getenv("HUKID_LISTEN_ADDR"))
 	if err != nil {
 		return err

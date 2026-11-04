@@ -1,6 +1,6 @@
 # Plataforma de eventos y HukID
 
-Este repositorio reúne la especificación de Events y del producto independiente HukID, junto con el bootstrap local AUTH-T01 de Platform y consola. Ese bootstrap no implementa autenticación ni acredita interoperabilidad; el resto del producto sigue descrito como trabajo por construir.
+Este repositorio reúne la especificación de Events y del producto independiente HukID, el bootstrap local AUTH-T01 y la baseline contractual AUTH-T02 con IdP de laboratorio. No implementa login integrado ni acredita interoperabilidad; el resto del producto sigue descrito como trabajo por construir.
 
 ## Documentación
 
@@ -12,7 +12,8 @@ Este repositorio reúne la especificación de Events y del producto independient
 | Ingeniería | [Código](docs/04-engineering/coding-standards.md), [seguridad](docs/04-engineering/security.md), [pruebas](docs/04-engineering/testing-strategy.md) |
 | Entrega | [Plan](docs/05-delivery/implementation-plan.md), [Definition of Done](docs/05-delivery/definition-of-done.md) |
 | Features de consola HukID | [Índice y orden de implementación](docs/features/README.md): autenticación, gestión de miembros y dashboard, con spec/plan/tasks. |
-| Decisiones | [ADR-0001](docs/decisions/ADR-0001.md), [ADR-0002 — propuesta de consola](docs/decisions/ADR-0002.md) |
+| Contrato de autenticación de consola | [Baseline AUTH-T02 y límites del laboratorio](docs/03-design/console-auth-contract.md) |
+| Decisiones | [ADR-0001](docs/decisions/ADR-0001.md), [ADR-0002 — propuesta de consola](docs/decisions/ADR-0002.md), [ADR-0003 — laboratorio AUTH-T02](docs/decisions/ADR-0003.md) |
 
 Para Team 5, leer además el [perfil HukID v0.1-draft](docs/03-design/hukid-profile.md), los [contratos HukID](docs/03-design/hukid-api-contracts.md) y el [modelo PostgreSQL](docs/03-design/hukid-data-model.md).
 

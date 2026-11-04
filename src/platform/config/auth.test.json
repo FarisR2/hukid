@@ -1,0 +1,23 @@
+{
+  "environment": "test",
+  "issuer": "http://127.0.0.1:19090",
+  "clientId": "hukid-console-test",
+  "audience": "https://api.hukid.pe/operator",
+  "consoleOrigin": "http://127.0.0.1:8080",
+  "redirectUri": "http://127.0.0.1:8080/console/auth/callback",
+  "cookieName": "hukid_test_session",
+  "cookieSecure": false,
+  "cookieSameSite": "Lax",
+  "clockSkewSeconds": 30,
+  "accessTokenSeconds": 300,
+  "sessionIdleSeconds": 1800,
+  "sessionAbsoluteSeconds": 28800,
+  "transactionSeconds": 300,
+  "refreshTokenSeconds": 28800,
+  "stepUpSeconds": 300,
+  "loginRateLimit": { "windowSeconds": 60, "maxAttempts": 10 },
+  "requiredAmr": ["pwd", "otp"],
+  "acceptedAcr": ["urn:hukid:test:mfa"],
+  "allowedReturnTo": ["/"],
+  "scopes": ["openid", "offline_access", "operator:read"]
+}

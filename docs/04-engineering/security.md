@@ -21,7 +21,7 @@ El perfil fija ES256 para VC/VP/proof, SHA-256 para digests, AES-256-GCM para re
 
 Claves issuer en KMS/HSM no exportable; holder keys en dispositivo. Separar claves de VC, access token y webhook. Contextos/JWKS resuelven sólo por ubicaciones autorizadas; limitar fetchers contra SSRF y cambios de contexto.
 
-No almacenar códigos/tokens recuperables ni registrar claims/VC/VP completos. Aplicar retención por tipo, legal hold y crypto-shredding compatible con reconciliación/evidencia. La política institucional debe ratificar los defaults.
+No almacenar códigos/tokens en claro ni registrar claims/VC/VP completos. Los secretos que sólo se verifican se guardan como hash; el BFF necesita recuperar PKCE y access/refresh tokens, por lo que usa envelopes cifrados de vida limitada según el [modelo de sesión](../03-design/console-auth-contract.md#modelo-lógico-de-sesión-para-auth-t03t06). Esta precisión frente a la prohibición general de material recuperable se registra en [pendientes](../05-delivery/documentation-gaps.md) y ADR-0003, sin cambiar las reglas de ofertas. Aplicar retención por tipo, legal hold y crypto-shredding compatible con reconciliación/evidencia. La política institucional debe ratificar los defaults.
 
 ## Entrega, consentimiento y estado
 

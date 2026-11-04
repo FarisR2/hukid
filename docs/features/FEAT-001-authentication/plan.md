@@ -4,7 +4,7 @@ Referencia: [spec](spec.md), [tareas](tasks.md), [decisión propuesta](../../dec
 
 ## Evidencia y decisiones
 
-AUTH-T01 incorpora bootstrap Go y entry point React/TypeScript con Vite; ver [desarrollo local](../../04-engineering/local-development.md). El owner acordó `src/platform` y `src/console`. IdP, contratos de autenticación y migraciones siguen pendientes. El BFF del mismo origen conserva su estado propuesto hasta AUTH-T02; no se heredan sesiones/claims de Events.
+AUTH-T01 incorpora bootstrap Go y entry point React/TypeScript con Vite; ver [desarrollo local](../../04-engineering/local-development.md). El owner acordó `src/platform` y `src/console`. AUTH-T02 añade [contrato ejecutable y política de laboratorio](../../03-design/console-auth-contract.md), IdP OIDC de pruebas y reglas de política Go según [ADR-0003](../../decisions/ADR-0003.md). Los handlers y migraciones siguen pendientes; no se heredan sesiones/claims de Events.
 
 El BFF guarda tokens en servidor y llama a Management con access token operator. Management sigue exigiendo Bearer: no se modifica para aceptar la cookie del navegador. Si se ejecutan en el mismo proceso, el adaptador conserva idénticas validaciones de token/actor y los límites de aplicación.
 
@@ -14,7 +14,7 @@ El BFF guarda tokens en servidor y llama a Management con access token operator.
 | --- | --- |
 | platform/cmd/api | Bootstrap local existente; routing BFF/API pendiente de contrato. |
 | platform/internal/bootstrap | Liveness y validación loopback existentes. |
-| platform/internal/authentication | Futuro: casos de uso de sesión, transacciones OIDC y reloj/políticas. |
+| platform/internal/authentication | Loader/reglas temporales de política existentes; casos de uso de sesión y transacciones OIDC futuros. |
 | platform/internal/tenancy | Futuro: actor, membership, tenant y capacidades; registro mínimo antes de FEAT-002. |
 | platform/internal/adapters/oidc | Futuro: discovery allowlisted, intercambio y verificación de tokens. |
 | platform/internal/adapters/privateapi | Futuro: middleware operator y /me, sin acoplar DTO al dominio. |
@@ -22,11 +22,11 @@ El BFF guarda tokens en servidor y llama a Management con access token operator.
 | platform/internal/adapters/postgres | Futuro: repositorios, transacciones y RLS. |
 | console/src/authentication | Futuro: login/retorno, selector, guards y recuperación de sesión. |
 
-Sólo existen el entry point de consola y los componentes indicados como existentes. Los demás módulos se crean al implementar su tarea. No crear módulos de emisión ni wallet para demostrar login.
+Existen el entry point de consola, bootstrap, contratos/configuración y reglas de política indicados. Los demás módulos se crean al implementar su tarea. El fixture IdP reside en tests y no forma parte de Platform. No crear módulos de emisión ni wallet para demostrar login.
 
-## Contratos nuevos propuestos
+## Contratos nuevos de consola
 
-Se materializan en OpenAPI owner-specific durante AUTH-T02; no son rutas existentes ni los endpoints /auth de Events.
+AUTH-T02 los materializa en [OpenAPI propio](../../../src/platform/contracts/console-auth.openapi.json), con política/semántica en el contrato de consola. La siguiente tabla conserva el inventario; el OpenAPI es la fuente de schemas y errores. Ningún handler está implementado; no son los endpoints /auth de Events.
 
 | Ruta | Entrada / efecto | Seguridad |
 | --- | --- | --- |
@@ -44,7 +44,7 @@ activeTenantId se obtiene de la sesión validada para navegador. El BFF consulta
 
 ## Datos y migraciones
 
-Crear migraciones nuevas tras contrastar el modelo canónico ausente. Tablas lógicas propuestas: tenancy.operator_identities, tenants, memberships y membership_roles; autenticación añade sesiones/familias y transacciones OIDC en schema privado con rol separado. Los nombres finales se fijan en AUTH-T02; no se declara que sean el DDL original.
+Crear migraciones nuevas contrastadas con el modelo HukID Markdown disponible; el DDL original sigue ausente. AUTH-T02 fija los nombres y registros lógicos en el [modelo de sesión](../../03-design/console-auth-contract.md#modelo-lógico-de-sesión-para-auth-t03t06): tenancy.operator_identities/tenants/memberships/membership_roles y console_auth.oidc_transactions/session_families/sessions. AUTH-T03 materializa constraints, RLS y migraciones; no se declara que sean el DDL original.
 
 Identidad estable única por issuer/subject; membership única por tenant/identidad. El selector sólo lista memberships autorizadas usando consulta privilegiada mínima por identidad autenticada, sin desactivar RLS globalmente. Las lecturas tenant-scoped usan SET LOCAL y runtime no propietario/NOBYPASSRLS. Separar repositorio de sesiones y descubrimiento de contexto del repositorio normal tenant-scoped.
 
@@ -62,7 +62,7 @@ Bootstrap local crea dos tenants y operadores sintéticos, con secreto externo a
 
 ## Verificación y rollout
 
-AUTH-T01 documenta comandos reales de formato, vet, pruebas Go, typecheck y build en desarrollo local. Los futuros tests de dominio con reloj falso, integración PostgreSQL/RLS, IdP y navegador requieren sus implementaciones; no se presentan como ejecutados por este bootstrap.
+AUTH-T01/T02 documentan comandos de formato, vet, pruebas Go de política/tiempo controlado, contrato, IdP de laboratorio, typecheck, build y smoke en desarrollo local. Los futuros tests de integración PostgreSQL/RLS, middleware Go, sesión concurrente y navegador requieren sus implementaciones; no se presentan como ejecutados por este bootstrap.
 
 Habilitar inicialmente a tenant sintético en entorno aislado. Un rollback revoca/deshabilita acceso a consola, conserva auditoría y usa migración forward; no borra tablas de sesión ni cambia comportamiento OID4VCI. No hay modificaciones destructivas previstas.
 

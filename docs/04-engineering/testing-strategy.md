@@ -2,6 +2,8 @@
 
 Documento de estrategia. AUTH-T01 incorpora pruebas Go del perímetro del bootstrap (dirección loopback, liveness, métodos y ausencia de rutas de autenticación), typecheck y builds; ver [desarrollo local](local-development.md). Las suites funcionales de las capas siguientes siguen pendientes: se derivan de criterios originales y deben aportar evidencia al release gate.
 
+AUTH-T02 añade pruebas de OpenAPI/ejemplos, política temporal/configuración Go y un AS OIDC de laboratorio con JWT operator/refresh firmados. La evidencia de MFA es sintética y no sustituye tests del futuro middleware, DB/RLS, sesión, factores reales o navegador. Alcance y matriz de escenarios en el [contrato de consola](../03-design/console-auth-contract.md#pruebas-y-cobertura-actual).
+
 | Capa / riesgo | Pruebas necesarias |
 | --- | --- |
 | Dominio | Estados permitidos/prohibidos, eligibility/versiones, expiración, grant/policy y definición inmutable. |

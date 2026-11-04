@@ -1,6 +1,8 @@
 # Desarrollo local de HukID
 
-Estado: bootstrap AUTH-T01. Hay un servidor local Go con liveness y un entry point React compilable. La consola aún no renderiza pantallas; login, IdP, BFF, Management, PostgreSQL y migraciones siguen pendientes de AUTH-T02 y tareas posteriores.
+Estado: AUTH-T01/T02 entregan bootstrap y baseline contractual de laboratorio. Hay un servidor local Go con liveness y un entry point React compilable. La consola aún no renderiza pantallas; handlers de login/BFF/Management, PostgreSQL y migraciones siguen pendientes de AUTH-T03 y tareas posteriores.
+
+Actualización AUTH-T02: existe [contrato y laboratorio OIDC](../03-design/console-auth-contract.md), con política test, matriz y reglas de política Go. El IdP sólo se inicia dentro de pruebas Node y simula MFA; no arranca con Platform. Los handlers de autenticación y las migraciones continúan pendientes.
 
 ## Estructura acordada
 
@@ -44,11 +46,11 @@ npm run build
 npm run smoke
 ```
 
-`check` verifica formato Go sin modificar archivos, ejecuta `go vet`, las pruebas Go sin caché de resultados, el typecheck TypeScript y la validación documental (enlaces/anclas locales inline, bloques de código y presencia de los nueve archivos de features). Los enlaces de referencia y la semántica de contratos/tareas requieren revisión adicional. Para corregir formato, ejecutar `go fmt ./...` desde `src/platform`. `build` genera `.cache/build/hukid-api` (o `.exe`) y `src/console/dist/`. No genera servicios de autenticación ni contratos.
+`check` verifica formato Go sin modificar archivos, ejecuta `go vet`, las pruebas Go sin caché de resultados, el typecheck TypeScript, `test:auth` y la validación documental (enlaces/anclas locales inline, bloques de código y presencia de los nueve archivos de features). Los enlaces de referencia y la semántica de contratos/tareas requieren revisión adicional. Para corregir formato, ejecutar `go fmt ./...` desde `src/platform`. `build` genera `.cache/build/hukid-api` (o `.exe`) y `src/console/dist/`. No genera handlers de autenticación.
 
-Los scripts usan rutas relativas al propio archivo y funcionan desde un checkout en otra ubicación. No requieren Docker para este incremento. Las pruebas de integración DB, contrato, IdP y navegador se incorporan con las tareas que implementen esos comportamientos; estos checks iniciales no prueban login ni aislamiento tenant.
+Los scripts usan rutas relativas al propio archivo y funcionan desde un checkout en otra ubicación. No requieren Docker para este incremento. Existen pruebas de contrato e IdP de laboratorio; DB/RLS y navegador se incorporan con sus implementaciones. Los checks actuales no prueban login integrado ni aislamiento tenant.
 
-`smoke` requiere el build previo: arranca temporalmente el binario Go en loopback:18080 y Vite preview en loopback:14173, comprueba HTTP 204/no-store, ausencia de login y disponibilidad del HTML/JS compilado, y termina sus procesos. Requiere esos puertos libres. Es una prueba HTTP, sin evaluación visual ni ejecución de navegador.
+`smoke` requiere el build previo: rechaza arranque con política productiva/incompleta, arranca temporalmente el binario Go con política test en loopback:18080 y Vite preview en loopback:14173, comprueba HTTP 204/no-store, ausencia de login y disponibilidad del HTML/JS compilado, y termina sus procesos. Requiere esos puertos libres. Es una prueba HTTP, sin evaluación visual ni ejecución de navegador.
 
 ## Arranque local
 
@@ -70,9 +72,21 @@ npm run dev:console
 
 ## Configuración e IdP
 
-Este bootstrap no acepta tokens, no almacena sesiones, no contiene credenciales, no carga `.env` automáticamente y no tiene modo productivo. Las rutas `/console/auth`, `/console/api` y `/v1/operator` no están implementadas. El endpoint operativo `/healthz` no sustituye el contrato OpenAPI de AUTH-T02.
+Este bootstrap no acepta tokens, no almacena sesiones, no contiene credenciales, no carga `.env` automáticamente y no tiene modo productivo. Las rutas `/console/auth`, `/console/api` y `/v1/operator` no están implementadas. El endpoint operativo `/healthz` no sustituye el OpenAPI de AUTH-T02.
 
-En AUTH-T02 se elegirá y configurará un IdP de pruebas aislado, con issuer/client/usuarios sintéticos propios, sin exportar claves ni secretos al repo. Se comprobarán token class/audience y `amr`/`acr`/`auth_time` antes de conectar el login. No existe fixture IdP en este incremento ni configuración de producción que pueda reutilizarlo por accidente. No se aprueban TTL/MFA, un proveedor productivo ni un bypass local de autenticación.
+AUTH-T02 configura un fixture `oidc-provider` en `tests/fixtures`, ligado a `127.0.0.1:19090` durante `npm run test:auth`. Requiere ese puerto libre. El runner establece explícitamente `NODE_ENV=test` y `HUKID_TEST_IDP=1`; el fixture rechaza flags productivos, genera claves y secreto de cliente en memoria y termina al finalizar. El cliente confidencial usa `client_secret_basic` con secreto efímero; esto no selecciona autenticación de cliente productiva. El fixture usa adapter en memoria y emite una advertencia esperada. Las interacciones automáticas del harness no autentican a personas ni comprueban OTP reales.
+
+Las dependencias nuevas son únicamente de desarrollo y están fijadas en package/lock: `oidc-provider` 9.13.3, `jose` 6.2.15, `@apidevtools/swagger-parser` 13.1.0, `ajv` 8.20.0 y `ajv-formats` 3.0.1. No forman parte del binario Go ni del bundle React. La selección de librería OIDC para Go corresponde a AUTH-T04.
+
+La validación previa al listener se puede ejecutar desde la raíz en PowerShell:
+
+```powershell
+$env:HUKID_ENV = 'test'
+$env:HUKID_AUTH_POLICY = (Resolve-Path src/platform/config/auth.test.json).Path
+npm run dev:platform
+```
+
+Esto valida la política y sólo arranca liveness; no conecta el IdP ni habilita login. Si se configura cualquiera de esas variables, ambas son obligatorias. Configuración inexistente, incoherente o entorno distinto de `test` falla antes de abrir el puerto. Sin ambas variables sigue disponible el bootstrap liveness-only. Para volver a ese modo en la misma terminal, usar `Remove-Item Env:HUKID_ENV,Env:HUKID_AUTH_POLICY -ErrorAction SilentlyContinue`. HTTP/Secure=false sólo se permite en este laboratorio loopback. Los TTL/MFA productivos siguen sin aprobarse.
 
 Decisiones y alcance: [ADR-0002](../decisions/ADR-0002.md), [FEAT-001](../features/FEAT-001-authentication/plan.md), [pendientes](../05-delivery/documentation-gaps.md).
 
@@ -88,3 +102,9 @@ Entorno: Windows x64, Node 24.22.1, npm 11.19.1, Go 1.27.3 portable con checksum
 | `npm run smoke` | Liveness 204/no-store, login ausente (404), HTML y JS compilado 200; procesos de prueba terminados. |
 
 La copia limpia valida el bootstrap de los archivos actuales, todavía sin commit; no es una ejecución CI remota. No se hicieron pruebas visuales, de navegador, OIDC/MFA, DB/RLS, carga ni conformidad. El entry point de React vacío sólo acredita compilación, sin flujo operativo. A0 y FEAT-001 siguen abiertos hasta sus siguientes tareas.
+
+## Evidencia AUTH-T02 — 2026-11-03
+
+En la rama `feature/hukid-console-bootstrap` se ejecutó `npm ci --ignore-scripts` con el lockfile actualizado y sin vulnerabilidades reportadas por npm en esa ejecución. `npm run check` aprobó formato/vet/pruebas Go, typecheck, nueve pruebas Node de contrato/IdP y validación documental. `npm run build` generó ambos artefactos. `npm run smoke` comprobó rechazo previo al listener de configuración productiva/incompleta, liveness con política test y disponibilidad del bundle. El smoke inicial tuvo un fallo puntual de espera del proceso; la ejecución final pasó con un timeout de diez segundos y diagnóstico de salida explícito.
+
+El laboratorio resuelve A0 sólo para desarrollo/pruebas: no acredita MFA real, handlers, DB/RLS, cookies/CSRF de navegador ni el flujo de login. El siguiente incremento es AUTH-T03. Los cambios AUTH-T02 están sin commit ni publicación; la autorización del commit anterior correspondía al bootstrap AUTH-T01.

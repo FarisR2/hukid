@@ -10,7 +10,7 @@
 
 ## Secuencia y primer incremento
 
-1. AUTH-T01 prepara el entorno y registra versiones/librerías; AUTH-T02 materializa el contrato y las políticas.
+1. AUTH-T01/T02 entregan entorno y baseline contractual de laboratorio con IdP sintético; ver [contrato y límites](../03-design/console-auth-contract.md). El siguiente trabajo es AUTH-T03 (migraciones mínimas).
 2. AUTH-T03–T08 permiten iniciar sesión con un operador/tenant sintéticos provisionados para desarrollo.
 3. USR-T01–T08 reemplazan el fixture por administración real de miembros; no habilitar autoalta de tenants.
 4. DASH-T01–T04 entregan el shell y resumen del tenant. DASH-T05 conecta métricas de otros módulos cuando existan.
@@ -29,7 +29,7 @@ La autenticación usa un registro mínimo de identidad/membership desde FEAT-001
 
 ## Dependencias y alcance
 
-Backend Go y PostgreSQL para Platform. AUTH-T01 materializa bootstrap Go y entry point React/TypeScript con Vite en `src/platform` y `src/console`, estructura acordada con el owner; ver [desarrollo local](../04-engineering/local-development.md). El BFF Go del mismo origen conserva su estado propuesto hasta validar contratos/políticas en AUTH-T02. No hay login ni pantalla funcional todavía.
+Backend Go y PostgreSQL para Platform. AUTH-T01 materializa bootstrap Go y entry point React/TypeScript con Vite en `src/platform` y `src/console`, estructura acordada con el owner; ver [desarrollo local](../04-engineering/local-development.md). AUTH-T02 materializa contratos/políticas y fixture IdP de laboratorio, con handlers BFF/Management aún pendientes. No hay login ni pantalla funcional todavía.
 
 No se requiere KMS de emisión, OID4VCI, una wallet instalada ni datos Events para el primer login y gestión de miembros. Sí se requiere IdP de pruebas, contratos de operador, persistencia tenant-scoped y auditoría. No bloquear estos paquetes esperando todos los artefactos del producto completo.
 

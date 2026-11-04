@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -28,7 +28,15 @@ function assert(condition, message) {
 }
 
 try {
-  start(binary, [], { ...process.env, HUKID_LISTEN_ADDR: '127.0.0.1:18080' });
+  const policyPath = path.join(root, 'src', 'platform', 'config', 'auth.test.json');
+  for (const env of [
+    { HUKID_ENV: 'production', HUKID_AUTH_POLICY: policyPath },
+    { HUKID_ENV: 'test', HUKID_AUTH_POLICY: '' },
+  ]) {
+    const rejected = spawnSync(binary, [], { cwd: root, env: { ...process.env, ...env }, encoding: 'utf8', timeout: 10000 });
+    assert(rejected.status === 1, `Unsafe auth configuration did not stop before listening (status=${rejected.status}, error=${rejected.error?.code || 'none'}, signal=${rejected.signal || 'none'})`);
+  }
+  start(binary, [], { ...process.env, HUKID_LISTEN_ADDR: '127.0.0.1:18080', HUKID_ENV: 'test', HUKID_AUTH_POLICY: policyPath });
   start(process.execPath, ['node_modules/vite/bin/vite.js', 'preview', 'src/console', '--host', '127.0.0.1', '--port', '14173', '--strictPort']);
   const health = await ready('http://127.0.0.1:18080/healthz');
   assert(health.status === 204 && health.headers.get('cache-control') === 'no-store', 'Invalid liveness');
@@ -40,7 +48,7 @@ try {
   assert(page.status === 200 && html.includes('lang="es"') && match, 'Invalid console build');
   const asset = await fetch(new URL(match[1], 'http://127.0.0.1:14173'));
   assert(asset.status === 200, 'Console asset unavailable');
-  console.log('HTTP smoke: compiled Go health 204/no-store; auth 404; built console HTML and JS 200.');
+  console.log('Smoke: invalid/production auth policy stops startup; valid test policy starts Go health 204/no-store; auth 404; console HTML and JS 200.');
 } finally {
   for (const child of children) child.kill();
 }

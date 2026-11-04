@@ -56,7 +56,7 @@ Owners: Team 4 y Team 5 coordinan el contrato de integración; cada equipo mater
 
 ## Foundation de consola documentada
 
-Los paquetes [FEAT-001/002/003](../features/README.md) añaden especificación, plan y tareas para la consola HukID confirmada por el usuario. BFF, rutas de operador, matriz detallada de miembros y dashboard son propuestas registradas en [ADR-0002](../decisions/ADR-0002.md), pendientes de validar/materializar en las tareas iniciales.
+Los paquetes [FEAT-001/002/003](../features/README.md) añaden especificación, plan y tareas para la consola HukID confirmada por el usuario. [ADR-0002](../decisions/ADR-0002.md) registra propuestas de BFF, operador, miembros y dashboard; AUTH-T02 materializa la parte contractual de autenticación en laboratorio según [ADR-0003](../decisions/ADR-0003.md). Los handlers, miembros y dashboard siguen pendientes de implementación.
 
 Para empezar AUTH-T01 no es necesario recuperar los ejemplos de emisión ni configurar KMS issuer. Para completar login integrado sí hacen falta IdP test compatible, políticas de sesión/MFA, contrato de operador y migraciones mínimas; miembros necesita policy de invitación/notificación. No marcar esos artefactos como disponibles por existir el plan.
 
@@ -65,3 +65,11 @@ Para empezar AUTH-T01 no es necesario recuperar los ejemplos de emisión ni conf
 Se incorpora bootstrap local Go y entry point React/TypeScript con Vite, con estructura `src/platform` y `src/console` acordada con el owner. Versiones, instalación, comandos y límites están en [desarrollo local](../04-engineering/local-development.md). Sólo existe liveness; no hay pantalla, login, proxy BFF, Management, migraciones ni IdP ejecutable. La instalación de Go usada para validación es portable y local a `.cache`; otro checkout requiere instalar el toolchain indicado. Docker no está disponible en el entorno inspeccionado y no se requiere para este bootstrap; no se han ejecutado pruebas DB, OIDC, MFA, E2E ni conformidad. El fixture IdP aislado y las políticas quedan expresamente en AUTH-T02, sin reutilizar producción.
 
 Fuentes: [gate histórico](reviews/correction-gate.md), [roadmap HukID](hukid-roadmap.md), [contratos](../03-design/api-contracts.md), [alcance](../01-product/scope.md).
+
+### Incremento AUTH-T02
+
+Existe un [contrato ejecutable nuevo de consola](../03-design/console-auth-contract.md), con OpenAPI, schemas, ejemplos, matriz, política test y fixture OIDC de biblioteca. Pruebas de contrato, tokens firmados y reglas temporales pasan en laboratorio. No recupera el OpenAPI histórico ni el DDL original; las referencias ausentes del inventario continúan ausentes.
+
+La evidencia `pwd`/`otp`/ACR del fixture es sintética: no prueba factores reales, email verificado, selección de proveedor productivo ni interoperabilidad VC. El backend sólo añade validación de configuración; no implementa handlers de login, store, RLS, CSRF HTTP o validación Bearer Go. No se han ejecutado pruebas DB, cookies en navegador ni MFA real. El siguiente incremento AUTH-T03 debe crear migraciones nuevas y demostrar aislamiento con dos tenants; PostgreSQL/Docker siguen sin provisionar en el entorno inspeccionado. AUTH-T04 debe seleccionar y probar la librería OIDC del backend Go; no se deriva una implementación propia de JWT desde los tests Node.
+
+Diferencia documentada: el resumen de seguridad decía «No almacenar códigos/tokens recuperables», mientras FEAT-001 exigía tokens y verifier cifrados recuperables por el BFF. La prohibición literal impediría PKCE y refresh. ADR-0003 precisa el alcance: nunca material en claro; hashes cuando basta verificar, y envelope cifrado/temporal cuando el protocolo exige recuperar. No se altera la política de ofertas ni se pretende recuperar secretos desde hashes.

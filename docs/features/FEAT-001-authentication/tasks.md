@@ -1,11 +1,11 @@
 # FEAT-001 — Tareas
 
-Estado: AUTH-T01 completada para bootstrap/toolchain; AUTH-T02–T10 pendientes. Owner: Team 5; backend/seguridad, consola y plataforma coordinan contratos y migraciones. El gate A0 todavía requiere AUTH-T02.
+Estado: AUTH-T01/T02 completadas para bootstrap y laboratorio contractual; AUTH-T03–T10 pendientes. Owner: Team 5; backend/seguridad, consola y plataforma coordinan contratos y migraciones. A0 dispone de evidencia de laboratorio; no acredita login integrado ni producción.
 
 | Estado / ID | Objetivo y artefacto | Depende de | Componentes | Aceptación / verificación | Riesgo |
 | --- | --- | --- | --- | --- | --- |
-| [x] AUTH-T01 | Bootstrap reproducible de backend Go y consola propuesta; elegir versiones/librerías y registrar comandos/decisiones. | Ninguna | src/platform, src/console, checks locales, ADR-0002 | Copia limpia ejecuta checks/build documentados; sin secretos ni configuración productiva. El fixture IdP aislado se materializa y valida en AUTH-T02, antes de conectar autenticación. | Elección de toolchain; IdP aún pendiente en AUTH-T02. |
-| [ ] AUTH-T02 | Materializar OpenAPI BFF/Management, modelo de sesión, matriz de capacidades y política validada de TTL/MFA. | AUTH-T01 | Contratos, configuración, ADR-0002 | Schemas/ejemplos positivos y errores validan; IdP test emite operator conforme al perfil; decisiones pendientes quedan resueltas para entorno test. | Compatibilidad IdP. |
+| [x] AUTH-T01 | Bootstrap reproducible de backend Go y consola propuesta; elegir versiones/librerías y registrar comandos/decisiones. | Ninguna | src/platform, src/console, checks locales, ADR-0002 | Copia limpia ejecuta checks/build documentados; sin secretos ni configuración productiva. El fixture IdP aislado se materializó y validó en AUTH-T02, antes de conectar autenticación. | Toolchain local; proveedor productivo aún pendiente. |
+| [x] AUTH-T02 | Materializar OpenAPI BFF/Management, modelo de sesión, matriz de capacidades y política validada de TTL/MFA. | AUTH-T01 | Contratos, configuración, authentication/policy, fixture OIDC, ADR-0003 | OpenAPI/schemas/ejemplos y negativos validados; intercambio Code/PKCE con JWT operator y MFA sintética, refresh/reuse y límites de política probados. Decisiones resueltas sólo para laboratorio. | IdP/factores productivos aún no seleccionados; handlers pendientes. |
 | [ ] AUTH-T03 | Crear migraciones mínimas tenant/identidad/membership/sesión y bootstrap sintético restringido. | AUTH-T02 | Tenancy, Postgres, audit | Base vacía/previa migra; dos tenants aislados; pool no retiene tenant; bootstrap no es endpoint público. | RLS/provisioning. |
 | [ ] AUTH-T04 | Implementar puertos OIDC y callback de un uso con validación completa. | AUTH-T02, AUTH-T03 | Authentication, adapter OIDC/BFF | AC01/02: retorno inseguro, replay, state/nonce/issuer inválidos rechazados con tests de contrato. | Robo de sesión. |
 | [ ] AUTH-T05 | Implementar middleware operator y contexto tenant/capacidades con /me. | AUTH-T03, AUTH-T04 | Private API, tenancy, /me | AC03/06/07/09: token de otra clase falla; tenant ajeno no carga; suspensión bloquea siguiente petición; consulta mínima sin tenant no enumera terceros. | Confusión de autoridad. |
@@ -20,6 +20,10 @@ Estado: AUTH-T01 completada para bootstrap/toolchain; AUTH-T02–T10 pendientes.
 El owner acordó `src/platform` y `src/console`. Se ejecutaron instalación desde lockfile (`npm ci --ignore-scripts`), formato Go, `go vet`, pruebas Go, typecheck, builds y smoke HTTP del binario/HTML/JS. Versiones, comandos reproducibles y límites se mantienen en [desarrollo local](../../04-engineering/local-development.md). No se ejecutaron OIDC/MFA, DB/RLS, navegador ni conformidad. No hay pantalla de login.
 
 Precisión de alcance: la separación de fixtures respecto de producción sigue siendo obligatoria. Como todavía no existe IdP, su fixture ejecutable se concentra en AUTH-T02 junto con las políticas y el contrato de operador; no se introduce un emisor simulado ni un bypass para cerrar AUTH-T01. Este ajuste no completa A0 ni acredita los requisitos funcionales de autenticación.
+
+## Evidencia AUTH-T02 — 2026-11-03
+
+Fuente de detalle: [contrato de consola](../../03-design/console-auth-contract.md) y [ADR-0003](../../decisions/ADR-0003.md). `npm run test:auth` ejecuta nueve pruebas de contrato/IdP con escenarios positivos y negativos; `npm run check:platform` prueba política/configuración/boundaries. Los tests verifican tokens emitidos por un AS de biblioteca con claves efímeras y el rechazo del fixture en producción; no implementan middleware Go ni prueban factores reales, DB/RLS, CSRF HTTP, cookies, sesiones concurrentes o UI. El siguiente trabajo es AUTH-T03.
 
 ## Cobertura requisito → aceptación → tarea
 

@@ -1,7 +1,7 @@
 # FEAT-001 — Autenticación de operadores
 
 - Producto: HukID Console / Team 5.
-- Estado: especificación inicial para implementación; contratos nuevos propuestos.
+- Estado: AUTH-T01/T02 materializan bootstrap y baseline contractual de laboratorio; login y handlers aún pendientes.
 - Dependencias: IdP OIDC, tenant/membership mínimo, PostgreSQL y auditoría.
 - Salidas: [plan](plan.md), [tareas](tasks.md).
 
@@ -65,4 +65,4 @@ Propuesta mínima: identidad por (oidc_issuer, subject), tenants, memberships y 
 | [HK-001/005](../../02-requirements/backlogs/team-5-hukid.md) y [fase 1](../../05-delivery/hukid-roadmap.md) | Foundation tenant, miembros y evidencias. |
 | [ADR-0002](../../decisions/ADR-0002.md) | BFF, rutas, organización de código y políticas pendientes de validación. |
 
-AUTH-T01/T02 deben fijar proveedor de prueba, soporte amr/acr/auth_time, scopes de operador, TTL y contrato ejecutable. El diseño y tests aislados pueden comenzar antes; login integrado y producción requieren esas salidas.
+AUTH-T02 fija proveedor/claims/scopes/TTL para laboratorio en el [contrato de consola](../../03-design/console-auth-contract.md) y [ADR-0003](../../decisions/ADR-0003.md). `/me` puede devolver un synchronizer token de CSRF, sin access/refresh token ni autoridad desde el navegador. El claim privado `hukid_grant` fija procedencia humana en la consola; no redefine otras clases del perfil. La evidencia MFA del fixture es sintética; login integrado y producción requieren sus tareas, factores y validaciones adicionales.

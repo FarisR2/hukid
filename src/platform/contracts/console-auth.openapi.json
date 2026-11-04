@@ -1,0 +1,2588 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "HukID Console BFF and Operator — AUTH-T02",
+    "version": "0.1.0-draft",
+    "description": "New console-owned contract, not the missing historical HukID OpenAPI. Executable schema baseline for isolated tests; no handlers or production interoperability are claimed. camelCase HTTP fields. Tenant authority comes from active local memberships, never browser role/tenant claims. Do not send console cookies to Management. CSRF is a synchronizer token, not an access token."
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:8080",
+      "description": "Loopback test profile only"
+    }
+  ],
+  "security": [],
+  "paths": {
+    "/console/auth/login": {
+      "get": {
+        "operationId": "startLogin",
+        "summary": "Iniciar OIDC Code + S256 PKCE",
+        "description": "AUTH-T02 contract only; handler is not implemented. All responses are no-store and correlated; codes/cookies/tokens must not be logged.",
+        "security": [],
+        "parameters": [
+          {
+            "name": "returnTo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "/"
+              ],
+              "default": "/"
+            }
+          }
+        ],
+        "responses": {
+          "303": {
+            "description": "Redirección controlada",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "Referrer-Policy": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              },
+              "Location": {
+                "required": true,
+                "description": "Configured IdP authorization URL or exact allowlisted internal returnTo only; never arbitrary request input.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Set-Cookie": {
+                "description": "Opaque session/transaction cookies only. HttpOnly; SameSite=Lax; no Domain. This test profile permits HTTP loopback; production cookie policy is not approved.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "Referrer-Policy": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                },
+                "example": {
+                  "type": "about:blank",
+                  "title": "Solicitud inválida",
+                  "status": 400,
+                  "code": "invalid_request",
+                  "correlationId": "correlation-test-a"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Demasiados intentos",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "Referrer-Policy": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              },
+              "Retry-After": {
+                "required": true,
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                },
+                "example": {
+                  "type": "about:blank",
+                  "title": "Demasiados intentos",
+                  "status": 429,
+                  "code": "rate_limited",
+                  "correlationId": "correlation-test-a"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependencia no disponible",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "Referrer-Policy": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              },
+              "Retry-After": {
+                "required": true,
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                },
+                "example": {
+                  "type": "about:blank",
+                  "title": "Dependencia no disponible",
+                  "status": 503,
+                  "code": "dependency_unavailable",
+                  "correlationId": "correlation-test-a"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "not-implemented"
+      }
+    },
+    "/console/auth/callback": {
+      "get": {
+        "operationId": "completeLogin",
+        "summary": "Consumir transacción OIDC una vez",
+        "description": "AUTH-T02 contract only; handler is not implemented. All responses are no-store and correlated; codes/cookies/tokens must not be logged. Exactly one of code or error is required together with state and the HttpOnly transaction binding cookie. Reject duplicate parameters, invalid state/nonce/issuer/PKCE/replay. OAuth error_description is never reflected or logged. A valid ID token establishes identity only; Management requires its own access token.",
+        "security": [{ "oidcTransaction": [] }],
+        "parameters": [
+          {
+            "name": "code",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2048
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2048
+            }
+          },
+          {
+            "name": "error",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2048
+            }
+          },
+          {
+            "name": "iss",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string", "const": "http://127.0.0.1:19090" },
+            "description": "Exact issuer from the bound test transaction; the test IdP advertises RFC 9207 authorization response issuer identification."
+          }
+        ],
+        "responses": {
+          "303": {
+            "description": "Redirección controlada",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "Referrer-Policy": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              },
+              "Location": {
+                "required": true,
+                "description": "Configured IdP authorization URL or exact allowlisted internal returnTo only; never arbitrary request input.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Set-Cookie": {
+                "description": "Opaque session/transaction cookies only. HttpOnly; SameSite=Lax; no Domain. This test profile permits HTTP loopback; production cookie policy is not approved.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "Referrer-Policy": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                },
+                "example": {
+                  "type": "about:blank",
+                  "title": "Solicitud inválida",
+                  "status": 400,
+                  "code": "invalid_request",
+                  "correlationId": "correlation-test-a"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Demasiados intentos",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "Referrer-Policy": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              },
+              "Retry-After": {
+                "required": true,
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                },
+                "example": {
+                  "type": "about:blank",
+                  "title": "Demasiados intentos",
+                  "status": 429,
+                  "code": "rate_limited",
+                  "correlationId": "correlation-test-a"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependencia no disponible",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "Referrer-Policy": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              },
+              "Retry-After": {
+                "required": true,
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                },
+                "example": {
+                  "type": "about:blank",
+                  "title": "Dependencia no disponible",
+                  "status": 503,
+                  "code": "dependency_unavailable",
+                  "correlationId": "correlation-test-a"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "not-implemented"
+      }
+    },
+    "/console/auth/refresh": {
+      "post": {
+        "operationId": "refreshSession",
+        "summary": "Renovar familia coordinada de sesión",
+        "description": "AUTH-T02 contract only; handler is not implemented. All responses are no-store and correlated; codes/cookies/tokens must not be logged.",
+        "security": [
+          {
+            "consoleSession": [],
+            "csrfToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            },
+            "description": "Must exactly equal configured consoleOrigin; reject missing/null/foreign values before side effects."
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Comando completado",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "Referrer-Policy": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              },
+              "Set-Cookie": {
+                "description": "Opaque session/transaction cookies only. HttpOnly; SameSite=Lax; no Domain. This test profile permits HTTP loopback; production cookie policy is not approved.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Autenticación requerida",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "Referrer-Policy": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              },
+              "WWW-Authenticate": {
+                "required": false,
+                "schema": {
+                  "type": "string",
+                  "example": "Bearer error=\"invalid_token\""
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                },
+                "example": {
+                  "type": "about:blank",
+                  "title": "Autenticación requerida",
+                  "status": 401,
+                  "code": "invalid_session",
+                  "correlationId": "correlation-test-a"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Acceso denegado",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "Referrer-Policy": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                },
+                "example": {
+                  "type": "about:blank",
+                  "title": "Acceso denegado",
+                  "status": 403,
+                  "code": "mfa_required",
+                  "correlationId": "correlation-test-a"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Renovación en curso",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "Referrer-Policy": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              },
+              "Retry-After": {
+                "required": true,
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                },
+                "example": {
+                  "type": "about:blank",
+                  "title": "Renovación en curso",
+                  "status": 409,
+                  "code": "refresh_in_progress",
+                  "correlationId": "correlation-test-a"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Demasiados intentos",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "Referrer-Policy": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              },
+              "Retry-After": {
+                "required": true,
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                },
+                "example": {
+                  "type": "about:blank",
+                  "title": "Demasiados intentos",
+                  "status": 429,
+                  "code": "rate_limited",
+                  "correlationId": "correlation-test-a"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependencia no disponible",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "Referrer-Policy": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              },
+              "Retry-After": {
+                "required": true,
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                },
+                "example": {
+                  "type": "about:blank",
+                  "title": "Dependencia no disponible",
+                  "status": 503,
+                  "code": "dependency_unavailable",
+                  "correlationId": "correlation-test-a"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "not-implemented"
+      }
+    },
+    "/console/auth/logout": {
+      "post": {
+        "operationId": "logout",
+        "summary": "Invalidar sesión local",
+        "description": "AUTH-T02 contract only; handler is not implemented. All responses are no-store and correlated; codes/cookies/tokens must not be logged. Requires same-origin and a session-bound CSRF proof. An already invalidated family returns 204 for authenticated retries while its CSRF tombstone is retained until the original absolute expiry; an absent/unverifiable proof returns 403 without side effects. A tombstone never authorizes protected reads. IdP outage cannot prevent local invalidation. No idempotency header for session commands.",
+        "security": [
+          {
+            "consoleSession": [],
+            "csrfToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            },
+            "description": "Must exactly equal configured consoleOrigin; reject missing/null/foreign values before side effects."
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Comando completado",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "Referrer-Policy": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              },
+              "Set-Cookie": {
+                "description": "Opaque session/transaction cookies only. HttpOnly; SameSite=Lax; no Domain. This test profile permits HTTP loopback; production cookie policy is not approved.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Acceso denegado",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "Referrer-Policy": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                },
+                "example": {
+                  "type": "about:blank",
+                  "title": "Acceso denegado",
+                  "status": 403,
+                  "code": "mfa_required",
+                  "correlationId": "correlation-test-a"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Demasiados intentos",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "Referrer-Policy": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              },
+              "Retry-After": {
+                "required": true,
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                },
+                "example": {
+                  "type": "about:blank",
+                  "title": "Demasiados intentos",
+                  "status": 429,
+                  "code": "rate_limited",
+                  "correlationId": "correlation-test-a"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "not-implemented"
+      }
+    },
+    "/console/auth/step-up": {
+      "post": {
+        "operationId": "stepUp",
+        "summary": "Solicitar reautenticación MFA reciente",
+        "description": "AUTH-T02 contract only; handler is not implemented. All responses are no-store and correlated; codes/cookies/tokens must not be logged.",
+        "security": [
+          {
+            "consoleSession": [],
+            "csrfToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            },
+            "description": "Must exactly equal configured consoleOrigin; reject missing/null/foreign values before side effects."
+          }
+        ],
+        "responses": {
+          "303": {
+            "description": "Redirección controlada",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "Referrer-Policy": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              },
+              "Location": {
+                "required": true,
+                "description": "Configured IdP authorization URL or exact allowlisted internal returnTo only; never arbitrary request input.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Set-Cookie": {
+                "description": "Opaque session/transaction cookies only. HttpOnly; SameSite=Lax; no Domain. This test profile permits HTTP loopback; production cookie policy is not approved.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "Referrer-Policy": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                },
+                "example": {
+                  "type": "about:blank",
+                  "title": "Solicitud inválida",
+                  "status": 400,
+                  "code": "invalid_request",
+                  "correlationId": "correlation-test-a"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Autenticación requerida",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "Referrer-Policy": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              },
+              "WWW-Authenticate": {
+                "required": false,
+                "schema": {
+                  "type": "string",
+                  "example": "Bearer error=\"invalid_token\""
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                },
+                "example": {
+                  "type": "about:blank",
+                  "title": "Autenticación requerida",
+                  "status": 401,
+                  "code": "invalid_session",
+                  "correlationId": "correlation-test-a"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Acceso denegado",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "Referrer-Policy": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                },
+                "example": {
+                  "type": "about:blank",
+                  "title": "Acceso denegado",
+                  "status": 403,
+                  "code": "mfa_required",
+                  "correlationId": "correlation-test-a"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Demasiados intentos",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "Referrer-Policy": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              },
+              "Retry-After": {
+                "required": true,
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                },
+                "example": {
+                  "type": "about:blank",
+                  "title": "Demasiados intentos",
+                  "status": 429,
+                  "code": "rate_limited",
+                  "correlationId": "correlation-test-a"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependencia no disponible",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "Referrer-Policy": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              },
+              "Retry-After": {
+                "required": true,
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                },
+                "example": {
+                  "type": "about:blank",
+                  "title": "Dependencia no disponible",
+                  "status": 503,
+                  "code": "dependency_unavailable",
+                  "correlationId": "correlation-test-a"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "not-implemented",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StepUp"
+              },
+              "example": {
+                "returnTo": "/"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/console/auth/tenant-context": {
+      "post": {
+        "operationId": "selectTenant",
+        "summary": "Seleccionar membership activa y rotar contexto",
+        "description": "AUTH-T02 contract only; handler is not implemented. All responses are no-store and correlated; codes/cookies/tokens must not be logged.",
+        "security": [
+          {
+            "consoleSession": [],
+            "csrfToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            },
+            "description": "Must exactly equal configured consoleOrigin; reject missing/null/foreign values before side effects."
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Comando completado",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "Referrer-Policy": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              },
+              "Set-Cookie": {
+                "description": "Opaque session/transaction cookies only. HttpOnly; SameSite=Lax; no Domain. This test profile permits HTTP loopback; production cookie policy is not approved.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Autenticación requerida",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "Referrer-Policy": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              },
+              "WWW-Authenticate": {
+                "required": false,
+                "schema": {
+                  "type": "string",
+                  "example": "Bearer error=\"invalid_token\""
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                },
+                "example": {
+                  "type": "about:blank",
+                  "title": "Autenticación requerida",
+                  "status": 401,
+                  "code": "invalid_session",
+                  "correlationId": "correlation-test-a"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Acceso denegado",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "Referrer-Policy": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                },
+                "example": {
+                  "type": "about:blank",
+                  "title": "Acceso denegado",
+                  "status": 403,
+                  "code": "mfa_required",
+                  "correlationId": "correlation-test-a"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso no encontrado",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "Referrer-Policy": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                },
+                "example": {
+                  "type": "about:blank",
+                  "title": "Recurso no encontrado",
+                  "status": 404,
+                  "code": "tenant_not_found",
+                  "correlationId": "correlation-test-a"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Datos inválidos",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "Referrer-Policy": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                },
+                "example": {
+                  "type": "about:blank",
+                  "title": "Datos inválidos",
+                  "status": 422,
+                  "code": "invalid_input",
+                  "correlationId": "correlation-test-a"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Demasiados intentos",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "Referrer-Policy": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              },
+              "Retry-After": {
+                "required": true,
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                },
+                "example": {
+                  "type": "about:blank",
+                  "title": "Demasiados intentos",
+                  "status": 429,
+                  "code": "rate_limited",
+                  "correlationId": "correlation-test-a"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependencia no disponible",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "Referrer-Policy": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              },
+              "Retry-After": {
+                "required": true,
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                },
+                "example": {
+                  "type": "about:blank",
+                  "title": "Dependencia no disponible",
+                  "status": 503,
+                  "code": "dependency_unavailable",
+                  "correlationId": "correlation-test-a"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "not-implemented",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TenantSelection"
+              },
+              "example": {
+                "tenantId": "tenant-test-a"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/console/api/me": {
+      "get": {
+        "operationId": "consoleMe",
+        "summary": "Componer identidad y contexto de la sesión",
+        "description": "AUTH-T02 contract only; handler is not implemented. All responses are no-store and correlated; codes/cookies/tokens must not be logged.",
+        "security": [
+          {
+            "consoleSession": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Contexto propio autorizado",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "Referrer-Policy": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              },
+              "Set-Cookie": {
+                "description": "Opaque session/transaction cookies only. HttpOnly; SameSite=Lax; no Domain. This test profile permits HTTP loopback; production cookie policy is not approved.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleMe"
+                },
+                "example": {
+                  "actorId": "operator-test-a",
+                  "tenants": [
+                    {
+                      "tenantId": "tenant-test-a",
+                      "displayName": "Organización de prueba A"
+                    }
+                  ],
+                  "activeTenantId": "tenant-test-a",
+                  "context": {
+                    "tenantId": "tenant-test-a",
+                    "capabilities": [
+                      "dashboard:read",
+                      "members:read"
+                    ],
+                    "issuerIds": [],
+                    "authorizationRevision": 1
+                  },
+                  "csrfToken": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Autenticación requerida",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "Referrer-Policy": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              },
+              "WWW-Authenticate": {
+                "required": false,
+                "schema": {
+                  "type": "string",
+                  "example": "Bearer error=\"invalid_token\""
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                },
+                "example": {
+                  "type": "about:blank",
+                  "title": "Autenticación requerida",
+                  "status": 401,
+                  "code": "invalid_session",
+                  "correlationId": "correlation-test-a"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Acceso denegado",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "Referrer-Policy": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                },
+                "example": {
+                  "type": "about:blank",
+                  "title": "Acceso denegado",
+                  "status": 403,
+                  "code": "mfa_required",
+                  "correlationId": "correlation-test-a"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Demasiados intentos",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "Referrer-Policy": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              },
+              "Retry-After": {
+                "required": true,
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                },
+                "example": {
+                  "type": "about:blank",
+                  "title": "Demasiados intentos",
+                  "status": 429,
+                  "code": "rate_limited",
+                  "correlationId": "correlation-test-a"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependencia no disponible",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "Referrer-Policy": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              },
+              "Retry-After": {
+                "required": true,
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                },
+                "example": {
+                  "type": "about:blank",
+                  "title": "Dependencia no disponible",
+                  "status": 503,
+                  "code": "dependency_unavailable",
+                  "correlationId": "correlation-test-a"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "not-implemented"
+      }
+    },
+    "/v1/operator/me": {
+      "get": {
+        "operationId": "operatorMe",
+        "summary": "Leer identidad y tenants propios sin contexto activo",
+        "description": "AUTH-T02 contract only; handler is not implemented. All responses are no-store and correlated; codes/cookies/tokens must not be logged.",
+        "security": [
+          {
+            "operatorBearer": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Contexto propio autorizado",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "Referrer-Policy": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorMe"
+                },
+                "example": {
+                  "actorId": "operator-test-a",
+                  "tenants": [
+                    {
+                      "tenantId": "tenant-test-a",
+                      "displayName": "Organización de prueba A"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Autenticación requerida",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "Referrer-Policy": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              },
+              "WWW-Authenticate": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "example": "Bearer error=\"invalid_token\""
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                },
+                "example": {
+                  "type": "about:blank",
+                  "title": "Autenticación requerida",
+                  "status": 401,
+                  "code": "operator_token_invalid",
+                  "correlationId": "correlation-test-a"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Acceso denegado",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "Referrer-Policy": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                },
+                "example": {
+                  "type": "about:blank",
+                  "title": "Acceso denegado",
+                  "status": 403,
+                  "code": "mfa_required",
+                  "correlationId": "correlation-test-a"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Demasiados intentos",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "Referrer-Policy": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              },
+              "Retry-After": {
+                "required": true,
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                },
+                "example": {
+                  "type": "about:blank",
+                  "title": "Demasiados intentos",
+                  "status": 429,
+                  "code": "rate_limited",
+                  "correlationId": "correlation-test-a"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependencia no disponible",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "Referrer-Policy": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              },
+              "Retry-After": {
+                "required": true,
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                },
+                "example": {
+                  "type": "about:blank",
+                  "title": "Dependencia no disponible",
+                  "status": 503,
+                  "code": "dependency_unavailable",
+                  "correlationId": "correlation-test-a"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "not-implemented",
+        "x-required-scopes": [
+          "operator:read"
+        ]
+      }
+    },
+    "/v1/operator/tenants/{tenantId}/context": {
+      "get": {
+        "operationId": "operatorTenantContext",
+        "summary": "Leer capacidades efectivas del propio operador",
+        "description": "AUTH-T02 contract only; handler is not implemented. All responses are no-store and correlated; codes/cookies/tokens must not be logged.",
+        "security": [
+          {
+            "operatorBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Contexto propio autorizado",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "Referrer-Policy": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Context"
+                },
+                "example": {
+                  "tenantId": "tenant-test-a",
+                  "capabilities": [
+                    "dashboard:read",
+                    "members:read"
+                  ],
+                  "issuerIds": [],
+                  "authorizationRevision": 1
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Autenticación requerida",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "Referrer-Policy": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              },
+              "WWW-Authenticate": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "example": "Bearer error=\"invalid_token\""
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                },
+                "example": {
+                  "type": "about:blank",
+                  "title": "Autenticación requerida",
+                  "status": 401,
+                  "code": "operator_token_invalid",
+                  "correlationId": "correlation-test-a"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Acceso denegado",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "Referrer-Policy": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                },
+                "example": {
+                  "type": "about:blank",
+                  "title": "Acceso denegado",
+                  "status": 403,
+                  "code": "mfa_required",
+                  "correlationId": "correlation-test-a"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso no encontrado",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "Referrer-Policy": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                },
+                "example": {
+                  "type": "about:blank",
+                  "title": "Recurso no encontrado",
+                  "status": 404,
+                  "code": "tenant_not_found",
+                  "correlationId": "correlation-test-a"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Demasiados intentos",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "Referrer-Policy": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              },
+              "Retry-After": {
+                "required": true,
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                },
+                "example": {
+                  "type": "about:blank",
+                  "title": "Demasiados intentos",
+                  "status": 429,
+                  "code": "rate_limited",
+                  "correlationId": "correlation-test-a"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependencia no disponible",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "Referrer-Policy": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              },
+              "Retry-After": {
+                "required": true,
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                },
+                "example": {
+                  "type": "about:blank",
+                  "title": "Dependencia no disponible",
+                  "status": 503,
+                  "code": "dependency_unavailable",
+                  "correlationId": "correlation-test-a"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "not-implemented",
+        "x-required-scopes": [
+          "operator:read"
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Tenant": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "tenantId",
+          "displayName"
+        ],
+        "properties": {
+          "tenantId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "displayName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        }
+      },
+      "Context": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "tenantId",
+          "capabilities",
+          "issuerIds",
+          "authorizationRevision"
+        ],
+        "properties": {
+          "tenantId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "capabilities": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "enum": [
+                "audit:read",
+                "dashboard:read",
+                "invitations:read",
+                "invitations:revoke",
+                "members:invite",
+                "members:read",
+                "members:revoke",
+                "members:update"
+              ]
+            }
+          },
+          "issuerIds": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          "authorizationRevision": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "OperatorMe": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "actorId",
+          "tenants"
+        ],
+        "properties": {
+          "actorId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "tenants": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "$ref": "#/components/schemas/Tenant"
+            }
+          }
+        }
+      },
+      "ConsoleMe": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "actorId",
+          "tenants",
+          "activeTenantId",
+          "context",
+          "csrfToken"
+        ],
+        "properties": {
+          "actorId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "tenants": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "$ref": "#/components/schemas/Tenant"
+            }
+          },
+          "activeTenantId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "context": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Context"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "csrfToken": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{43}$"
+          }
+        }
+      },
+      "TenantSelection": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "tenantId"
+        ],
+        "properties": {
+          "tenantId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        }
+      },
+      "StepUp": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "returnTo"
+        ],
+        "properties": {
+          "returnTo": {
+            "type": "string",
+            "enum": [
+              "/"
+            ]
+          }
+        }
+      },
+      "Problem": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "type",
+          "title",
+          "status",
+          "code",
+          "correlationId"
+        ],
+        "properties": {
+          "type": {
+            "const": "about:blank"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "type": "integer",
+            "minimum": 400,
+            "maximum": 599
+          },
+          "code": {
+            "type": "string",
+            "enum": [
+              "invalid_request",
+              "authentication_failed",
+              "invalid_session",
+              "operator_token_invalid",
+              "mfa_required",
+              "step_up_required",
+              "csrf_invalid",
+              "origin_invalid",
+              "tenant_not_found",
+              "refresh_in_progress",
+              "invalid_input",
+              "rate_limited",
+              "dependency_unavailable"
+            ]
+          },
+          "correlationId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "oidcTransaction": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "hukid_test_transaction",
+        "description": "HttpOnly browser binding for a single-use OIDC transaction, not an authenticated session."
+      },
+      "consoleSession": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "hukid_test_session",
+        "description": "Opaque server-side test session; no tokens in JS storage."
+      },
+      "csrfToken": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-CSRF-Token",
+        "description": "256-bit session-bound synchronizer token supplied by console /me; check in constant time plus exact Origin."
+      },
+      "operatorBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "ES256, typ=at+jwt, configured issuer/client_id, exact scalar operator audience, hukid_token_class=operator, hukid_grant=authorization_code, valid time, MFA evidence and operator:read. Never an ID token."
+      }
+    }
+  }
+}

@@ -1,6 +1,6 @@
 # Estándares de implementación
 
-Estas reglas consolidan restricciones de las fuentes. Las versiones y comandos elegidos para el bootstrap AUTH-T01 se registran en [desarrollo local](local-development.md); Flutter y librerías de autenticación/persistencia siguen pendientes de selección.
+Estas reglas consolidan restricciones de las fuentes. Las versiones y comandos de AUTH-T01/T02/T03 se registran en [desarrollo local](local-development.md), incluido pgx para persistencia. Flutter, librería OIDC Go y dependencias de otros módulos siguen pendientes de selección.
 
 ## Límites y dependencias
 

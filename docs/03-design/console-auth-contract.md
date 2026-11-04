@@ -1,6 +1,6 @@
 # Contrato de autenticación de consola — AUTH-T02
 
-Estado: baseline ejecutable de laboratorio, validada como OpenAPI/JSON Schema y contra un IdP OIDC de pruebas. No implementa los handlers BFF/Management ni demuestra MFA real, RLS o interoperabilidad de credenciales. El perfil HukID sigue `v0.1-draft`.
+Estado: baseline ejecutable de laboratorio, validada como OpenAPI/JSON Schema y contra un IdP OIDC de pruebas. No implementa los handlers BFF/Management ni demuestra MFA real o interoperabilidad de credenciales. AUTH-T03 añade [persistencia y RLS probadas en PostgreSQL](console-persistence.md); no constituye todavía autorización HTTP. El perfil HukID sigue `v0.1-draft`.
 
 ## Fuentes de detalle
 
@@ -47,7 +47,7 @@ Test cookie de sesión: `hukid_test_session`; HttpOnly, SameSite=Lax, Path=/, si
 
 ## Modelo lógico de sesión para AUTH-T03/T06
 
-Estos nombres son diseño nuevo de consola, contrastado con el ownership `tenancy` del [modelo HukID](hukid-data-model.md); no son el DDL original ni migraciones ejecutadas. Identidad por `(oidc_issuer, subject)`, nunca por email. Se fijan `tenancy.operator_identities`, `tenancy.tenants`, `tenancy.memberships`, `tenancy.membership_roles`; el schema privado `console_auth` contiene `oidc_transactions`, `session_families` y `sessions`. AUTH-T03 materializa constraints/roles/RLS e índices, sin copiar datos Events.
+Estos nombres son diseño nuevo de consola, contrastado con el ownership `tenancy` del [modelo HukID](hukid-data-model.md); no son el DDL original. AUTH-T03 materializa y prueba migraciones nuevas: detalle físico, constraints, roles/RLS e índices en persistencia de consola. Identidad por `(oidc_issuer, subject)`, nunca por email. Se conservan `tenancy.operator_identities`, `tenancy.tenants`, `tenancy.memberships`, `tenancy.membership_roles`; el schema privado `console_auth` contiene `oidc_transactions`, `session_families` y `sessions`, sin copiar datos Events.
 
 | Registro | Campos lógicos y protección |
 | --- | --- |
@@ -68,7 +68,7 @@ Logout invalida primero la familia local y limpia cookie aunque falle el IdP. Un
 
 `npm run test:auth` valida OpenAPI y sus ejemplos con schemas estrictos, rechaza campos extra y escalamiento de rol/capacidad, verifica matriz y política, arranca el IdP real de biblioteca y realiza Code + S256 PKCE, firma/JWKS, audiencia/clase, separación de ID token, expiración, refresh y rechazo de reuse. El agente HTTP de pruebas no es un navegador. El adapter en memoria del IdP es deliberado y avisa de su uso exclusivo de laboratorio.
 
-`npm run check:platform` añade rechazo de todos los campos ausentes, JSON inválido/desconocido, duraciones incoherentes, host/configuración no permitidos, boundaries de MFA/sesión y validación previa al arranque. Son reglas de política y tests del fixture; el futuro middleware Go deberá verificar tokens/membership por sí mismo en AUTH-T04/T05. No se han probado cookies reales, CSRF HTTP, store de sesión, DB/RLS, MFA real, concurrencia BFF ni UI. El gate A0 sólo queda cubierto en laboratorio; A1–A4 siguen pendientes.
+`npm run check:platform` añade rechazo de todos los campos ausentes, JSON inválido/desconocido, duraciones incoherentes, host/configuración no permitidos, boundaries de MFA/sesión y validación previa al arranque. Son reglas de política y tests del fixture; el futuro middleware Go deberá verificar tokens/membership por sí mismo en AUTH-T04/T05. AUTH-T03 incorpora pruebas DB/RLS independientes con `npm run test:postgres`; no se han probado cookies reales, CSRF HTTP, store operativo de sesión, MFA real, concurrencia BFF ni UI. A1–A4 siguen pendientes de integración aunque la foundation DB esté probada.
 
 Fuentes externas para el diseño: [OpenAPI 3.1](https://spec.openapis.org/oas/v3.1.0), [OIDC Core](https://openid.net/specs/openid-connect-core-1_0.html), [RFC 9068](https://www.rfc-editor.org/rfc/rfc9068.html), [OAuth Security BCP](https://www.rfc-editor.org/rfc/rfc9700.html) y [API oficial de oidc-provider](https://github.com/panva/node-oidc-provider/blob/main/docs/README.md). El uso del formato de RFC 9068 en el laboratorio no declara conformidad completa con todos sus algoritmos o requisitos.
 

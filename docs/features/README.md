@@ -10,7 +10,7 @@
 
 ## Secuencia y primer incremento
 
-1. AUTH-T01/T02 entregan entorno y baseline contractual de laboratorio con IdP sintético; ver [contrato y límites](../03-design/console-auth-contract.md). El siguiente trabajo es AUTH-T03 (migraciones mínimas).
+1. AUTH-T01/T02/T03 entregan entorno, baseline contractual con IdP sintético y [foundation PostgreSQL probada](../03-design/console-persistence.md); ver [contrato y límites](../03-design/console-auth-contract.md). El siguiente trabajo es AUTH-T04 (OIDC/callback).
 2. AUTH-T03–T08 permiten iniciar sesión con un operador/tenant sintéticos provisionados para desarrollo.
 3. USR-T01–T08 reemplazan el fixture por administración real de miembros; no habilitar autoalta de tenants.
 4. DASH-T01–T04 entregan el shell y resumen del tenant. DASH-T05 conecta métricas de otros módulos cuando existan.

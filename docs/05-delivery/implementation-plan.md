@@ -6,7 +6,7 @@ Especificaciones Events y HukID reunidas localmente. AUTH-T01 incorpora [bootstr
 
 ## Paquetes para comenzar la consola HukID
 
-El usuario confirmó el ámbito Team 5. Los paquetes [FEAT-001 autenticación](../features/FEAT-001-authentication/spec.md), [FEAT-002 miembros](../features/FEAT-002-user-management/spec.md) y [FEAT-003 dashboard](../features/FEAT-003-dashboard/spec.md) incluyen spec, plan y tasks. El [índice](../features/README.md) define el orden. AUTH-T01/T02 entregan toolchain y [contrato/política/IdP de laboratorio](../03-design/console-auth-contract.md); la siguiente tarea es AUTH-T03 (migraciones/aislamiento). Las funcionalidades de los tres paquetes aún no están implementadas.
+El usuario confirmó el ámbito Team 5. Los paquetes [FEAT-001 autenticación](../features/FEAT-001-authentication/spec.md), [FEAT-002 miembros](../features/FEAT-002-user-management/spec.md) y [FEAT-003 dashboard](../features/FEAT-003-dashboard/spec.md) incluyen spec, plan y tasks. El [índice](../features/README.md) define el orden. AUTH-T01/T02/T03 entregan toolchain, [contrato/política/IdP de laboratorio](../03-design/console-auth-contract.md) y [foundation PostgreSQL](../03-design/console-persistence.md); la siguiente tarea es AUTH-T04 (OIDC/callback). Las funcionalidades integradas de los tres paquetes aún no están implementadas.
 
 Estos paquetes concretan la consola dentro de foundation, sin reemplazar el thin slice de emisión ni exigir implementar primero todos los módulos HukID. Los contratos nuevos propuestos y las políticas de sesión/permisos se validan en [ADR-0002](../decisions/ADR-0002.md) y sus tareas iniciales.
 

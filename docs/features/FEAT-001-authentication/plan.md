@@ -4,7 +4,7 @@ Referencia: [spec](spec.md), [tareas](tasks.md), [decisión propuesta](../../dec
 
 ## Evidencia y decisiones
 
-AUTH-T01 incorpora bootstrap Go y entry point React/TypeScript con Vite; ver [desarrollo local](../../04-engineering/local-development.md). El owner acordó `src/platform` y `src/console`. AUTH-T02 añade [contrato ejecutable y política de laboratorio](../../03-design/console-auth-contract.md), IdP OIDC de pruebas y reglas de política Go según [ADR-0003](../../decisions/ADR-0003.md). Los handlers y migraciones siguen pendientes; no se heredan sesiones/claims de Events.
+AUTH-T01 incorpora bootstrap Go y entry point React/TypeScript con Vite; ver [desarrollo local](../../04-engineering/local-development.md). El owner acordó `src/platform` y `src/console`. AUTH-T02 añade [contrato ejecutable y política de laboratorio](../../03-design/console-auth-contract.md), IdP OIDC y reglas de política Go según [ADR-0003](../../decisions/ADR-0003.md). AUTH-T03 materializa [persistencia con RLS](../../03-design/console-persistence.md) según ADR-0004. Los handlers siguen pendientes; no se heredan sesiones/claims de Events.
 
 El BFF guarda tokens en servidor y llama a Management con access token operator. Management sigue exigiendo Bearer: no se modifica para aceptar la cookie del navegador. Si se ejecutan en el mismo proceso, el adaptador conserva idénticas validaciones de token/actor y los límites de aplicación.
 
@@ -19,7 +19,7 @@ El BFF guarda tokens en servidor y llama a Management con access token operator.
 | platform/internal/adapters/oidc | Futuro: discovery allowlisted, intercambio y verificación de tokens. |
 | platform/internal/adapters/privateapi | Futuro: middleware operator y /me, sin acoplar DTO al dominio. |
 | platform/internal/adapters/console | Futuro: cookie/CSRF, rutas BFF y traducción de errores. |
-| platform/internal/adapters/postgres | Futuro: repositorios, transacciones y RLS. |
+| platform/internal/adapters/postgres | Existente: migraciones, roles/RLS, transacciones de contexto y descubrimiento mínimo. Repositorios operativos de sesión futuros. |
 | console/src/authentication | Futuro: login/retorno, selector, guards y recuperación de sesión. |
 
 Existen el entry point de consola, bootstrap, contratos/configuración y reglas de política indicados. Los demás módulos se crean al implementar su tarea. El fixture IdP reside en tests y no forma parte de Platform. No crear módulos de emisión ni wallet para demostrar login.
@@ -44,7 +44,7 @@ activeTenantId se obtiene de la sesión validada para navegador. El BFF consulta
 
 ## Datos y migraciones
 
-Crear migraciones nuevas contrastadas con el modelo HukID Markdown disponible; el DDL original sigue ausente. AUTH-T02 fija los nombres y registros lógicos en el [modelo de sesión](../../03-design/console-auth-contract.md#modelo-lógico-de-sesión-para-auth-t03t06): tenancy.operator_identities/tenants/memberships/membership_roles y console_auth.oidc_transactions/session_families/sessions. AUTH-T03 materializa constraints, RLS y migraciones; no se declara que sean el DDL original.
+AUTH-T03 crea migraciones nuevas contrastadas con el modelo HukID Markdown disponible; el DDL original sigue ausente. Los nombres y registros lógicos del [modelo de sesión](../../03-design/console-auth-contract.md#modelo-lógico-de-sesión-para-auth-t03t06) se materializan en tenancy.operator_identities/tenants/memberships/membership_roles y console_auth.oidc_transactions/session_families/sessions, con roles, constraints/RLS y audit/outbox mínimos propios. No se declara que sean el DDL original.
 
 Identidad estable única por issuer/subject; membership única por tenant/identidad. El selector sólo lista memberships autorizadas usando consulta privilegiada mínima por identidad autenticada, sin desactivar RLS globalmente. Las lecturas tenant-scoped usan SET LOCAL y runtime no propietario/NOBYPASSRLS. Separar repositorio de sesiones y descubrimiento de contexto del repositorio normal tenant-scoped.
 

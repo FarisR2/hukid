@@ -4,6 +4,8 @@ Documento de estrategia. AUTH-T01 incorpora pruebas Go del perímetro del bootst
 
 AUTH-T02 añade pruebas de OpenAPI/ejemplos, política temporal/configuración Go y un AS OIDC de laboratorio con JWT operator/refresh firmados. La evidencia de MFA es sintética y no sustituye tests del futuro middleware, DB/RLS, sesión, factores reales o navegador. Alcance y matriz de escenarios en el [contrato de consola](../03-design/console-auth-contract.md#pruebas-y-cobertura-actual).
 
+AUTH-T03 añade `npm run test:postgres`: ocho pruebas Go de integración, sin skip, en clúster PostgreSQL descartable. Verifica migración vacía/previa con datos, RLS/roles, tenants, pool, FK, bootstrap/CLI y forma de envelopes. Se ejecuta por separado de `npm run check`; las futuras pruebas de sesión/HTTP, restore y carga no se infieren de este resultado. Detalle en [persistencia](../03-design/console-persistence.md#pruebas-y-límites).
+
 | Capa / riesgo | Pruebas necesarias |
 | --- | --- |
 | Dominio | Estados permitidos/prohibidos, eligibility/versiones, expiración, grant/policy y definición inmutable. |

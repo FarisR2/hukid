@@ -2,6 +2,8 @@
 
 El DDL se encuentra en `database/001_initial.sql` (artefacto no incluido; ver [registro de pendientes](../05-delivery/documentation-gaps.md)) y `database/002_integrity_rls_and_concurrency.sql` (artefacto no incluido; ver [registro de pendientes](../05-delivery/documentation-gaps.md)). Este modelo pertenece al backend issuer; la wallet mantiene una base local independiente y cifrada.
 
+AUTH-T03 incorpora [DDL nuevo de consola](console-persistence.md), limitado a identidad/membership/sesión y referencias audit/outbox. Se probó en PostgreSQL descartable; no recupera ni sustituye los archivos históricos de este modelo ni implementa los módulos issuer.
+
 ## Ownership
 
 | Schema | Owner | Contenido |

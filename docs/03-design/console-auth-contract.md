@@ -1,16 +1,16 @@
 # Contrato de autenticación de consola — AUTH-T02
 
-Estado: baseline ejecutable de laboratorio, validada como OpenAPI/JSON Schema y contra un IdP OIDC de pruebas. No implementa los handlers BFF/Management ni demuestra MFA real o interoperabilidad de credenciales. AUTH-T03 añade [persistencia y RLS probadas en PostgreSQL](console-persistence.md); no constituye todavía autorización HTTP. El perfil HukID sigue `v0.1-draft`.
+Estado: baseline ejecutable de laboratorio validada como OpenAPI/JSON Schema y contra un IdP OIDC de pruebas. AUTH-T03 añade [persistencia/RLS](console-persistence.md) y AUTH-T04 [login/callback con sesión inicial](console-oidc-login.md). Los otros handlers BFF/Management siguen pendientes; no hay MFA real ni interoperabilidad de credenciales demostradas. El perfil HukID sigue `v0.1-draft`.
 
 ## Fuentes de detalle
 
 | Artefacto | Autoridad y alcance |
 | --- | --- |
-| [OpenAPI de consola y operador](../../src/platform/contracts/console-auth.openapi.json) | Nueve operaciones nuevas de FEAT-001, requests/responses, seguridad, errores y ejemplos sintéticos. Todas marcadas `not-implemented`. No reemplaza el OpenAPI histórico ausente. |
+| [OpenAPI de consola y operador](../../src/platform/contracts/console-auth.openapi.json) | Nueve operaciones nuevas de FEAT-001: login/callback marcados `implemented-test-only` por AUTH-T04; las otras siete `not-implemented`. No reemplaza el OpenAPI histórico ausente. |
 | [Política test](../../src/platform/config/auth.test.json) y [schema](../../src/platform/contracts/auth-policy.schema.json) | Valores del laboratorio; Go valida además relaciones entre duraciones y configuración explícita. |
 | [Claims operator](../../src/platform/contracts/operator-token.schema.json) | Shape de claims del access token test; no verifica criptografía por sí solo. |
 | [Matriz de capacidades](../../src/platform/contracts/capabilities.json) | Roles locales y restricciones; no otorga scopes OAuth ni permisos globales. |
-| [Loader y reglas temporales](../../src/platform/internal/authentication/policy.go) | Rechazo de configuración ausente/incoherente, límites de sesión y MFA. Aún no conectado a peticiones autenticadas. |
+| [Loader y reglas temporales](../../src/platform/internal/authentication/policy.go) | Rechazo de configuración ausente/incoherente, límites de sesión y MFA. AUTH-T04 aplica la política al callback; el ciclo operativo de sesión sigue pendiente. |
 | [Fixture IdP](../../tests/fixtures/oidc-provider.mjs) | `oidc-provider` con claves y secreto de cliente generados en memoria por ejecución. Usuarios/interacciones/MFA sintéticos. |
 
 La selección y sus límites se registran en [ADR-0003](../decisions/ADR-0003.md); la [spec](../features/FEAT-001-authentication/spec.md) mantiene los criterios funcionales aún pendientes.
@@ -39,11 +39,11 @@ Se define `hukid_grant=authorization_code` como claim privado nuevo de la consol
 
 Los valores numéricos se mantienen únicamente en `auth.test.json`. Access/ID token dura cinco minutos; transacción OIDC cinco minutos; inactividad de sesión treinta minutos; límite absoluto y familia refresh ocho horas; step-up cinco minutos; skew treinta segundos; login/callback admiten diez intentos por minuto. Son decisiones de laboratorio de HukID, no TTL heredados de Events ni defaults productivos.
 
-En el futuro rate limiter, combinar IP de conexión confiable y binding de transacción antes de login; tras autenticar, añadir actor/familia. No confiar en `X-Forwarded-For` de un cliente directo. No se implementa todavía rate limiting HTTP.
+AUTH-T04 limita login/callback con IP de conexión y binding de transacción disponible, sin confiar en `X-Forwarded-For`. Tras autenticar, los futuros comandos añadirán actor/familia. El limitador actual es local al proceso, no distribuido; detalle en login AUTH-T04.
 
 Expiración local es estricta: en el instante del deadline ya está expirada. Skew sólo admite evidencia IdP con `auth_time` hasta el margen configurado en el futuro; no se suma al deadline local, freshness de step-up ni duración absoluta. Exigir ambos `pwd` y `otp` más ACR test exacto. Refresh preserva `auth_time` y MFA originales; nunca crea autenticación reciente. Step-up requerirá nueva transacción OIDC con `prompt=login`, `max_age=0` y verificación de la nueva evidencia, sin leer AMR/ACR del body. El fixture inyecta estos valores desde el harness: no comprueba contraseña/OTP ni certifica assurance real.
 
-Test cookie de sesión: `hukid_test_session`; HttpOnly, SameSite=Lax, Path=/, sin Domain, Secure=false sólo en loopback explícito. Cookie de transacción independiente: `hukid_test_transaction`, HttpOnly, SameSite=Lax, Path=/console/auth, sin Domain y duración de transacción. Ninguna existe aún en el servidor. Producción requiere HTTPS, cookies Secure con nombres/política separados, IdP y factores reales aprobados; el loader actual rechaza entornos distintos de `test`.
+Test cookie de sesión: `hukid_test_session`; HttpOnly, SameSite=Lax, Path=/, sin Domain, Secure=false sólo en loopback explícito. Cookie de transacción independiente: `hukid_test_transaction`, HttpOnly, SameSite=Lax, Path=/console/auth, sin Domain y duración de transacción. AUTH-T04 emite ambas en su flujo de laboratorio. Producción requiere HTTPS, cookies Secure con nombres/política separados, IdP y factores reales aprobados; el loader actual rechaza entornos distintos de `test`.
 
 ## Modelo lógico de sesión para AUTH-T03/T06
 
@@ -68,7 +68,7 @@ Logout invalida primero la familia local y limpia cookie aunque falle el IdP. Un
 
 `npm run test:auth` valida OpenAPI y sus ejemplos con schemas estrictos, rechaza campos extra y escalamiento de rol/capacidad, verifica matriz y política, arranca el IdP real de biblioteca y realiza Code + S256 PKCE, firma/JWKS, audiencia/clase, separación de ID token, expiración, refresh y rechazo de reuse. El agente HTTP de pruebas no es un navegador. El adapter en memoria del IdP es deliberado y avisa de su uso exclusivo de laboratorio.
 
-`npm run check:platform` añade rechazo de todos los campos ausentes, JSON inválido/desconocido, duraciones incoherentes, host/configuración no permitidos, boundaries de MFA/sesión y validación previa al arranque. Son reglas de política y tests del fixture; el futuro middleware Go deberá verificar tokens/membership por sí mismo en AUTH-T04/T05. AUTH-T03 incorpora pruebas DB/RLS independientes con `npm run test:postgres`; no se han probado cookies reales, CSRF HTTP, store operativo de sesión, MFA real, concurrencia BFF ni UI. A1–A4 siguen pendientes de integración aunque la foundation DB esté probada.
+`npm run check:platform` verifica política/configuración, tiempos, criptografía OIDC, cifrado y casos de uso/HTTP. AUTH-T04 amplía `npm run test:postgres` con binario real, IdP y DB para cookies iniciales, callback concurrente y rollback; detalle y límites en [login AUTH-T04](console-oidc-login.md). AUTH-T05 deberá aplicar verificación operator y membership a cada petición Management. CSRF de comandos, refresh/logout/rotación, MFA real y UI siguen pendientes; el gate A4 no está completo.
 
 Fuentes externas para el diseño: [OpenAPI 3.1](https://spec.openapis.org/oas/v3.1.0), [OIDC Core](https://openid.net/specs/openid-connect-core-1_0.html), [RFC 9068](https://www.rfc-editor.org/rfc/rfc9068.html), [OAuth Security BCP](https://www.rfc-editor.org/rfc/rfc9700.html) y [API oficial de oidc-provider](https://github.com/panva/node-oidc-provider/blob/main/docs/README.md). El uso del formato de RFC 9068 en el laboratorio no declara conformidad completa con todos sus algoritmos o requisitos.
 

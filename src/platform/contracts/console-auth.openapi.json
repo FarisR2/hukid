@@ -3,7 +3,7 @@
   "info": {
     "title": "HukID Console BFF and Operator — AUTH-T02",
     "version": "0.1.0-draft",
-    "description": "New console-owned contract, not the missing historical HukID OpenAPI. Executable schema baseline for isolated tests; no handlers or production interoperability are claimed. camelCase HTTP fields. Tenant authority comes from active local memberships, never browser role/tenant claims. Do not send console cookies to Management. CSRF is a synchronizer token, not an access token."
+    "description": "New console-owned contract, not the missing historical HukID OpenAPI. Executable schema baseline for isolated tests; AUTH-T04 login/callback handlers are implemented for isolated tests; no production interoperability is claimed. camelCase HTTP fields. Tenant authority comes from active local memberships, never browser role/tenant claims. Do not send console cookies to Management. CSRF is a synchronizer token, not an access token."
   },
   "servers": [
     {
@@ -17,7 +17,7 @@
       "get": {
         "operationId": "startLogin",
         "summary": "Iniciar OIDC Code + S256 PKCE",
-        "description": "AUTH-T02 contract only; handler is not implemented. All responses are no-store and correlated; codes/cookies/tokens must not be logged.",
+        "description": "AUTH-T04 handler implemented for the explicit isolated test profile. All responses are no-store and correlated; codes/cookies/tokens must not be logged.",
         "security": [],
         "parameters": [
           {
@@ -212,15 +212,19 @@
             }
           }
         },
-        "x-implementation-status": "not-implemented"
+        "x-implementation-status": "implemented-test-only"
       }
     },
     "/console/auth/callback": {
       "get": {
         "operationId": "completeLogin",
         "summary": "Consumir transacción OIDC una vez",
-        "description": "AUTH-T02 contract only; handler is not implemented. All responses are no-store and correlated; codes/cookies/tokens must not be logged. Exactly one of code or error is required together with state and the HttpOnly transaction binding cookie. Reject duplicate parameters, invalid state/nonce/issuer/PKCE/replay. OAuth error_description is never reflected or logged. A valid ID token establishes identity only; Management requires its own access token.",
-        "security": [{ "oidcTransaction": [] }],
+        "description": "AUTH-T04 handler implemented for the explicit isolated test profile. All responses are no-store and correlated; codes/cookies/tokens must not be logged. Exactly one of code or error is required together with state and the HttpOnly transaction binding cookie. Reject duplicate parameters, invalid state/nonce/issuer/PKCE/replay. OAuth error_description is never reflected or logged. A valid ID token establishes identity only; Management requires its own access token.",
+        "security": [
+          {
+            "oidcTransaction": []
+          }
+        ],
         "parameters": [
           {
             "name": "code",
@@ -256,7 +260,10 @@
             "name": "iss",
             "in": "query",
             "required": true,
-            "schema": { "type": "string", "const": "http://127.0.0.1:19090" },
+            "schema": {
+              "type": "string",
+              "const": "http://127.0.0.1:19090"
+            },
             "description": "Exact issuer from the bound test transaction; the test IdP advertises RFC 9207 authorization response issuer identification."
           }
         ],
@@ -337,6 +344,47 @@
                   "title": "Solicitud inválida",
                   "status": 400,
                   "code": "invalid_request",
+                  "correlationId": "correlation-test-a"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Acceso denegado",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "Referrer-Policy": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                },
+                "example": {
+                  "type": "about:blank",
+                  "title": "Se requiere MFA",
+                  "status": 403,
+                  "code": "mfa_required",
                   "correlationId": "correlation-test-a"
                 }
               }
@@ -439,7 +487,7 @@
             }
           }
         },
-        "x-implementation-status": "not-implemented"
+        "x-implementation-status": "implemented-test-only"
       }
     },
     "/console/auth/refresh": {

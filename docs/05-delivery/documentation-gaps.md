@@ -56,7 +56,7 @@ Owners: Team 4 y Team 5 coordinan el contrato de integración; cada equipo mater
 
 ## Foundation de consola documentada
 
-Los paquetes [FEAT-001/002/003](../features/README.md) añaden especificación, plan y tareas para la consola HukID confirmada por el usuario. [ADR-0002](../decisions/ADR-0002.md) registra propuestas de BFF, operador, miembros y dashboard; AUTH-T02 materializa la parte contractual de autenticación en laboratorio según [ADR-0003](../decisions/ADR-0003.md). Los handlers, miembros y dashboard siguen pendientes de implementación.
+Los paquetes [FEAT-001/002/003](../features/README.md) añaden especificación, plan y tareas para la consola HukID confirmada por el usuario. [ADR-0002](../decisions/ADR-0002.md) registra propuestas de BFF, operador, miembros y dashboard. AUTH-T01–T04 implementan bootstrap, contratos, PostgreSQL y login/callback de laboratorio; autorización HTTP, sesión operativa, UI, miembros y dashboard siguen pendientes. Los apartados siguientes conservan evidencia por incremento, no sustituyen el estado actual de las tareas.
 
 Para empezar AUTH-T01 no es necesario recuperar los ejemplos de emisión ni configurar KMS issuer. Para completar login integrado sí hacen falta IdP test compatible, políticas de sesión/MFA, contrato de operador y migraciones mínimas; miembros necesita policy de invitación/notificación. No marcar esos artefactos como disponibles por existir el plan.
 
@@ -79,3 +79,9 @@ Diferencia documentada: el resumen de seguridad decía «No almacenar códigos/t
 Existe [DDL nuevo de consola ejecutado y probado](../03-design/console-persistence.md) en PostgreSQL 18.6 portable/descartable, con pgx, migraciones forward-only/checksum, roles separados, RLS, contexto local transaccional y bootstrap sintético CLI. Se probó desde vacío y desde la primera migración con datos. Es una secuencia propia de consola: los DDL históricos ausentes del inventario no se consideran recuperados.
 
 El harness no usa DB existente ni instala un servicio; crea y elimina únicamente sus bases/logins y detiene su servidor. Docker no se requiere. Hay una identidad sin membership para acceso pendiente; el alta de identidad tras autenticación verificada todavía debe conectarse en AUTH-T04. El driver/store no está conectado a rutas HTTP y no implementa todavía cifrado operativo de envelopes, callback, sesión/refresh BFF, CSRF ni middleware Bearer Go. Verificación productiva de factores, backup/restore, TLS, retención y cargas siguen pendientes. Los registros globales de identidad/sesión se protegen por roles/puertos; RLS de tenant no equivale a verificar un JWT. ADR-0004 registra la separación y sus límites.
+
+### Incremento AUTH-T04
+
+Existe [login/callback Go probado con IdP y PostgreSQL](../03-design/console-oidc-login.md), con librerías OIDC fijadas, consumo de transacción de un uso, PKCE/nonce/issuer/binding, tokens firmados, rate limiting local y cifrado AES-GCM. Una función restringida registra identidad por issuer/subject sin memberships, y la sesión inicial se guarda antes de emitir su cookie. [ADR-0005](../decisions/ADR-0005.md) documenta el límite entre creación inicial y AUTH-T06.
+
+Pendientes: middleware operator/tenant y /me (AUTH-T05), refresh/logout/rotación (AUTH-T06), step-up y CSRF de comandos (AUTH-T07), interfaz/navegador (AUTH-T08), auditoría integrada (AUTH-T09) y operación/gate A4 (AUTH-T10). No hay purga automática de transacciones abandonadas/sesiones expiradas, rotación/recuperación de claves ni rate limiting distribuido. Las claves/credenciales se suministran externamente; no se ha seleccionado gestión productiva de secretos. Los factores del fixture siguen siendo sintéticos y el perfil sigue draft.

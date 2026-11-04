@@ -1,8 +1,8 @@
 # Desarrollo local de HukID
 
-Estado: AUTH-T01/T02/T03 entregan bootstrap, baseline contractual y foundation PostgreSQL de laboratorio. Hay un servidor local Go con liveness y un entry point React compilable. La consola aún no renderiza pantallas; handlers de login/BFF/Management y store operativo de sesión siguen pendientes de AUTH-T04 y tareas posteriores.
+Estado: AUTH-T01–T04 entregan bootstrap, contratos, PostgreSQL y [login/callback OIDC con sesión inicial](../03-design/console-oidc-login.md) de laboratorio. La consola React aún no renderiza pantallas; middleware Management, /me, refresh/logout y sesión operativa siguen pendientes.
 
-Existe [contrato y laboratorio OIDC](../03-design/console-auth-contract.md), con política test, matriz y reglas de política Go. El IdP sólo se inicia dentro de pruebas Node y simula MFA; no arranca con Platform. AUTH-T03 añade [persistencia de consola](../03-design/console-persistence.md), sin conectar todavía PostgreSQL a la API HTTP.
+Existe [contrato y laboratorio OIDC](../03-design/console-auth-contract.md), con política test, matriz y reglas Go. El IdP sólo se inicia desde tests y simula MFA; no arranca con Platform. AUTH-T04 conecta HTTP con la [persistencia de consola](../03-design/console-persistence.md) cuando se proporciona configuración test completa.
 
 ## Estructura acordada
 
@@ -31,9 +31,10 @@ No crear módulos vacíos de autenticación, emisión, wallet o Events. Se incor
 | Vite | 8.3.5 |
 | Tipos React / React DOM | 19.3.0 |
 | pgx | 5.12.0; módulos y checksums en `src/platform/go.mod` / `go.sum`. |
+| go-oidc / oauth2 / go-jose | 3.21.0 / 0.36.0 / 4.1.4; cliente OIDC y verificación de tokens Go, ADR-0005. |
 | PostgreSQL de laboratorio | 18.6; binarios portables EDB 18.6-5 usados en Windows x64. |
 
-Las versiones npm directas son exactas y `package-lock.json` fija las transitivas. Se consultaron el registro npm y las fuentes oficiales de [Go](https://go.dev/dl/), [React](https://react.dev/versions) y [Vite](https://vite.dev/guide/). AUTH-T03 añade pgx y un runner de migraciones propio pequeño, sin ORM. La primera ejecución de Go necesita descargar los módulos verificados por `go.sum`; `scripts/platform.mjs` guarda module/build cache dentro de `.cache`. La librería OIDC del backend Go sigue pendiente de AUTH-T04.
+Las versiones npm directas son exactas y `package-lock.json` fija las transitivas. Se consultaron el registro npm y fuentes oficiales de [Go](https://go.dev/dl/), [React](https://react.dev/versions) y [Vite](https://vite.dev/guide/). AUTH-T03 añade pgx y un runner de migraciones propio pequeño, sin ORM; AUTH-T04 las librerías OIDC fijadas. Go descarga módulos verificados por `go.sum`; el runner guarda caches en `.cache`. `.gitattributes` conserva LF en Go para que gofmt no falle tras checkout Windows con autocrlf.
 
 Instalar Node/npm y Go de estas versiones antes de ejecutar los comandos. Go puede estar en PATH o indicado mediante `HUKID_GO` (ruta del ejecutable). En Windows el runner también detecta `.cache/toolchains/go1.27.3/go/bin/go.exe`. Esa instalación local no forma parte del checkout y no cambia PATH global.
 
@@ -50,13 +51,13 @@ npm run build
 npm run smoke
 ```
 
-`check` verifica formato Go sin modificar archivos, ejecuta `go vet`, las pruebas Go sin caché de resultados, el typecheck TypeScript, `test:auth` y la validación documental (enlaces/anclas locales inline, bloques de código y presencia de los nueve archivos de features). Los enlaces de referencia y la semántica de contratos/tareas requieren revisión adicional. Para corregir formato, ejecutar `go fmt ./...` desde `src/platform`. `build` genera `.cache/build/hukid-api` (o `.exe`) y `src/console/dist/`. No genera handlers de autenticación.
+`check` verifica formato Go sin modificar archivos, ejecuta `go vet`, pruebas Go sin caché de resultados, typecheck TypeScript, `test:auth` y validación documental (enlaces/anclas locales inline, bloques de código y presencia de los nueve archivos de features). Los enlaces de referencia y la semántica de contratos/tareas requieren revisión adicional. Para corregir formato, ejecutar `go fmt ./...` desde `src/platform`. `build` genera `.cache/build/hukid-api` (o `.exe`) y `src/console/dist/`; el binario incluye login/callback habilitables sólo con configuración test completa.
 
-Los scripts usan rutas relativas al propio archivo y funcionan desde un checkout en otra ubicación. No requieren Docker para este incremento. Existen pruebas de contrato e IdP de laboratorio; el login integrado y navegador requieren sus implementaciones.
+Los scripts usan rutas relativas al propio archivo y funcionan desde un checkout en otra ubicación. No requieren Docker. Hay pruebas de contrato, IdP y login HTTP con DB; no son pruebas de navegador ni factores reales.
 
-AUTH-T03 incorpora DB/RLS con `npm run test:postgres`, comando separado y obligatorio para cambios de persistencia. `npm run check` conserva sus checks Go/TypeScript/contrato/docs y no simula ni salta una DB ausente. Para verificar el incremento completo ejecutar también `test:postgres`, además de build/smoke. No hay login integrado ni pruebas de navegador.
+`npm run test:postgres` es separado y obligatorio para cambios de persistencia. AUTH-T04 amplía el harness con el binario API real, fixture IdP, credenciales/claves efímeras y pruebas de callback/cookies/sesión inicial. `npm run check` no simula ni salta una DB ausente. Para verificar el incremento completo ejecutar también `test:postgres`, además de build/smoke.
 
-`smoke` requiere el build previo: rechaza arranque con política productiva/incompleta, arranca temporalmente el binario Go con política test en loopback:18080 y Vite preview en loopback:14173, comprueba HTTP 204/no-store, ausencia de login y disponibilidad del HTML/JS compilado, y termina sus procesos. Requiere esos puertos libres. Es una prueba HTTP, sin evaluación visual ni ejecución de navegador.
+`smoke` requiere build previo: rechaza configuración productiva/parcial, arranca el binario Go sin autenticación en loopback:18080 y Vite preview en loopback:14173, comprueba liveness 204/no-store, login deshabilitado 404 y HTML/JS, y termina sus procesos. Requiere esos puertos libres. `test:postgres` verifica el login habilitado con el binario real. Ambas son pruebas HTTP, sin evaluación visual ni navegador.
 
 ## PostgreSQL descartable y comandos AUTH-T03
 
@@ -103,7 +104,7 @@ Este bootstrap no acepta tokens, no almacena sesiones, no contiene credenciales,
 
 AUTH-T02 configura un fixture `oidc-provider` en `tests/fixtures`, ligado a `127.0.0.1:19090` durante `npm run test:auth`. Requiere ese puerto libre. El runner establece explícitamente `NODE_ENV=test` y `HUKID_TEST_IDP=1`; el fixture rechaza flags productivos, genera claves y secreto de cliente en memoria y termina al finalizar. El cliente confidencial usa `client_secret_basic` con secreto efímero; esto no selecciona autenticación de cliente productiva. El fixture usa adapter en memoria y emite una advertencia esperada. Las interacciones automáticas del harness no autentican a personas ni comprueban OTP reales.
 
-Las dependencias nuevas son únicamente de desarrollo y están fijadas en package/lock: `oidc-provider` 9.13.3, `jose` 6.2.15, `@apidevtools/swagger-parser` 13.1.0, `ajv` 8.20.0 y `ajv-formats` 3.0.1. No forman parte del binario Go ni del bundle React. La selección de librería OIDC para Go corresponde a AUTH-T04.
+Las dependencias Node de laboratorio son únicamente de desarrollo y están fijadas en package/lock: `oidc-provider` 9.13.3, `jose` 6.2.15, `@apidevtools/swagger-parser` 13.1.0, `ajv` 8.20.0 y `ajv-formats` 3.0.1. No forman parte del binario Go ni del bundle React. Las librerías OIDC Go seleccionadas en AUTH-T04 sí forman parte del backend.
 
 La validación previa al listener se puede ejecutar desde la raíz en PowerShell:
 
@@ -143,3 +144,13 @@ Se verificó el SHA-256 publicado de PostgreSQL portable 18.6-5 y su versión na
 `npm run check`, `npm run build` y `npm run smoke` aprobaron con el nuevo adaptador; también se ejecutó `go mod verify` sobre el module cache y todos los módulos se verificaron. Los enlaces/anclas, estructura y bloques Markdown se comprobaron con el validador documental, y `git diff --check` aprobó. La API sigue sin rutas de autenticación, por lo que el smoke espera 404 en login.
 
 AUTH-T03 se entrega en `feature/hukid-console-bootstrap`, con implementación y documentación en commits separados consultables en el historial Git. No hay publicación ni migración de una base existente. El siguiente trabajo es AUTH-T04: librería/puerto OIDC y callback de un uso, con identidad local y autorización integradas en tareas posteriores. Cifrado operativo, familias de sesión, MFA real, restore/carga y navegador continúan pendientes según los gates de cada tarea.
+
+## Evidencia AUTH-T04 — 2026-11-04
+
+`npm run check`, `npm run test:postgres`, `npm run build` y `npm run smoke` aprobaron en el laboratorio Windows. Go verificó los módulos fijados mediante `go mod verify`. Las diez pruebas PostgreSQL incluyen las ocho de foundation y dos nuevas para login real y upgrade/privilegios/rollback, con subcasos negativos. No se usaron servicios o bases existentes; el harness detuvo sus procesos y eliminó sus bases/logins.
+
+Para reproducir la verificación del login no hace falta aprovisionar un IdP manual ni copiar secretos: instalar dependencias/toolchains indicados y ejecutar `npm run test:postgres`. Arranca un binario Go compilado desde este checkout, un IdP sintético y PostgreSQL propios en puertos loopback libres. Las pruebas HTTP no ejecutan React ni un navegador.
+
+Para una ejecución manual de laboratorio se necesitan IdP test registrado, DB test migrada y login SQL runtime provisionados por separado. Las variables, cookies y limitaciones se mantienen en [login AUTH-T04](../03-design/console-oidc-login.md), con decisión en [ADR-0005](../decisions/ADR-0005.md). `npm run dev:platform` sin variables conserva liveness solamente. Una política aislada sin credenciales/clave ya no habilita el proceso: falla antes de escuchar.
+
+El siguiente incremento es AUTH-T05, middleware operator y /me. AUTH-T06 conserva lectura/rotación de sesiones, refresh y logout. No se han validado factores reales, proveedor productivo, purga/rotación de claves, navegador, carga o restore; la consola y el gate A4 siguen pendientes.

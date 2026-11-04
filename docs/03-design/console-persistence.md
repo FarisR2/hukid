@@ -1,6 +1,6 @@
 # Persistencia de consola — AUTH-T03
 
-Estado: DDL nuevo ejecutado y probado en PostgreSQL 18.6 descartable. No es el DDL histórico del issuer ni conecta todavía HTTP con PostgreSQL. Login, repositorios de sesión operativos, validación OIDC Go y administración de miembros siguen en sus tareas posteriores.
+Estado: DDL nuevo ejecutado y probado en PostgreSQL 18.6 descartable; no es el DDL histórico del issuer. AUTH-T04 añade [login/callback, cifrado y sesión inicial](console-oidc-login.md), conectando HTTP con PostgreSQL. Lectura/rotación de sesión, refresh/logout, middleware y miembros siguen pendientes. Este documento conserva el detalle de foundation AUTH-T03.
 
 ## Artefactos y decisiones
 
@@ -76,7 +76,7 @@ Los nombres `0001`/`0002` son la secuencia nueva de consola. No corresponden a l
 
 El CLI sólo acepta `HUKID_ENV=test`, `HUKID_TEST_DATABASE=1`, conexión explícita a IP loopback, base con prefijo `hukid_test_`, sin hosts fallback y `sslmode=disable` exclusivo del laboratorio local. No carga `.env` ni arranca desde la API. Un nombre con prefijo test no demuestra que una base esté vacía: el operador debe elegir una base de pruebas propia. El harness elimina esa ambigüedad creando sus propios clúster y bases nuevas.
 
-El bootstrap requiere además al administrador del clúster aislado. Inserta dos tenants con sus operadores/memberships administrativas y una identidad adicional sin membership para probar acceso pendiente, con issuer test, audit y outbox en una sola transacción. No crea passwords de operador, IdP, sesiones ni un endpoint de registro. Un advisory lock y dos eventos marcadores hacen repetible la operación; si ya se completó, no reactiva ni vuelve a conceder roles. Un conflicto parcial aborta y no sobreescribe datos. El alta de identidad tras la primera autenticación verificada aún debe conectarse en AUTH-T04; el descubrimiento actual sólo resuelve identidades ya provisionadas.
+El bootstrap requiere además al administrador del clúster aislado. Inserta dos tenants con sus operadores/memberships administrativas y una identidad adicional sin membership para probar acceso pendiente, con issuer test, audit y outbox en una sola transacción. No crea passwords de operador, IdP, sesiones ni un endpoint de registro. Un advisory lock y dos eventos marcadores hacen repetible la operación; si ya se completó, no reactiva ni vuelve a conceder roles. Un conflicto parcial aborta y no sobreescribe datos. AUTH-T04 añade alta de identidad tras validar OIDC mediante la migración 0003; el descubrimiento consulta identidades existentes y no concede membresías.
 
 ## Pruebas y límites
 
@@ -84,6 +84,6 @@ El bootstrap requiere además al administrador del clúster aislado. Inserta dos
 
 Se verifican: base vacía/upgrade con datos; checksums y versiones desconocidas; RLS y grants; dos tenants con un pool de una conexión; rollback/panic/cancelación; suspensión/revocación; descubrimiento mínimo; FK/unique/CHECK de identidad, tenant y sesiones; deadline absoluto; eliminación de secretos al invalidar/consumir; CAS de transacción OIDC; rollback de bootstrap por fallo de outbox; idempotencia sin regrant; rechazo de roles elevados y destinos/flags no test. La restricción de nonce/ciphertext no demuestra por sí sola cifrado productivo.
 
-No se han probado restauración/DR, perfiles de carga, migrations sobre DDL externo, workers, sesiones/refresh concurrentes del BFF ni cookies/CSRF en navegador. La capa HTTP sigue con liveness y 404 para autenticación. El siguiente incremento es AUTH-T04, usando esta base para el puerto OIDC/callback de un uso.
+No se han probado restauración/DR, perfiles de carga, migrations sobre DDL externo, workers, refresh concurrente ni cookies/CSRF en navegador. AUTH-T04 amplía esta foundation con login/callback HTTP, cifrado y sesión inicial; su evidencia y límites se mantienen en [login OIDC](console-oidc-login.md). La sesión operativa continúa en AUTH-T05/T06.
 
 Fuentes de implementación: [PostgreSQL RLS](https://www.postgresql.org/docs/18/ddl-rowsecurity.html), [funciones y SECURITY DEFINER](https://www.postgresql.org/docs/18/sql-createfunction.html), [pgx y su changelog](https://github.com/jackc/pgx/blob/master/CHANGELOG.md). Configuración local, versiones y evidencia: [desarrollo local](../04-engineering/local-development.md).

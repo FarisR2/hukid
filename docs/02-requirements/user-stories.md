@@ -2,7 +2,7 @@
 
 Los backlogs originales se conservan completos con sus IDs y criterios de aceptación. El índice informa 163 historias; el conteo no mide esfuerzo ni confirma implementación.
 
-La [consola HukID](../features/README.md) dispone ahora de paquetes FEAT-001/002/003 con requisitos, planes y tareas. Detallan y amplían la foundation HK según lo identificado en cada spec; no modifican los IDs ni el conteo de historias originales. AUTH-T01 incorpora el bootstrap local; autenticación, gestión de miembros y dashboard siguen pendientes de implementación.
+La [consola HukID](../features/README.md) dispone de paquetes FEAT-001/002/003 con requisitos, planes y tareas. Detallan y amplían la foundation HK; no modifican los IDs ni el conteo de historias originales. AUTH-T01–T04 implementan bootstrap, contratos, persistencia y [login/callback de laboratorio](../03-design/console-oidc-login.md). Autorización HTTP, sesión operativa, interfaz, miembros y dashboard siguen pendientes.
 
 | Equipo | Responsabilidad | Backlog | Historias declaradas |
 | --- | --- | --- | ---: |

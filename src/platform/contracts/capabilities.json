@@ -1,0 +1,40 @@
+{
+  "version": "0.1.0-draft",
+  "scope": "tenant-local",
+  "roles": {
+    "tenant_admin": [
+      "dashboard:read",
+      "members:read",
+      "members:invite",
+      "members:update",
+      "members:revoke",
+      "invitations:read",
+      "invitations:revoke",
+      "audit:read"
+    ],
+    "security_admin": [
+      "dashboard:read",
+      "members:read",
+      "audit:read"
+    ],
+    "issuer_operator": [
+      "dashboard:read"
+    ],
+    "support_readonly": [
+      "dashboard:read"
+    ]
+  },
+  "stepUpRequired": [
+    "members:invite",
+    "members:update",
+    "members:revoke",
+    "invitations:revoke"
+  ],
+  "restrictions": {
+    "issuer_operator": "Only assigned issuerIds; no member directory or claims by default.",
+    "support_readonly": "Technical aggregate only; no claims, PII, members or audit.",
+    "security_admin": "Tenant-authorized security events; no membership mutations.",
+    "tenant_admin": "No global authority; issuer operations require their own domain policy."
+  },
+  "note": "AUTH-T02 fixes read context. Future mutation contracts/scopes and invitation policy remain USR-T01; token scopes never follow from this matrix alone."
+}

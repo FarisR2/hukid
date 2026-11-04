@@ -5,3 +5,14 @@
 # Local editor and OS metadata
 .idea/
 .vscode/
+
+# Local generated artifacts
+.cache/
+
+# Toolchain output and local secrets
+node_modules/
+dist/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example

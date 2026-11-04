@@ -1,0 +1,136 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "environment",
+    "issuer",
+    "clientId",
+    "audience",
+    "consoleOrigin",
+    "redirectUri",
+    "cookieName",
+    "cookieSecure",
+    "cookieSameSite",
+    "clockSkewSeconds",
+    "accessTokenSeconds",
+    "sessionIdleSeconds",
+    "sessionAbsoluteSeconds",
+    "transactionSeconds",
+    "refreshTokenSeconds",
+    "stepUpSeconds",
+    "loginRateLimit",
+    "requiredAmr",
+    "acceptedAcr",
+    "allowedReturnTo",
+    "scopes"
+  ],
+  "properties": {
+    "environment": {
+      "const": "test"
+    },
+    "issuer": {
+      "const": "http://127.0.0.1:19090"
+    },
+    "clientId": {
+      "const": "hukid-console-test"
+    },
+    "audience": {
+      "const": "https://api.hukid.pe/operator"
+    },
+    "consoleOrigin": {
+      "const": "http://127.0.0.1:8080"
+    },
+    "redirectUri": {
+      "const": "http://127.0.0.1:8080/console/auth/callback"
+    },
+    "cookieName": {
+      "const": "hukid_test_session"
+    },
+    "cookieSecure": {
+      "const": false
+    },
+    "cookieSameSite": {
+      "const": "Lax"
+    },
+    "clockSkewSeconds": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 60
+    },
+    "accessTokenSeconds": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 86400
+    },
+    "sessionIdleSeconds": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 86400
+    },
+    "sessionAbsoluteSeconds": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 86400
+    },
+    "transactionSeconds": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 86400
+    },
+    "refreshTokenSeconds": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 86400
+    },
+    "stepUpSeconds": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 86400
+    },
+    "loginRateLimit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "windowSeconds",
+        "maxAttempts"
+      ],
+      "properties": {
+        "windowSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 86400
+        },
+        "maxAttempts": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      }
+    },
+    "requiredAmr": {
+      "const": [
+        "pwd",
+        "otp"
+      ]
+    },
+    "acceptedAcr": {
+      "const": [
+        "urn:hukid:test:mfa"
+      ]
+    },
+    "allowedReturnTo": {
+      "const": [
+        "/"
+      ]
+    },
+    "scopes": {
+      "const": [
+        "openid",
+        "offline_access",
+        "operator:read"
+      ]
+    }
+  },
+  "description": "Isolated test profile. Cross-field lifetime constraints are enforced by Go Policy.Validate; this is not a production template."
+}

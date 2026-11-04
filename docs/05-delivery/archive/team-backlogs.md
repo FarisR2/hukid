@@ -1,6 +1,6 @@
 # Historias de usuario por equipo
 
-> **Documento reemplazado.** Este fue el primer resumen y sus macrohistorias no son implementables. Los backlogs normativos y completos están en [BACKLOG-INDEX.md](BACKLOG-INDEX.md) y la carpeta [backlogs](backlogs). No estimar ni desarrollar desde este archivo.
+> **Documento reemplazado.** Este fue el primer resumen y sus macrohistorias no son implementables. Los backlogs normativos y completos están en [índice de backlogs](../backlog-index.md) y la carpeta [backlogs](../../02-requirements/backlogs). No estimar ni desarrollar desde este archivo.
 
 Las historias usan puntos relativos. Cada equipo debe conservar margen del 15–20% para integración, pruebas de carga y corrección de incidencias; no se compromete el 100% de su capacidad a historias nuevas.
 

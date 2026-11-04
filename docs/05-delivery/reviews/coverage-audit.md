@@ -1,3 +1,5 @@
+> Revisión histórica del paquete anterior a la incorporación local de HukID. No acredita que existan los artefactos ejecutables; consultar el [registro actual](../documentation-gaps.md).
+
 # Auditoría de cobertura del paquete anterior
 
 Fecha: 2026-11-03

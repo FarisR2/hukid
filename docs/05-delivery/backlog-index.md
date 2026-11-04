@@ -4,11 +4,11 @@
 
 | Equipo | Backlog | Historias | Superficies | Factor que equilibra carga |
 |---|---|---:|---|---|
-| 1 — Content & Platform | [TEAM-1](backlogs/TEAM-1-CONTENT-PLATFORM.md) | 40 | Astro público, React Admin, auth/gateway, CMS, plataforma | más historias; se organiza en dos pares internos: Platform y Experience |
-| 2 — Event Configuration | [TEAM-2](backlogs/TEAM-2-EVENT-CONFIGURATION.md) | 27 | React backoffice, API, release/outbox | menos historias pero alto modelado, validación y versionado |
-| 3 — Participation | [TEAM-3](backlogs/TEAM-3-PARTICIPATION.md) | 32 | isla React, Admin, API de alta concurrencia, archivos | concurrencia, PII y dos journeys completos: registro y convocatoria |
-| 4 — Onsite Operations | [TEAM-4](backlogs/TEAM-4-ONSITE-OPERATIONS.md) | 31 | PWA, dashboard, APIs, workers, reporting/certificación | más runtimes, operación en vivo y adaptador outbound HukID |
-| 5 — HukID | [TEAM-5](backlogs/TEAM-5-HUKID.md) | 33 | Flutter, Go issuer/API, KMS/status | criptografía, interoperabilidad y conformance elevan incertidumbre |
+| 1 — Content & Platform | [TEAM-1](../02-requirements/backlogs/team-1-content-platform.md) | 40 | Astro público, React Admin, auth/gateway, CMS, plataforma | más historias; se organiza en dos pares internos: Platform y Experience |
+| 2 — Event Configuration | [TEAM-2](../02-requirements/backlogs/team-2-event-configuration.md) | 27 | React backoffice, API, release/outbox | menos historias pero alto modelado, validación y versionado |
+| 3 — Participation | [TEAM-3](../02-requirements/backlogs/team-3-participation.md) | 32 | isla React, Admin, API de alta concurrencia, archivos | concurrencia, PII y dos journeys completos: registro y convocatoria |
+| 4 — Onsite Operations | [TEAM-4](../02-requirements/backlogs/team-4-onsite-operations.md) | 31 | PWA, dashboard, APIs, workers, reporting/certificación | más runtimes, operación en vivo y adaptador outbound HukID |
+| 5 — HukID | [TEAM-5](../02-requirements/backlogs/team-5-hukid.md) | 33 | Flutter, Go issuer/API, KMS/status | criptografía, interoperabilidad y conformance elevan incertidumbre |
 
 El conteo comprueba cobertura, no esfuerzo. No se reutilizan los puntos del resumen legado. Sprint 0 termina con estimación relativa por el equipo ejecutor, contratos compilables y ajuste para que ningún equipo supere ±15% de la mediana comprometida.
 

@@ -2,7 +2,7 @@
 
 ## Fuente normativa
 
-Este backlog no reemplaza la arquitectura canónica de HukID en [/Users/juancx/Documents/CX-Developments/SELF/hukid/docs/planting/README.md](/Users/juancx/Documents/CX-Developments/SELF/hukid/docs/planting/README.md). Las historias deben cumplir su Architecture Spine, OpenAPI, perfil HukID v0, modelo PostgreSQL y separación wallet/backend.
+Este backlog se complementa con la [arquitectura local de HukID](../../03-design/hukid-architecture.md). Las historias deben cumplir sus decisiones de arquitectura, contratos, perfil HukID v0, modelo PostgreSQL y separación wallet/backend. El estado de los artefactos ejecutables se registra en [pendientes](../../05-delivery/documentation-gaps.md).
 
 ## Épica HK-A — Tenant, issuer e integración
 
@@ -69,4 +69,9 @@ Este backlog no reemplaza la arquitectura canónica de HukID en [/Users/juancx/D
 
 ## Contratos que posee
 
-Integration API canónica en [openapi.yaml](/Users/juancx/Documents/CX-Developments/SELF/hukid/docs/planting/api/openapi.yaml); metadata/JWKS/OID4VCI/OID4VP/status según [Perfil HukID v0](/Users/juancx/Documents/CX-Developments/SELF/hukid/docs/planting/07-perfil-hukid-v0.md). El Equipo 4 implementa el adaptador outbound de Events; el Equipo 5 expone únicamente los contratos públicos de HukID.
+Integration API canónica en `openapi.yaml` (artefacto no incluido; ver [registro de pendientes](../../05-delivery/documentation-gaps.md)); metadata/JWKS/OID4VCI/OID4VP/status según [Perfil HukID v0](../../03-design/hukid-profile.md). El Equipo 4 implementa el adaptador outbound de Events; el Equipo 5 expone únicamente los contratos públicos de HukID.
+
+
+## Documentación incorporada
+
+El perfil, arquitectura, modelo y flujos de HukID están incluidos localmente. El OpenAPI y DDL citados por las fuentes no fueron adjuntados. Ver [contratos](../../03-design/api-contracts.md) y [artefactos pendientes](../../05-delivery/documentation-gaps.md). En v0, Events reconcilia mediante polling; los webhooks son una optimización posterior, según [wallet/backend](../../03-design/hukid-wallet-backend.md).

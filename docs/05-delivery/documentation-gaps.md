@@ -1,0 +1,67 @@
+# Artefactos pendientes y diferencias documentales
+
+Fecha: 2026-11-03. Inventario del paquete recibido; no significa que los artefactos no existan en otro repositorio. Los diez Markdown HukID incorporados sustituyen referencias personales para arquitectura, perfil y modelo conceptual, pero no adjuntan los archivos ejecutables citados.
+
+## Archivos referenciados que no se adjuntaron
+
+| Artefacto de origen | Referencias conservadas | Acción necesaria |
+| --- | --- | --- |
+| `/Users/juancx/Documents/CX-Developments/SELF/hukid/docs/planting/api/openapi.yaml` | [team-5-hukid.md](../02-requirements/backlogs/team-5-hukid.md) | Incorporar la fuente original o materializar y validar el artefacto; no fabricar evidencia de ejecución. |
+| `diagrams/hukid-platform.architecture.html` | [hukid-architecture.md](../03-design/hukid-architecture.md) | Incorporar la fuente original o materializar y validar el artefacto; no fabricar evidencia de ejecución. |
+| `diagrams/credential-lifecycle.workflow.html` | [hukid-ux-flows.md](../03-design/hukid-ux-flows.md) | Incorporar la fuente original o materializar y validar el artefacto; no fabricar evidencia de ejecución. |
+| `diagrams/pos-oid4vci.sequence.html` | [hukid-ux-flows.md](../03-design/hukid-ux-flows.md) | Incorporar la fuente original o materializar y validar el artefacto; no fabricar evidencia de ejecución. |
+| `examples/cpe-credential.json` | [hukid-api-contracts.md](../03-design/hukid-api-contracts.md) | Incorporar la fuente original o materializar y validar el artefacto; no fabricar evidencia de ejecución. |
+| `examples/oid4vp-request-payload.json` | [hukid-api-contracts.md](../03-design/hukid-api-contracts.md), [hukid-profile.md](../03-design/hukid-profile.md) | Incorporar la fuente original o materializar y validar el artefacto; no fabricar evidencia de ejecución. |
+| `examples/vp-jwt-structure.json` | [hukid-api-contracts.md](../03-design/hukid-api-contracts.md) | Incorporar la fuente original o materializar y validar el artefacto; no fabricar evidencia de ejecución. |
+| `database/001_initial.sql` | [hukid-data-model.md](../03-design/hukid-data-model.md) | Incorporar la fuente original o materializar y validar el artefacto; no fabricar evidencia de ejecución. |
+| `database/002_integrity_rls_and_concurrency.sql` | [hukid-data-model.md](../03-design/hukid-data-model.md) | Incorporar la fuente original o materializar y validar el artefacto; no fabricar evidencia de ejecución. |
+
+El gate histórico menciona un OpenAPI baseline de 30 paths que no está adjunto. Tampoco se incluyen schemas AsyncAPI/JSON Schema compilables, vectores criptográficos, suites ni resultados de pruebas. La estructura src no los sustituye.
+
+La cabecera de procedencia del Architecture Spine conserva rutas a architecture/events-platform-2026-11-02 y briefs de su ubicación original; esos documentos externos tampoco están en este paquete. Son procedencia histórica, no enlaces activos ni dependencias que deban resolverse desde la nueva carpeta.
+
+## Detalles ahora disponibles
+
+- [Perfil](../03-design/hukid-profile.md): VC/VP-JWT, ES256, cnf.jkt, token classes, low-risk offer TTL ≤5 min, local-only/issuer-reauth y presentación directa.
+- [APIs](../03-design/hukid-api-contracts.md): request/response ilustrativos, errores, status operations y candidatos webhook.
+- [Modelo](../03-design/hukid-data-model.md): schemas lógicos, ownership, constraints, cifrado y reglas de migración; DDL sigue ausente.
+- [Wallet/backend](../03-design/hukid-wallet-backend.md): autoridad Go/Flutter y polling obligatorio para reconciliación v0.
+- [Operación](../04-engineering/hukid-security-and-operations.md): objetivos 99.9/99.95%, p95, RPO/RTO y limitación DR-KMS; son objetivos, no mediciones.
+
+## Diferencias de alcance y precedencia
+
+| Tema | Lectura para implementación |
+| --- | --- |
+| Microservicios vs backend modular | Events tiene límites por carga/equipo; HukID inicia API modular + worker. Ver ADR-0001. |
+| Polling o webhook en fuentes Events | El documento específico wallet/backend fija polling v0; webhooks quedan posteriores. |
+| Roadmap incluye OID4VP; MVP Events lo difiere | Distinguir contrato objetivo del perfil, roadmap independiente HukID y alcance del primer cliente Events. No anunciar compatibilidad no probada. |
+| Recovery y sincronización como preguntas generales | El perfil v0 concreta local-only default e issuer-reauth; account-linked/sync fuera. Sigue abierto quién opera soporte y su assurance. |
+| API Events snake_case y HukID camelCase | Preservar ambos contratos; traducción a cargo del adaptador. |
+| organization_id global vs tenant_id HukID | Las guías Events no reemplazan el modelo canónico HukID; no renombrar tenant ni inferir equivalencia con issuer. |
+| Secretos de oferta hasheados vs reintento que devuelve URI | El URI contiene referencia opaca y el diseño exige replay semántico. Verificar el OpenAPI/DDL original para materializar almacenamiento/reentrega sin persistir códigos recuperables. No resolverlo sólo copiando ejemplos. |
+| Perfil v0.1-draft | Mantener draft hasta vectores y pruebas; fuentes que dicen v0 describen el mismo objetivo de perfil, no una publicación certificada. |
+| Auditorías previas dicen cobertura completa | Son revisiones históricas de cobertura semántica, no garantía de que el paquete incluya OpenAPI/DDL ni código generado. |
+
+## Pendientes concretos del piloto y ejecución
+
+1. Recuperar OpenAPI, DDL y ejemplos originales y comprobar que coincidan con perfil/Markdown.
+2. Definir credential definition de participación Events, claims mínimos, mapping, evidence/source refs y autorización del issuer.
+3. Elegir canal de entrega, distribución/deep links de wallet y tratamiento de app no instalada; concretar autenticación del destinatario para tipos nominativos. El diseño exige protección, pero no documenta un flujo Events completo de identidad civil.
+4. Especificar política y comandos del adaptador para revocar/reemplazar VC cuando cambie el certificado PDF. Hay operaciones en ambos productos; el enlace de negocio no está cerrado.
+5. Fijar parámetros de polling/retry, freshness/status por tipo, retención/legal hold y alcance DR; ratificar la política institucional.
+6. Elegir librerías/versiones, KMS/IdP/storage/hosting y perfiles de carga. El roadmap exige spikes y ADRs; no hay evidencia de selección final.
+7. Confirmar trust framework, soporte/reemisión y caso de uso del verifier; probar compatibilidad de implementaciones externas antes de anunciarla.
+
+Owners: Team 4 y Team 5 coordinan el contrato de integración; cada equipo materializa sus propios contratos/migraciones/pruebas. Producto y responsables institucionales ratifican alcance, confianza y retención.
+
+## Foundation de consola documentada
+
+Los paquetes [FEAT-001/002/003](../features/README.md) añaden especificación, plan y tareas para la consola HukID confirmada por el usuario. BFF, rutas de operador, matriz detallada de miembros y dashboard son propuestas registradas en [ADR-0002](../decisions/ADR-0002.md), pendientes de validar/materializar en las tareas iniciales.
+
+Para empezar AUTH-T01 no es necesario recuperar los ejemplos de emisión ni configurar KMS issuer. Para completar login integrado sí hacen falta IdP test compatible, políticas de sesión/MFA, contrato de operador y migraciones mínimas; miembros necesita policy de invitación/notificación. No marcar esos artefactos como disponibles por existir el plan.
+
+### Incremento AUTH-T01
+
+Se incorpora bootstrap local Go y entry point React/TypeScript con Vite, con estructura `src/platform` y `src/console` acordada con el owner. Versiones, instalación, comandos y límites están en [desarrollo local](../04-engineering/local-development.md). Sólo existe liveness; no hay pantalla, login, proxy BFF, Management, migraciones ni IdP ejecutable. La instalación de Go usada para validación es portable y local a `.cache`; otro checkout requiere instalar el toolchain indicado. Docker no está disponible en el entorno inspeccionado y no se requiere para este bootstrap; no se han ejecutado pruebas DB, OIDC, MFA, E2E ni conformidad. El fixture IdP aislado y las políticas quedan expresamente en AUTH-T02, sin reutilizar producción.
+
+Fuentes: [gate histórico](reviews/correction-gate.md), [roadmap HukID](hukid-roadmap.md), [contratos](../03-design/api-contracts.md), [alcance](../01-product/scope.md).

@@ -1,0 +1,20 @@
+{
+  "name": "hukid-workspace",
+  "private": true,
+  "version": "0.0.0",
+  "packageManager": "npm@11.19.1",
+  "engines": { "node": ">=24.22.1 <25", "npm": ">=11.19.1 <12" },
+  "workspaces": ["src/console"],
+  "scripts": {
+    "dev:platform": "node scripts/platform.mjs dev",
+    "dev:console": "npm run dev --workspace @hukid/console",
+    "check:platform": "node scripts/platform.mjs check",
+    "check:console": "npm run check --workspace @hukid/console",
+    "check:docs": "node scripts/check-docs.mjs",
+    "check": "npm run check:platform && npm run check:console && npm run check:docs",
+    "build:platform": "node scripts/platform.mjs build",
+    "build:console": "npm run build --workspace @hukid/console",
+    "build": "npm run build:platform && npm run build:console",
+    "smoke": "node scripts/smoke-bootstrap.mjs"
+  }
+}

@@ -1,6 +1,6 @@
 # Contratos entre equipos
 
-Este documento es el índice normativo de integración. El inventario HTTP completo está en [contracts/API-CONTRACTS.md](contracts/API-CONTRACTS.md), los mensajes en [contracts/EVENT-CONTRACTS.md](contracts/EVENT-CONTRACTS.md), las transiciones en [contracts/STATE-MACHINES.md](contracts/STATE-MACHINES.md) y la propiedad/retención de datos en [contracts/DATA-OWNERSHIP-AND-RETENTION.md](contracts/DATA-OWNERSHIP-AND-RETENTION.md).
+Este documento es el índice normativo de integración. El inventario HTTP completo está en [contracts/API-CONTRACTS.md](events-api-contracts.md), los mensajes en [contracts/EVENT-CONTRACTS.md](events-event-contracts.md), las transiciones en [contracts/STATE-MACHINES.md](events-state-machines.md) y la propiedad/retención de datos en [contracts/DATA-OWNERSHIP-AND-RETENTION.md](../../04-engineering/data-ownership-and-retention.md).
 
 ## Reglas no negociables
 

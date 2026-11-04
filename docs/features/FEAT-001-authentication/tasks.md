@@ -1,13 +1,13 @@
 # FEAT-001 — Tareas
 
-Estado: AUTH-T01/T02/T03 completadas para bootstrap, laboratorio contractual y foundation PostgreSQL; AUTH-T04–T10 pendientes. Owner: Team 5; backend/seguridad, consola y plataforma coordinan contratos y migraciones. La evidencia de laboratorio no acredita login integrado ni producción.
+Estado: AUTH-T01/T02/T03/T04 completadas para bootstrap, contratos, PostgreSQL y login/callback con sesión inicial de laboratorio; AUTH-T05–T10 pendientes. Owner: Team 5; backend/seguridad, consola y plataforma coordinan contratos y migraciones. No hay consola operativa ni evidencia productiva.
 
 | Estado / ID | Objetivo y artefacto | Depende de | Componentes | Aceptación / verificación | Riesgo |
 | --- | --- | --- | --- | --- | --- |
 | [x] AUTH-T01 | Bootstrap reproducible de backend Go y consola propuesta; elegir versiones/librerías y registrar comandos/decisiones. | Ninguna | src/platform, src/console, checks locales, ADR-0002 | Copia limpia ejecuta checks/build documentados; sin secretos ni configuración productiva. El fixture IdP aislado se materializó y validó en AUTH-T02, antes de conectar autenticación. | Toolchain local; proveedor productivo aún pendiente. |
 | [x] AUTH-T02 | Materializar OpenAPI BFF/Management, modelo de sesión, matriz de capacidades y política validada de TTL/MFA. | AUTH-T01 | Contratos, configuración, authentication/policy, fixture OIDC, ADR-0003 | OpenAPI/schemas/ejemplos y negativos validados; intercambio Code/PKCE con JWT operator y MFA sintética, refresh/reuse y límites de política probados. Decisiones resueltas sólo para laboratorio. | IdP/factores productivos aún no seleccionados; handlers pendientes. |
 | [x] AUTH-T03 | Crear migraciones mínimas tenant/identidad/membership/sesión y bootstrap sintético restringido. | AUTH-T02 | migrations, adapters/postgres, cmd/testdb, audit/outbox | PostgreSQL 18.6 descartable: base vacía/upgrade con datos, dos tenants en conexión reutilizada, RLS/grants/FK, rollback/panic/cancelación, bootstrap atómico sin regrant y CLI test-only probados. Sin endpoint público. | Provisioning productivo, cifrado operativo y autorización HTTP aún pendientes. |
-| [ ] AUTH-T04 | Implementar puertos OIDC y callback de un uso con validación completa. | AUTH-T02, AUTH-T03 | Authentication, adapter OIDC/BFF | AC01/02: retorno inseguro, replay, state/nonce/issuer inválidos rechazados con tests de contrato. | Robo de sesión. |
+| [x] AUTH-T04 | Implementar puertos OIDC y callback de un uso con validación completa. | AUTH-T02, AUTH-T03 | Authentication, adapters OIDC/BFF/PostgreSQL, secretbox | AC01/02 backend: binario Go real + IdP/DB descartables, retorno, binding/state/nonce/issuer/PKCE, replay/concurrencia, cookies opacas y rollback probados. Alta mínima sin membresía y sesión inicial cifrada. | MFA real, sesión operativa y UI siguen en sus gates. |
 | [ ] AUTH-T05 | Implementar middleware operator y contexto tenant/capacidades con /me. | AUTH-T03, AUTH-T04 | Private API, tenancy, /me | AC03/06/07/09: token de otra clase falla; tenant ajeno no carga; suspensión bloquea siguiente petición; consulta mínima sin tenant no enumera terceros. | Confusión de autoridad. |
 | [ ] AUTH-T06 | Implementar almacenamiento/rotación de sesión, refresh coordinado y logout. | AUTH-T04, AUTH-T05 | Session store, BFF | AC04/08: concurrencia y respuesta perdida no duplican familias; logout local persiste con IdP caído; reutilización revocada se rechaza. | Concurrencia/tokens. |
 | [ ] AUTH-T07 | Implementar MFA/step-up y CSRF/origin para comandos. | AUTH-T02, AUTH-T06 | Authentication, IdP, BFF | AC05/10: amr/acr/auth_time verificados; CSRF malo no cambia nada; reloj prueba cada límite configurado. | Reautenticación insuficiente. |
@@ -28,6 +28,10 @@ Fuente de detalle: [contrato de consola](../../03-design/console-auth-contract.m
 ## Evidencia AUTH-T03 — 2026-11-03
 
 [Persistencia de consola](../../03-design/console-persistence.md) y [ADR-0004](../../decisions/ADR-0004.md) describen el DDL nuevo, roles y fronteras. `npm run test:postgres` ejecuta ocho pruebas Go de integración en PostgreSQL real y clúster descartable, sin usar bases existentes. Incluye identidad sin membership, defaults denegados, upgrade, FK, deadlines, envelopes, consumo CAS, fallo de outbox con rollback y el CLI real. No sustituye pruebas del callback, store operativo de sesión, refresh BFF, navegador, carga o restore. El siguiente trabajo es AUTH-T04.
+
+## Evidencia AUTH-T04 — 2026-11-04
+
+[Login OIDC](../../03-design/console-oidc-login.md) y [ADR-0005](../../decisions/ADR-0005.md) documentan puertos, librerías fijadas, consumo confirmado antes del intercambio, cifrado y alta mínima de identidad/sesión inicial. Pruebas Go verifican claims/firmas, deadlines, cifrado/AAD, fallos de entropía y HTTP/rate limiting. `npm run test:postgres` añade binario real/IdP/DB, cookies, callback concurrente, PKCE/nonce, replay, rollback, upgrade 0002→0003 y permisos sin escritura de memberships. No prueba navegador ni factores reales. AUTH-T05 es la siguiente tarea; AUTH-T06 conserva refresh/logout/rotación.
 
 ## Cobertura requisito → aceptación → tarea
 

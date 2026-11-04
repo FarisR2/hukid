@@ -24,11 +24,14 @@ func ListenAddress(value string) (string, error) {
 }
 
 // Handler exposes liveness only; it does not claim DB or IdP readiness.
-func Handler() http.Handler {
+func Handler(register ...func(*http.ServeMux)) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	})
+	for _, routes := range register {
+		routes(mux)
+	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("X-Content-Type-Options", "nosniff")

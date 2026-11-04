@@ -30,6 +30,7 @@ func OpenRuntimePool(ctx context.Context, dsn, role string, maxConnections int32
 	err = pool.QueryRow(ctx, `SELECT NOT (rolsuper OR rolbypassrls OR rolcreaterole OR rolcreatedb OR rolreplication)
 AND NOT pg_has_role(current_user,'hukid_owner','MEMBER')
 AND NOT pg_has_role(current_user,'hukid_context_reader','MEMBER')
+AND NOT pg_has_role(current_user,'hukid_identity_writer','MEMBER')
 AND NOT EXISTS (SELECT FROM pg_catalog.pg_roles inherited WHERE pg_has_role(current_user,inherited.oid,'MEMBER') AND (inherited.rolsuper OR inherited.rolbypassrls OR inherited.rolcreaterole OR inherited.rolcreatedb OR inherited.rolreplication))
 AND NOT EXISTS (SELECT FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname IN ('tenancy','console_auth','platform') AND pg_has_role(current_user,c.relowner,'MEMBER'))
 AND pg_has_role(current_user,$1,'USAGE') FROM pg_catalog.pg_roles WHERE rolname=current_user`, role).Scan(&safe)

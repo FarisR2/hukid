@@ -1,7 +1,7 @@
 # FEAT-001 — Autenticación de operadores
 
 - Producto: HukID Console / Team 5.
-- Estado: AUTH-T01/T02/T03 materializan bootstrap, baseline contractual y foundation PostgreSQL de laboratorio; login y handlers aún pendientes.
+- Estado: AUTH-T01–T04 materializan bootstrap, contratos, PostgreSQL y login/callback con sesión inicial de laboratorio. Middleware, sesión operativa y UI siguen pendientes; ver [login AUTH-T04](../../03-design/console-oidc-login.md).
 - Dependencias: IdP OIDC, tenant/membership mínimo, PostgreSQL y auditoría.
 - Salidas: [plan](plan.md), [tareas](tasks.md).
 

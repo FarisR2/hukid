@@ -1,6 +1,6 @@
 # Plataforma de eventos y HukID
 
-Este repositorio reúne la especificación de Events y del producto independiente HukID, el bootstrap AUTH-T01, la baseline contractual AUTH-T02 con IdP y la foundation PostgreSQL AUTH-T03 de laboratorio. No implementa login integrado ni acredita interoperabilidad; el resto del producto sigue descrito como trabajo por construir.
+Este repositorio reúne la especificación de Events y del producto independiente HukID, bootstrap, contratos, foundation PostgreSQL y login/callback OIDC AUTH-T04 de laboratorio. El callback crea una sesión inicial; autorización HTTP, refresh/logout e interfaz siguen pendientes. No acredita interoperabilidad ni preparación productiva.
 
 ## Documentación
 
@@ -14,6 +14,7 @@ Este repositorio reúne la especificación de Events y del producto independient
 | Features de consola HukID | [Índice y orden de implementación](docs/features/README.md): autenticación, gestión de miembros y dashboard, con spec/plan/tasks. |
 | Contrato de autenticación de consola | [Baseline AUTH-T02 y límites del laboratorio](docs/03-design/console-auth-contract.md) |
 | Persistencia de consola | [Migraciones, roles/RLS y pruebas AUTH-T03](docs/03-design/console-persistence.md) |
+| Login de consola | [OIDC y callback de un uso AUTH-T04](docs/03-design/console-oidc-login.md) |
 | Decisiones | [ADR-0001](docs/decisions/ADR-0001.md), [ADR-0002 — propuesta de consola](docs/decisions/ADR-0002.md), [ADR-0003 — laboratorio AUTH-T02](docs/decisions/ADR-0003.md), [ADR-0004 — PostgreSQL AUTH-T03](docs/decisions/ADR-0004.md) |
 
 Para Team 5, leer además el [perfil HukID v0.1-draft](docs/03-design/hukid-profile.md), los [contratos HukID](docs/03-design/hukid-api-contracts.md) y el [modelo PostgreSQL](docs/03-design/hukid-data-model.md).

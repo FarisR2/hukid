@@ -4,7 +4,7 @@ Referencia: [spec](spec.md), [tareas](tasks.md), [decisión propuesta](../../dec
 
 ## Evidencia y decisiones
 
-AUTH-T01 incorpora bootstrap Go y entry point React/TypeScript con Vite; ver [desarrollo local](../../04-engineering/local-development.md). El owner acordó `src/platform` y `src/console`. AUTH-T02 añade [contrato ejecutable y política de laboratorio](../../03-design/console-auth-contract.md), IdP OIDC y reglas de política Go según [ADR-0003](../../decisions/ADR-0003.md). AUTH-T03 materializa [persistencia con RLS](../../03-design/console-persistence.md) según ADR-0004. Los handlers siguen pendientes; no se heredan sesiones/claims de Events.
+AUTH-T01 incorpora bootstrap Go y entry point React/TypeScript con Vite; ver [desarrollo local](../../04-engineering/local-development.md). El owner acordó `src/platform` y `src/console`. AUTH-T02 añade [contrato y política](../../03-design/console-auth-contract.md) según ADR-0003 y AUTH-T03 [persistencia con RLS](../../03-design/console-persistence.md) según ADR-0004. AUTH-T04 implementa [login/callback y sesión inicial](../../03-design/console-oidc-login.md) según ADR-0005; los demás handlers siguen pendientes. No se heredan sesiones/claims de Events.
 
 El BFF guarda tokens en servidor y llama a Management con access token operator. Management sigue exigiendo Bearer: no se modifica para aceptar la cookie del navegador. Si se ejecutan en el mismo proceso, el adaptador conserva idénticas validaciones de token/actor y los límites de aplicación.
 
@@ -12,21 +12,22 @@ El BFF guarda tokens en servidor y llama a Management con access token operator.
 
 | Área bajo src | Responsabilidad |
 | --- | --- |
-| platform/cmd/api | Bootstrap local existente; routing BFF/API pendiente de contrato. |
+| platform/cmd/api | Bootstrap, configuración test y routing login/callback; Management pendiente. |
 | platform/internal/bootstrap | Liveness y validación loopback existentes. |
-| platform/internal/authentication | Loader/reglas temporales de política existentes; casos de uso de sesión y transacciones OIDC futuros. |
+| platform/internal/authentication | Política, puertos y casos de uso login/callback/sesión inicial existentes; ciclo operativo de sesión pendiente. |
 | platform/internal/tenancy | Futuro: actor, membership, tenant y capacidades; registro mínimo antes de FEAT-002. |
-| platform/internal/adapters/oidc | Futuro: discovery allowlisted, intercambio y verificación de tokens. |
+| platform/internal/adapters/oidc | Discovery restringido, intercambio PKCE y verificación de ambos tokens. |
 | platform/internal/adapters/privateapi | Futuro: middleware operator y /me, sin acoplar DTO al dominio. |
-| platform/internal/adapters/console | Futuro: cookie/CSRF, rutas BFF y traducción de errores. |
-| platform/internal/adapters/postgres | Existente: migraciones, roles/RLS, transacciones de contexto y descubrimiento mínimo. Repositorios operativos de sesión futuros. |
+| platform/internal/adapters/console | Login/callback, cookies iniciales, rate limiting y errores; comandos/CSRF pendientes. |
+| platform/internal/adapters/secretbox | Envelopes AES-256-GCM con AAD y clave externa; gestión productiva pendiente. |
+| platform/internal/adapters/postgres | Migraciones, roles/RLS, contexto y descubrimiento mínimo, transacciones OIDC y creación inicial de identidad/sesión. Rotación/refresh/logout pendientes. |
 | console/src/authentication | Futuro: login/retorno, selector, guards y recuperación de sesión. |
 
 Existen el entry point de consola, bootstrap, contratos/configuración y reglas de política indicados. Los demás módulos se crean al implementar su tarea. El fixture IdP reside en tests y no forma parte de Platform. No crear módulos de emisión ni wallet para demostrar login.
 
 ## Contratos nuevos de consola
 
-AUTH-T02 los materializa en [OpenAPI propio](../../../src/platform/contracts/console-auth.openapi.json), con política/semántica en el contrato de consola. La siguiente tabla conserva el inventario; el OpenAPI es la fuente de schemas y errores. Ningún handler está implementado; no son los endpoints /auth de Events.
+AUTH-T02 los materializa en [OpenAPI propio](../../../src/platform/contracts/console-auth.openapi.json), con política/semántica en el contrato de consola. La siguiente tabla conserva el inventario; el OpenAPI es la fuente de schemas y errores. AUTH-T04 implementa login/callback sólo para laboratorio; los otros siete handlers siguen pendientes. No son los endpoints /auth de Events.
 
 | Ruta | Entrada / efecto | Seguridad |
 | --- | --- | --- |

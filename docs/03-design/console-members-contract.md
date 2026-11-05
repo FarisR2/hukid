@@ -1,6 +1,6 @@
 # Contrato de miembros e invitaciones — USR-T01
 
-Estado: baseline de contrato y reglas puras validables para laboratorio; no hay handlers, migraciones de invitación ni pantallas de miembros. [ADR-0011](../decisions/ADR-0011.md) adopta este corte de [FEAT-002](../features/FEAT-002-user-management/spec.md). AUTH-T01–T10 mantienen su comportamiento y sus límites productivos.
+Estado: baseline de contrato y reglas puras validables para laboratorio; USR-T02 añade [persistencia/RLS/transacciones](console-members-persistence.md). No hay handlers ni pantallas de miembros. [ADR-0011](../decisions/ADR-0011.md) adopta este corte de [FEAT-002](../features/FEAT-002-user-management/spec.md). AUTH-T01–T10 mantienen su comportamiento y sus límites productivos.
 
 ## Artefactos y autoridad
 
@@ -95,7 +95,7 @@ Listados usan limit 1–100 (25 por defecto), cursor opaco autenticado por actor
 | 415 unsupported_media_type / 422 invalid_input | Tipo o campos inválidos; sin reflejar PII. |
 | 429 rate_limited / 503 dependency_unavailable | Reintentar según Retry-After, revalidando resultado. |
 
-Todas las respuestas: Problem Details seguro en errores, X-Correlation-Id opaco, no-store y no-referrer. 429/503 y operation_in_progress incluyen Retry-After. Los éxitos escriben mutación, revisión, evento y outbox en una transacción; el vocabulario de auditoría USR se materializará con USR-T02, conservando el envelope de AUTH-T09. No guardar correo, token, enlaces, claims ni reason libre en eventos. Denegaciones conservan el límite best effort de AUTH.
+Todas las respuestas: Problem Details seguro en errores, X-Correlation-Id opaco, no-store y no-referrer. 429/503 y operation_in_progress incluyen Retry-After. Los éxitos escriben mutación, revisión, evento y outbox en una transacción; el vocabulario de auditoría USR se materializa en la [persistencia USR-T02](console-members-persistence.md), conservando el envelope de AUTH-T09. No guardar correo, token, enlaces, claims ni reason libre en eventos. Denegaciones conservan el límite best effort de AUTH.
 
 ## Gate y continuación
 

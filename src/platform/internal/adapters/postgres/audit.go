@@ -8,6 +8,11 @@ import (
 
 // appendAuthEvent joins the mutation transaction. No payload, claims or errors.
 func appendAuthEvent(ctx context.Context, tx pgx.Tx, action, outcome, actor, tenant, target string) error {
+	return appendEvent(ctx, tx, action, outcome, actor, tenant, target)
+}
+
+// appendEvent keeps the minimal envelope shared by AUTH and membership stores.
+func appendEvent(ctx context.Context, tx pgx.Tx, action, outcome, actor, tenant, target string) error {
 	id, err := audit.NewID()
 	if err != nil {
 		return err

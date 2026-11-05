@@ -86,6 +86,8 @@ Exigen `HUKID_ENV=test`, `HUKID_TEST_DATABASE=1` y `HUKID_DATABASE_URL` explíci
 
 USR-T01 añade el [contrato de miembros y política test](../03-design/console-members-contract.md). Sus pruebas se incluyen en `npm run test:auth` y `npm run check:platform`, ambos dentro de `npm run check`. No agrega variables runtime, rutas habilitadas ni migraciones. No se habilitan escrituras por colocar el nuevo archivo de política junto a auth.test.json.
 
+USR-T02 añade [persistencia de miembros](../03-design/console-members-persistence.md) y migración 0007, aplicada por el mismo CLI/harness. El rol hukid_members_runtime requiere credencial backend independiente; este incremento no añade variable de configuración ni lo conecta a la API. El runtime de AUTH conserva sus tres credenciales y permisos. `npm run test:postgres` incluye seis escenarios USR nuevos de upgrade, aislamiento/constraints/pooling, audit/outbox atómicos, archivo/idempotencia/retención y locks/carreras/cancelación. Siguiente: USR-T03, lectura autorizada con filtros/cursor. No se habilitan handlers ni entrega por aplicar el expand.
+
 En dos terminales desde la raíz:
 
 ```sh
@@ -124,7 +126,7 @@ Decisiones y alcance: [ADR-0002](../decisions/ADR-0002.md), [FEAT-001](../featur
 
 ## Evidencia del bootstrap — 2026-11-03
 
-Las secciones de evidencia siguientes son snapshots de cada incremento. Las frases «siguiente tarea», las cantidades de pruebas y las funciones pendientes corresponden a la fecha de ese incremento; para continuar usar las [tareas vigentes](../features/FEAT-001-authentication/tasks.md) y el [plan global](../05-delivery/implementation-plan.md). AUTH-T01–T10 ya están entregadas para laboratorio y USR-T01 es la siguiente tarea.
+Las secciones de evidencia siguientes son snapshots de cada incremento. Las frases «siguiente tarea», las cantidades de pruebas y las funciones pendientes corresponden a la fecha de ese incremento; para continuar usar las [tareas vigentes de miembros](../features/FEAT-002-user-management/tasks.md) y el [plan global](../05-delivery/implementation-plan.md). AUTH-T01–T10 y la foundation USR-T01–T02 ya están entregadas para laboratorio; USR-T03 es la siguiente tarea.
 
 Entorno: Windows x64, Node 24.22.1, npm 11.19.1, Go 1.27.3 portable con checksum oficial verificado. Se validó también una copia del árbol fuente en otra ubicación sin `node_modules`, `dist` ni cachés previas; Go se indicó mediante `HUKID_GO`.
 

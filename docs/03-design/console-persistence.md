@@ -2,6 +2,8 @@
 
 Estado: DDL nuevo ejecutado y probado en PostgreSQL 18.6 descartable; no es el DDL histórico del issuer. AUTH-T04 añade [login/callback, cifrado y sesión inicial](console-oidc-login.md), conectando HTTP con PostgreSQL. AUTH-T05 añade [lecturas autorizadas](console-operator-context.md) y AUTH-T06 [rotación, refresh/logout y purga](console-session-lifecycle.md); administración de miembros sigue pendiente. Este documento conserva el detalle de foundation AUTH-T03.
 
+USR-T02 añade la migración 0007 y la [foundation de persistencia de miembros](console-members-persistence.md), con credencial propia/RLS, archivo de lifecycles, invitaciones y primitiva de lock/audit/outbox. No habilita aún administración por HTTP. Los detalles AUTH-T03 de abajo conservan su alcance histórico.
+
 ## Artefactos y decisiones
 
 - [0001_console_foundation.sql](../../src/platform/internal/adapters/postgres/migrations/0001_console_foundation.sql): roles, identidades, tenants, memberships, roles locales, registros de sesión/transacción y referencias mínimas de audit/outbox.

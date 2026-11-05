@@ -4,7 +4,7 @@ Este repositorio reúne la especificación de Events y del producto independient
 
 ## Documentación
 
-USR-T01 materializa el [contrato de miembros e invitaciones](docs/03-design/console-members-contract.md), con schemas, política test y reglas puras; sus endpoints y pantallas siguen pendientes. Para continuar, consultar el [plan de implementación vigente](docs/05-delivery/implementation-plan.md): siguiente tarea **USR-T02**. El orden del panel web es AUTH→USR→DASH; el [roadmap del producto](docs/05-delivery/hukid-roadmap.md) describe el negocio de emisión, wallet y verificación, aún pendiente. Completar autenticación no entrega por sí solo dashboard ni validación de credenciales.
+USR-T01 materializa el [contrato de miembros e invitaciones](docs/03-design/console-members-contract.md), con schemas, política test y reglas puras; USR-T02 añade [persistencia, RLS, locks y evidencia transaccional](docs/03-design/console-members-persistence.md). Sus endpoints y pantallas siguen pendientes. Para continuar, consultar el [plan de implementación vigente](docs/05-delivery/implementation-plan.md): siguiente tarea **USR-T03**. El orden del panel web es AUTH→USR→DASH; el [roadmap del producto](docs/05-delivery/hukid-roadmap.md) describe el negocio de emisión, wallet y verificación, aún pendiente. Completar autenticación no entrega por sí solo dashboard ni validación de credenciales.
 
 | Área | Punto de entrada |
 | --- | --- |

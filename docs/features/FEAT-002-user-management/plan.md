@@ -2,7 +2,7 @@
 
 Referencias: [spec](spec.md), [tareas](tasks.md), [FEAT-001](../FEAT-001-authentication/plan.md).
 
-USR-T01 materializa U0: [contrato y políticas](../../03-design/console-members-contract.md), [OpenAPI](../../../src/platform/contracts/console-members.openapi.json), schemas y reglas puras según [ADR-0011](../../decisions/ADR-0011.md). Las doce operaciones están marcadas contract-only. Los hitos siguientes conservan la implementación pendiente; el siguiente incremento es USR-T02.
+USR-T01 materializa U0: [contrato y políticas](../../03-design/console-members-contract.md), [OpenAPI](../../../src/platform/contracts/console-members.openapi.json), schemas y reglas puras según [ADR-0011](../../decisions/ADR-0011.md). USR-T02 añade [persistencia/RLS y protocolo transaccional](../../03-design/console-members-persistence.md) según [ADR-0012](../../decisions/ADR-0012.md). Las doce operaciones siguen contract-only. El siguiente incremento es USR-T03: lectura autorizada con filtros/cursor.
 
 ## Estado inicial y módulos
 
@@ -36,9 +36,9 @@ Comandos usan Idempotency-Key acotada por actor/operación/tenant y hash; accept
 
 ## Migraciones y concurrencia
 
-Añadir invitaciones y estados/roles/alcance necesarios mediante expand; conservar identidad única issuer/subject y membership lógica por tenant/identidad. El modelo de reingreso de USR-T01 conserva historial y membershipId y abre lifecycle nuevo con revisión monotónica y grants explícitos, sin duplicar membership efectiva. T02 debe registrar la generación/revocación objetivo de invitaciones para que ninguna anterior reactive un lifecycle revocado.
+La migración 0007 de USR-T02 añade invitaciones, lifecycle/archivo, alcance, deadlines y fingerprints idempotentes mediante expand, conservando identidad única issuer/subject y membership lógica por tenant/identidad. Registra binding opcional de generación/revocación objetivo y corte vigente de membership; USR-T05 debe compararlos bajo lock al resolver la identidad verificada. El modelo de reingreso conserva historial y membershipId y abre lifecycle nuevo con revisión monotónica y grants explícitos, sin duplicar membership efectiva. La autorización/máquina de comandos aún no está conectada.
 
-Proteger mutaciones de administradores bloqueando el agregado tenant antes de contar tenant_admin activos y cambiar membership. Invitar/aceptar/promover/reactivar/degradar deben usar el mismo orden de locks para no eludir la invariante por otra ruta.
+WithMemberMutation bloquea el agregado tenant mediante advisory lock transaccional del UUID normalizado antes del callback; se prueba el guard de último admin con dos conexiones reales. Invitar/aceptar/promover/reactivar/degradar deben usar esta misma primitiva y orden de locks para no eludir la invariante por otra ruta. RLS del runtime de miembros aísla tenant; autorización de actor/capacidades sigue siendo obligación de cada handler/replay.
 
 Dentro de la transacción volver a validar revisión/capacidad del actor, cambios permitidos y tenant activo; persistir cambios, revisión de autorización, audit y outbox. Tras commit, FEAT-001 invalida/revalida el contexto. Mantener identidades/sesiones de otros tenants operables.
 

@@ -4,7 +4,9 @@ Estado al 2026-11-05: AUTH-T01–T10 tienen comprobaciones ejecutables de autent
 
 La autenticación tiene pruebas de contratos/ejemplos y matriz, JWT y políticas, PostgreSQL/RLS/migraciones, login/callback HTTP, middleware operator, sesión/refresh/logout, step-up/contexto y navegador React. La evidencia MFA sigue siendo sintética y no selecciona proveedor ni demuestra factores reales. Alcance y matriz en el [contrato de consola](../03-design/console-auth-contract.md#pruebas-y-cobertura-actual).
 
-USR-T01 añade [contrato de miembros](../03-design/console-members-contract.md): OpenAPI con doce operaciones contract-only, schemas/ejemplos positivos y negativos en test:auth y unitarias Go de política/email/grants/revisión/último administrador en check:platform. No hay endpoints de miembros, canje email real ni concurrencia DB de esas mutaciones probados; corresponden a USR-T02–T09. El contrato no cambia la matriz de AUTH ni reemplaza su gate.
+USR-T01 añade [contrato de miembros](../03-design/console-members-contract.md): OpenAPI con doce operaciones contract-only, schemas/ejemplos positivos y negativos en test:auth y unitarias Go de política/email/grants/revisión/último administrador en check:platform. Ese incremento no prueba endpoints, canje email real ni concurrencia DB de esas mutaciones; las tareas posteriores los incorporan progresivamente. El contrato no cambia la matriz de AUTH ni reemplaza su gate.
+
+USR-T02 añade seis escenarios Go de [persistencia de miembros](../03-design/console-members-persistence.md) en test:postgres: upgrade 0006→0007 con datos preservados, RLS/credenciales/constraints/pool reuse, rollback de invitación ante fallo de evidencia, archivo y fingerprints/retención, carrera de últimos administradores bajo lock, UUID canónico/cancelación de waiter. Son pruebas de almacenamiento y protocolo de transacción; la autorización y los handlers USR todavía no están implementados. La suite AUTH completa se conserva.
 
 | Comando existente | Qué comprueba | Límite |
 | --- | --- | --- |

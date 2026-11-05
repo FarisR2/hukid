@@ -1,7 +1,7 @@
 # FEAT-002 — Gestión de miembros de tenant
 
 - Producto: HukID Console / Team 5.
-- Estado: USR-T01 materializa la baseline de contrato y reglas de laboratorio; handlers, persistencia ampliada y UI pendientes.
+- Estado: USR-T01 materializa contrato/reglas y USR-T02 la [persistencia ampliada](../../03-design/console-members-persistence.md) de laboratorio; handlers, entrega y UI pendientes.
 - Depende de: [FEAT-001](../FEAT-001-authentication/spec.md).
 - Salidas: [plan](plan.md), [tareas](tasks.md).
 

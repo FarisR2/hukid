@@ -2,7 +2,7 @@
 
 Fecha: 2026-11-03. Inventario del paquete recibido; no significa que los artefactos no existan en otro repositorio. Los diez Markdown HukID incorporados sustituyen referencias personales para arquitectura, perfil y modelo conceptual, pero no adjuntan los archivos ejecutables citados.
 
-Estado de ejecución actualizado al 2026-11-05: AUTH-T01–T10 implementadas en laboratorio; USR-T01 materializa [contrato/política de miembros](../03-design/console-members-contract.md) y reglas puras, sin endpoints ni migraciones de invitación. La [ruta vigente](implementation-plan.md) continúa con USR-T02 y distingue el panel web del negocio de credenciales. Este inventario conserva procedencia y evidencia histórica; un artefacto nuevo de consola no sustituye al artefacto histórico ausente de emisión/wallet/verificación.
+Estado de ejecución actualizado al 2026-11-05: AUTH-T01–T10 implementadas en laboratorio; USR-T01 materializa [contrato/política de miembros](../03-design/console-members-contract.md) y reglas puras; USR-T02 añade [persistencia ampliada/RLS/locks/evidencia](../03-design/console-members-persistence.md), sin endpoints ni entrega. La [ruta vigente](implementation-plan.md) continúa con USR-T03 y distingue el panel web del negocio de credenciales. Este inventario conserva procedencia y evidencia histórica; un artefacto nuevo de consola no sustituye al artefacto histórico ausente de emisión/wallet/verificación.
 
 ## Archivos referenciados que no se adjuntaron
 
@@ -63,6 +63,12 @@ Los paquetes [FEAT-001/002/003](../features/README.md) añaden especificación, 
 Para empezar AUTH-T01 no es necesario recuperar los ejemplos de emisión ni configurar KMS issuer. Para completar login integrado sí hacen falta IdP test compatible, políticas de sesión/MFA, contrato de operador y migraciones mínimas; miembros necesita policy de invitación/notificación. No marcar esos artefactos como disponibles por existir el plan.
 
 Pendientes actuales del panel: implementación FEAT-002 miembros y FEAT-003 dashboard. AUTH-T10 cierra [operación/gate de laboratorio](authentication-gate.md), con límites productivos explícitos. Hay un harness E2E descartable y pantallas conectadas. El owner confirmó ingreso en un laboratorio manual temporal preparado fuera del código versionado; no es un entorno demo persistente reproducible desde checkout ni un despliegue productivo. No acredita emisión/verificación documental. Las secciones de incremento que siguen conservan el estado histórico de su fecha.
+
+### Incremento USR-T02
+
+[ADR-0012](../decisions/ADR-0012.md) y [modelo de persistencia](../03-design/console-members-persistence.md): migración 0007, lifecycle/archivo, invitaciones con hash/destinatario cifrado, envelope separado, deadlines/fingerprints y rol propio con RLS tenant. La primitiva de mutación comparte audit/outbox y lock tenant; seis escenarios de almacenamiento prueban upgrade, aislamiento/pool reuse/constraints, rollback, archivo/retención y carrera de último admin/cancelación. Los fixtures no son endpoints ni sustituyen reautorización de actor/MFA. El corte de revocación legacy usa la fecha de migración porque no había fecha histórica.
+
+No se conecta credencial USR a la API ni hay lookup global del token, evidencia email, replay HTTP, entrega/worker, purga programada, fuente ownership issuer o UI. Los grants no vacíos continúan bloqueados sin fuente confiable; sólo se prepara su almacenamiento. Retención institucional, cargas, restore y producción mantienen sus gates. Siguiente USR-T03. El detalle USR-T01 que sigue conserva la evidencia previa a esta migración.
 
 ### Incremento USR-T01
 

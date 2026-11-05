@@ -1,12 +1,12 @@
 # Contrato de miembros e invitaciones — USR-T01
 
-Estado: baseline de contrato y reglas puras validables para laboratorio; USR-T02 añade [persistencia/RLS/transacciones](console-members-persistence.md). No hay handlers ni pantallas de miembros. [ADR-0011](../decisions/ADR-0011.md) adopta este corte de [FEAT-002](../features/FEAT-002-user-management/spec.md). AUTH-T01–T10 mantienen su comportamiento y sus límites productivos.
+Estado: baseline de contrato y reglas puras validables para laboratorio; USR-T02 añade [persistencia/RLS/transacciones](console-members-persistence.md). USR-T03 implementa [cuatro GET autorizados](console-members-directory.md) según [ADR-0013](../decisions/ADR-0013.md); mutaciones y pantallas siguen pendientes. [ADR-0011](../decisions/ADR-0011.md) adopta este corte de [FEAT-002](../features/FEAT-002-user-management/spec.md). AUTH-T01–T10 mantienen su comportamiento y sus límites productivos.
 
 ## Artefactos y autoridad
 
 | Artefacto | Responsabilidad |
 | --- | --- |
-| [OpenAPI propio](../../src/platform/contracts/console-members.openapi.json) | Doce operaciones, seis Management y seis BFF, todas `contract-only`. No sustituye el OpenAPI histórico ausente. |
+| [OpenAPI propio](../../src/platform/contracts/console-members.openapi.json) | Doce operaciones, seis Management y seis BFF, cuatro GET `implemented-test` desde USR-T03 y ocho mutaciones `contract-only`. No sustituye el OpenAPI histórico ausente. |
 | [Schemas compartidos](../../src/platform/contracts/user-management.schema.json) | Requests, membership, invitación, páginas y Problem Details estrictos; OpenAPI referencia esta fuente. |
 | [Matriz única](../../src/platform/contracts/capabilities.json) | Conserva los cuatro roles y capacidades de AUTH, sin ampliar sus grants. |
 | [Política test](../../src/platform/config/user-management.test.json) y [schema](../../src/platform/contracts/user-management-policy.schema.json) | Valores explícitos de expiración/retención y perfil email; no son política institucional. |
@@ -26,7 +26,7 @@ El navegador usa las rutas equivalentes bajo `/console/api`; no transporta Beare
 | PATCH /tenants/{tenantId}/memberships/{membershipId} | members:update; además members:revoke si state=revoked | MFA reciente, Idempotency-Key, If-Match y guard de último admin. |
 | POST /invitation-acceptances | Ninguna capacidad/directorio previo | Operador válido, prueba de destinatario y token de invitación. |
 
-MFA reciente significa `VerifyPrivilegedOperator` y freshness de [AUTH-T07](console-reauthentication.md); refresh no renueva auth_time. BFF aplica las mismas reglas desde la sesión y el access token custodiado. POST/PATCH BFF exigen cookie, Origin exactamente configurado y X-CSRF-Token de la generación vigente, incluso para aceptación sin tenant seleccionado. No se confía en tenant/roles/issuerIds del navegador como autoridad.
+MFA reciente significa `VerifyPrivilegedOperator` y freshness de [AUTH-T07](console-reauthentication.md); refresh no renueva auth_time. BFF aplica las mismas reglas desde la sesión y el access token custodiado. Las lecturas USR-T03 exigen que el tenant de ruta sea el seleccionado mediante AUTH. POST/PATCH BFF exigen cookie, Origin exactamente configurado y X-CSRF-Token de la generación vigente, incluso para aceptación sin tenant seleccionado. No se confía en tenant/roles/issuerIds del navegador como autoridad.
 
 Todo tenant de ruta es selector de recurso. Validar membership viva y tenant activo antes de consultar el directorio o devolver replay; recurso ajeno/inactivo se oculta con 404. Actor sin capacidad en su tenant recibe 403. issuer_operator y support_readonly no leen directorios. Las nueve rutas AUTH existentes no se modifican al materializar este contrato.
 
@@ -40,7 +40,7 @@ PATCH permite state y/o reemplazo completo de roles más issuerIds; estos dos ú
 
 Respuesta individual de invitación/membership incluye ETag fuerte `"<revision>"`; los items de lista incluyen revision. If-Match sólo acepta una revisión fuerte, sin wildcard, lista ni prefijo débil. Falta devuelve 428, forma inválida 400 y revisión desactualizada 412 sin efecto parcial. Se compara dentro de la transacción, después de autorizar. No se anuncia un cambio hasta confirmar commit/audit/outbox.
 
-Invitación expone tenantId, invitationId, recipientHint enmascarado, roles, issuerIds, state, deliveryState, revision y fechas. Nunca email completo, token, enlace, hash o envelope. recipientHint puede convertirse en `redacted` tras purga. pending→accepted/revoked/expired; acceptedAt y revokedAt son coherentes con state. Expiración es efectiva aunque el worker aún no haya materializado expired; una lectura devuelve el estado efectivo. deliveryState queued/sent/failed es independiente: sent sólo confirma aceptación del proveedor, incluso si luego se revocó la invitación.
+Invitación expone tenantId, invitationId, recipientHint enmascarado, roles, issuerIds, state, deliveryState, revision y fechas. Nunca email completo, token, enlace, hash o envelope. USR-T03 usa la máscara fija `***` sin descifrar el destinatario; recipientHint es `redacted` al faltar ciphertext o vencer la retención, incluso antes de la purga. pending→accepted/revoked/expired; acceptedAt y revokedAt son coherentes con state. Expiración es efectiva aunque el worker aún no haya materializado expired; una lectura devuelve el estado efectivo. deliveryState queued/sent/failed es independiente: sent sólo confirma aceptación del proveedor, incluso si luego se revocó la invitación.
 
 ## Email e identidad del destinatario
 
@@ -82,7 +82,7 @@ Todo POST/PATCH exige Idempotency-Key de 16–128 caracteres base64url. Scope: i
 
 Reautorizar credencial/capacidad/MFA y pertenencia antes de replay; aceptación revalida identidad/email y liga el resultado a ese actor/digest, sin exigir que siga pending el token ya consumido por esa misma key. Resolver un replay confirmado antes de comparar If-Match contra la revisión actual, para que un reintento exacto funcione después del primer commit. Devolver los mismos IDs con representación vigente/estado efectivo y ETag actual, sin regenerar secretos ni duplicar auditoría. Si la misma identidad fue revocada/suspendida después de aceptar, no devolver éxito de aceptación obsoleto: 409 membership_revoked/membership_exists según estado. Con otra key, el token ya consumido devuelve invitation_invalid.
 
-Listados usan limit 1–100 (25 por defecto), cursor opaco autenticado por actor/tenant/operación/filtros/limit/versión/deadline y orden `(createdAt,id)` ascendente. Rechazar cursor alterado, expirado, de otro actor/tenant/filtro con 400 invalid_cursor. No prometer snapshot: cambios concurrentes pueden requerir recargar; nunca exponen otro tenant. query de memberships es prefijo canónico de UUID (8–36 caracteres) sobre membershipId/operatorIdentityId; no es búsqueda global por email o nombre. Estados/roles desconocidos y límites inválidos son 422; parámetros repetidos/desconocidos son 400. JSON estricto de hasta 16 KiB, sin campos extra, duplicados, contenido posterior ni content-type alternativo.
+Listados usan limit 1–100 (25 por defecto), cursor opaco autenticado por actor/tenant/operación/filtros/limit/versión/deadline y orden `(createdAt,id)` ascendente. Rechazar cursor alterado, expirado, de otro actor/tenant/filtro con 400 invalid_cursor. No prometer snapshot: cambios concurrentes pueden requerir recargar; nunca exponen otro tenant. query de memberships es prefijo canónico de UUID (8–36 caracteres) sobre membershipId/operatorIdentityId; no es búsqueda global por email o nombre. Estados/roles desconocidos y límites inválidos son 422; parámetros vacíos/repetidos/desconocidos son 400. JSON estricto de hasta 16 KiB, sin campos extra, duplicados, contenido posterior ni content-type alternativo.
 
 | HTTP / code | Semántica segura |
 | --- | --- |
@@ -101,4 +101,4 @@ Todas las respuestas: Problem Details seguro en errores, X-Correlation-Id opaco,
 
 `npm run test:auth` incluye automáticamente los tests nuevos de contrato. `npm run check:platform` ejecuta las unitarias Go; `npm run check` incluye ambos más TypeScript/documentación. Los ejemplos OpenAPI incluyen aceptación sin membership previa y 409 last_admin_required. Las pruebas negativas cubren roles/campos/issuerIds, input de email y deadlines/revisiones; no sustituyen efectos reales.
 
-USR-T02 añade migraciones expand, lifecycle/historial, invitaciones, retención e idempotencia/RLS/locks/audit/outbox. USR-T03–T07 conectan handlers, evidencia email, entrega y autorización viva. USR-T08 añade UI y USR-T09 su gate. No se ejecuta ninguna migración de aplicación con T01 ni se habilitan permisos de escritura DB; el perfil de credenciales y producción siguen pendientes.
+USR-T02 añade migraciones expand, lifecycle/historial, invitaciones, retención e idempotencia/RLS/locks/audit/outbox. USR-T03 conecta las lecturas Management/BFF con autorización viva y cursor autenticado. USR-T04–T07 conectarán mutaciones, evidencia email y entrega. USR-T08 añade UI y USR-T09 su gate. No se ejecuta ninguna migración de aplicación con T01 ni se habilitan permisos de escritura DB; el perfil de credenciales y producción siguen pendientes.

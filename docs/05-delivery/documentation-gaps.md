@@ -24,6 +24,8 @@ La cabecera de procedencia del Architecture Spine conserva rutas a architecture/
 
 ## Detalles ahora disponibles
 
+USR-T03 añade [lecturas autorizadas de miembros e invitaciones](../03-design/console-members-directory.md), con cuatro GET Management/BFF, filtros/cursor y credencial separada. Ocho mutaciones, entrega, evidencia email/aceptación y UI siguen pendientes. La máscara fija del destinatario no distingue correos y no se descifra PII; deben mantenerse explícitos ese límite y la falta de rate limiting propio, carga/restore y operación productiva. Ver [ADR-0013](../decisions/ADR-0013.md) y tareas FEAT-002.
+
 - [Perfil](../03-design/hukid-profile.md): VC/VP-JWT, ES256, cnf.jkt, token classes, low-risk offer TTL ≤5 min, local-only/issuer-reauth y presentación directa.
 - [APIs](../03-design/hukid-api-contracts.md): request/response ilustrativos, errores, status operations y candidatos webhook.
 - [Modelo](../03-design/hukid-data-model.md): schemas lógicos, ownership, constraints, cifrado y reglas de migración; DDL sigue ausente.

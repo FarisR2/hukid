@@ -2,7 +2,7 @@
 
 Referencias: [spec](spec.md), [tareas](tasks.md), [FEAT-001](../FEAT-001-authentication/plan.md).
 
-USR-T01 materializa U0: [contrato y políticas](../../03-design/console-members-contract.md), [OpenAPI](../../../src/platform/contracts/console-members.openapi.json), schemas y reglas puras según [ADR-0011](../../decisions/ADR-0011.md). USR-T02 añade [persistencia/RLS y protocolo transaccional](../../03-design/console-members-persistence.md) según [ADR-0012](../../decisions/ADR-0012.md). Las doce operaciones siguen contract-only. El siguiente incremento es USR-T03: lectura autorizada con filtros/cursor.
+USR-T01 materializa U0: [contrato y políticas](../../03-design/console-members-contract.md), [OpenAPI](../../../src/platform/contracts/console-members.openapi.json), schemas y reglas puras según [ADR-0011](../../decisions/ADR-0011.md). USR-T02 añade [persistencia/RLS y protocolo transaccional](../../03-design/console-members-persistence.md) según [ADR-0012](../../decisions/ADR-0012.md). USR-T03 conecta [cuatro lecturas autorizadas con filtros/cursor](../../03-design/console-members-directory.md) según [ADR-0013](../../decisions/ADR-0013.md); ocho mutaciones siguen contract-only. El siguiente incremento es USR-T04: invitación y entrega.
 
 ## Estado inicial y módulos
 
@@ -49,7 +49,7 @@ Invite token se genera con CSPRNG, se guarda hasheado para canje y se transporta
 | Hito | Dependencias | Gate |
 | --- | --- | --- |
 | U0 — Contrato y matriz | AUTH-T02/T03/T05/T07 | Materializado en USR-T01; OpenAPI/schemas/ejemplos y reglas puras, sin handlers. |
-| U1 — Lectura/aislamiento | U0 | Tabla real con filtros/cursor y roles negativos probados. |
+| U1 — Lectura/aislamiento | U0 | Lecturas API/BFF con filtros/cursor y roles negativos probados en USR-T03; tabla visual pendiente USR-T08. |
 | U2 — Invitación vertical | U1 + worker/IdP test | Admin invita, entrega sintética, identidad correcta acepta una vez. |
 | U3 — Ciclo de acceso | U2 | Roles/suspensión/revocación y último admin bajo concurrencia. |
 | U4 — UI y entrega | U3 | Journey con 412/403/expiración, auditoría y revalidación de sesión. |

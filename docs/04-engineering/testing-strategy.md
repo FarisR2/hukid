@@ -1,10 +1,20 @@
 # Estrategia de pruebas
 
-Documento de estrategia. AUTH-T01 incorpora pruebas Go del perímetro del bootstrap (dirección loopback, liveness, métodos y ausencia de rutas de autenticación), typecheck y builds; ver [desarrollo local](local-development.md). Las suites funcionales de las capas siguientes siguen pendientes: se derivan de criterios originales y deben aportar evidencia al release gate.
+Estado al 2026-11-05: AUTH-T01–T08 tienen comprobaciones ejecutables de autenticación en laboratorio; el alcance y la evidencia por incremento están en [tareas FEAT-001](../features/FEAT-001-authentication/tasks.md). AUTH-T09 conserva auditoría/redacción integrada y AUTH-T10 el gate operativo. Las pruebas de credenciales, wallet, status y verifier que se describen más abajo son requisitos pendientes, no suites ya construidas.
 
-AUTH-T02 añade pruebas de OpenAPI/ejemplos, política temporal/configuración Go y un AS OIDC de laboratorio con JWT operator/refresh firmados. La evidencia de MFA es sintética y no sustituye tests del futuro middleware, DB/RLS, sesión, factores reales o navegador. Alcance y matriz de escenarios en el [contrato de consola](../03-design/console-auth-contract.md#pruebas-y-cobertura-actual).
+La autenticación tiene pruebas de contratos/ejemplos y matriz, JWT y políticas, PostgreSQL/RLS/migraciones, login/callback HTTP, middleware operator, sesión/refresh/logout, step-up/contexto y navegador React. La evidencia MFA sigue siendo sintética y no selecciona proveedor ni demuestra factores reales. Alcance y matriz en el [contrato de consola](../03-design/console-auth-contract.md#pruebas-y-cobertura-actual).
 
-AUTH-T03 añade `npm run test:postgres`: ocho pruebas Go de integración, sin skip, en clúster PostgreSQL descartable. Verifica migración vacía/previa con datos, RLS/roles, tenants, pool, FK, bootstrap/CLI y forma de envelopes. Se ejecuta por separado de `npm run check`; las futuras pruebas de sesión/HTTP, restore y carga no se infieren de este resultado. Detalle en [persistencia](../03-design/console-persistence.md#pruebas-y-límites).
+| Comando existente | Qué comprueba | Límite |
+| --- | --- | --- |
+| `npm run check` | Formato/vet/pruebas Go, TypeScript, contratos/IdP y documentación. | No incluye PostgreSQL ni navegador. |
+| `npm run test:postgres` | Suite Go con PostgreSQL 18.6 propio: foundation, migraciones, RLS/roles, HTTP con API/IdP y ciclo de sesión/comandos. | Bases descartables; no carga ni restore. |
+| `npm run build` | Compilación de Platform y distribución React. | Compilar no prueba una interacción. |
+| `npm run smoke` | Liveness y auth deshabilitada/configuración rechazada, HTML y JS compilados. | Requiere build; es HTTP, no prueba visual. |
+| `npm run test:browser` | Chromium→Vite→Go→OIDC/PostgreSQL de laboratorio; login, selector, /me, refresh, step-up, logout, fallos y contexto entre pestañas/historial. | Requiere build, Python/Playwright y Chromium; no MFA real ni conformance de credenciales. |
+
+Instrucciones y condiciones en [desarrollo local](local-development.md) y [AUTH-T08](../03-design/console-auth-interface.md). Una ejecución de documentación no vuelve a acreditar estas suites: registrar siempre cuáles se ejecutaron para el cambio concreto.
+
+## Matriz objetivo del producto
 
 | Capa / riesgo | Pruebas necesarias |
 | --- | --- |

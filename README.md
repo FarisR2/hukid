@@ -4,6 +4,8 @@ Este repositorio reúne la especificación de Events y del producto independient
 
 ## Documentación
 
+Para continuar, consultar el [plan de implementación vigente](docs/05-delivery/implementation-plan.md): siguiente tarea **AUTH-T09**, después AUTH-T10. El orden del panel web es AUTH→USR→DASH; el [roadmap del producto](docs/05-delivery/hukid-roadmap.md) describe el negocio de emisión, wallet y verificación, aún pendiente. Completar autenticación no entrega por sí solo dashboard ni validación de credenciales.
+
 | Área | Punto de entrada |
 | --- | --- |
 | Producto | [Visión](docs/01-product/vision.md), [alcance](docs/01-product/scope.md), [glosario](docs/01-product/glossary.md) |

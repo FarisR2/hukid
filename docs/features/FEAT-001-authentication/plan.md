@@ -8,7 +8,7 @@ AUTH-T01 incorpora bootstrap Go y entry point React/TypeScript con Vite; ver [de
 
 AUTH-T05 incorpora [middleware operator y /me](../../03-design/console-operator-context.md), con decisión de lectura mínima de sesión en [ADR-0006](../../decisions/ADR-0006.md). El BFF guarda tokens en servidor y llama a Management con access token operator. Management sigue exigiendo Bearer: no se modifica para aceptar la cookie del navegador. Si se ejecutan en el mismo proceso, el adaptador conserva idénticas validaciones de token/actor y los límites de aplicación.
 
-## Componentes propuestos
+## Componentes y estado actual
 
 | Área bajo src | Responsabilidad |
 | --- | --- |
@@ -23,7 +23,7 @@ AUTH-T05 incorpora [middleware operator y /me](../../03-design/console-operator-
 | platform/internal/adapters/postgres | Migraciones, roles/RLS, contexto y descubrimiento mínimo, transacciones OIDC y creación inicial de identidad/sesión. Rotación/refresh/logout y purga desde AUTH-T06. |
 | console/src/authentication | AUTH-T08: login/retorno, selector, guards y recuperación de sesión. |
 
-Existen el entry point de consola, bootstrap, contratos/configuración y reglas de política indicados. Los demás módulos se crean al implementar su tarea. El fixture IdP reside en tests y no forma parte de Platform. No crear módulos de emisión ni wallet para demostrar login.
+Los componentes de autenticación indicados están implementados hasta AUTH-T08 en laboratorio, incluido el panel React. Auditoría integrada y operación/gate siguen en AUTH-T09/T10. Los módulos de miembros, dashboard y credenciales conservan sus tareas propias. El fixture IdP reside en tests y no forma parte de Platform. No crear módulos de emisión ni wallet para demostrar login.
 
 ## Contratos nuevos de consola
 
@@ -63,7 +63,7 @@ Bootstrap local crea dos tenants y operadores sintéticos, con secreto externo a
 
 ## Verificación y rollout
 
-AUTH-T01/T02 documentan comandos de formato, vet, pruebas Go de política/tiempo controlado, contrato, IdP de laboratorio, typecheck, build y smoke en desarrollo local. Los futuros tests de integración PostgreSQL/RLS, middleware Go, sesión concurrente y navegador requieren sus implementaciones; no se presentan como ejecutados por este bootstrap.
+Los comandos vigentes están en [desarrollo local](../../04-engineering/local-development.md): check, test:postgres, build, smoke y test:browser. AUTH-T03–T07 agregan PostgreSQL/RLS, HTTP y middleware, sesión concurrente y comandos; AUTH-T08 incorpora navegador. El estado y la evidencia por tarea están en [tasks.md](tasks.md); las suites de laboratorio no acreditan MFA real, carga/restore ni producción. AUTH-T09 amplía auditoría/redacción y AUTH-T10 conserva el gate A4.
 
 Habilitar inicialmente a tenant sintético en entorno aislado. Un rollback revoca/deshabilita acceso a consola, conserva auditoría y usa migración forward; no borra tablas de sesión ni cambia comportamiento OID4VCI. No hay modificaciones destructivas previstas.
 
@@ -71,9 +71,11 @@ Habilitar inicialmente a tenant sintético en entorno aislado. Un rollback revoc
 
 Validar que el IdP pueda producir access tokens operator con audiencia/clase del perfil y evidencia MFA suficiente; no relajar el perfil para acomodar un proveedor. Si no puede, registrar alternativa del Authorization Server antes de conectar.
 
-Se puede empezar por AUTH-T01, contratos, dominio y tests sintéticos. El gate integrado requiere políticas configuradas y membership mínima. El despliegue productivo requiere proveedor y secretos reales, HTTPS, soporte, retención y DoD.
+El siguiente incremento es AUTH-T09 sobre AUTH-T01–T08 ya entregadas; después AUTH-T10 documenta operación y evidencia del gate. El despliegue productivo conserva requisitos de proveedor/factores reales, secretos, HTTPS, soporte, retención y DoD, sin asumirlos aprobados por cerrar tareas de laboratorio.
 
 ## Incremento AUTH-T06
+
+Los incrementos siguientes conservan la secuencia de entrega. Para el estado acumulado usar el encabezado de [tareas](tasks.md), no las pendientes que se describen al cierre de cada incremento anterior.
 
 Se implementa el [ciclo de sesión](../../03-design/console-session-lifecycle.md) según [ADR-0007](../../decisions/ADR-0007.md): actividad autorizada, lease por familia, rotación atómica de generación y prueba CSRF, refresh OIDC sin reintento incierto, logout y mantenimiento acotado. El inventario anterior conserva la evolución por incremento. AUTH-T07 completa MFA/step-up y comandos; AUTH-T08 conserva la UI.
 

@@ -1,14 +1,36 @@
 # Plan de implementación
 
-## Estado de partida
+## Estado actual y siguiente implementación
 
-Especificaciones Events y HukID reunidas localmente. AUTH-T01 incorpora [bootstrap local](../04-engineering/local-development.md) en src/platform y src/console, sin login ni pantalla funcional. Primero cerrar contratos ejecutables y decisiones del piloto; luego construir según dependencias. La reorganización y este bootstrap no modifican la prioridad comercial ni declaran completadas fases.
+Actualizado: 2026-11-05, con AUTH-T08 integrado en develop mediante PR #7 (merge `94785b0`, implementación `e822529`). AUTH-T01–T08 entregan autenticación de laboratorio: backend Go, persistencia PostgreSQL, OIDC, contexto autorizado, sesiones y [panel web React conectado](../03-design/console-auth-interface.md). El IdP y la MFA de las pruebas son sintéticos. No hay evidencia productiva ni entrega de emisión/verificación de credenciales.
 
-## Paquetes para comenzar la consola HukID
+La siguiente tarea es **AUTH-T09: auditoría/redacción integrada y pruebas negativas/concurrencia**. AUTH-T10 cierra operación, rollout, reversión y evidencia de la autenticación. Sus criterios están en [tareas FEAT-001](../features/FEAT-001-authentication/tasks.md); no completan por sí solos usuarios, dashboard ni el negocio documental.
 
-El usuario confirmó el ámbito Team 5. Los paquetes [FEAT-001 autenticación](../features/FEAT-001-authentication/spec.md), [FEAT-002 miembros](../features/FEAT-002-user-management/spec.md) y [FEAT-003 dashboard](../features/FEAT-003-dashboard/spec.md) incluyen spec, plan y tasks. El [índice](../features/README.md) define el orden. AUTH-T01/T02/T03 entregan toolchain, [contrato/política/IdP de laboratorio](../03-design/console-auth-contract.md) y [foundation PostgreSQL](../03-design/console-persistence.md); la siguiente tarea es AUTH-T04 (OIDC/callback). Las funcionalidades integradas de los tres paquetes aún no están implementadas.
+Autoridad: los `tasks.md` de cada feature mantienen estado y evidencia por tarea; este plan mantiene la secuencia global; el [roadmap HukID](hukid-roadmap.md) mantiene las fases del producto y el [backlog Team 5](../02-requirements/backlogs/team-5-hukid.md) conserva las historias HK. Las secciones fechadas de evidencia describen su incremento histórico, no el estado actual completo.
 
-Estos paquetes concretan la consola dentro de foundation, sin reemplazar el thin slice de emisión ni exigir implementar primero todos los módulos HukID. Los contratos nuevos propuestos y las políticas de sesión/permisos se validan en [ADR-0002](../decisions/ADR-0002.md) y sus tareas iniciales.
+## Ruta del panel web de administración
+
+En estos documentos, **consola significa panel web de administración en el navegador**, no terminal. La terminal se usa para arrancar servicios y ejecutar comprobaciones de desarrollo. El backend vive en `src/platform` y el panel en `src/console`; la wallet Flutter es un cliente distinto y aún no está implementada.
+
+| Orden de entrega | Resultado | Estado |
+| --- | --- | --- |
+| 1. AUTH-T01–T08 | Login, /me, selección tenant, sesión, refresh/logout, step-up y pantallas accesibles. | Implementado y probado en laboratorio. |
+| 2. AUTH-T09 | Eventos de auditoría integrados, redacción de secretos y pruebas negativas/concurrencia de la feature. | Siguiente tarea; pendiente. |
+| 3. AUTH-T10 | Runbook, rollout, reversión y evidencia del gate A4 de autenticación. | Pendiente; depende de AUTH-T09. |
+| 4. USR-T01–T09 | Miembros, invitaciones, roles, suspensión y sus pantallas/gate. | Pendiente en [FEAT-002](../features/FEAT-002-user-management/tasks.md). |
+| 5. DASH-T01–T08 | Navegación y resumen con miembros/actividad autorizados; fuentes de otros dominios cuando existan. | Pendiente en [FEAT-003](../features/FEAT-003-dashboard/tasks.md). |
+
+Es el orden de entrega de [features del panel](../features/README.md); sus tareas conservan dependencias concretas y permiten trabajo preparatorio cuando estén satisfechas. Tener la capacidad dashboard:read o cerrar AUTH-T10 no implementa un dashboard. DASH-T05 permanece abierto para las fuentes ausentes, sin bloquear la entrega base con fuentes disponibles.
+
+Estos paquetes concretan parte de foundation; no sustituyen el recorrido de emisión/verificación ni completan todas sus dependencias. La propuesta de pasar directamente a un primer flujo HK después de AUTH-T10, posponiendo miembros/dashboard, no está adoptada como cambio de prioridad. Debe acordarse su alcance antes de modificar el backlog; no existe una dependencia técnica global que obligue a terminar todo el dashboard para iniciar el laboratorio de credenciales.
+
+## Cómo retomar AUTH-T09
+
+1. Leer [spec](../features/FEAT-001-authentication/spec.md), [plan](../features/FEAT-001-authentication/plan.md) y [tareas](../features/FEAT-001-authentication/tasks.md) vigentes de FEAT-001; conservar los contratos y límites ya adoptados en sus ADR.
+2. Inspeccionar auditoría/outbox existentes y los handlers de login/callback, sesión, step-up y contexto. Registrar qué eventos, redacción y pruebas ya existen antes de ampliar la implementación.
+3. Integrar los eventos mínimos correlacionables y verificar que no se registren códigos, cookies, tokens, secretos ni datos personales innecesarios. Resolver fallos/concurrencia según la spec sin anunciar auditoría completa por disponer de tablas.
+4. Ejecutar los checks aplicables de [desarrollo local](../04-engineering/local-development.md), incluidos PostgreSQL cuando cambie persistencia y navegador para el recorrido integrado; registrar evidencia y límites en las tareas.
+5. Completar AUTH-T09 antes de declarar el gate de AUTH-T10. Esta actualización documental no implementa ninguna de las dos tareas.
 
 ## Preparación común / Sprint 0
 
@@ -42,6 +64,10 @@ Detalle de coordinación y dependencias: [plan Events](events-team-plan.md). Cor
 | 6 | Hardening/piloto y operación. | Evidencia de seguridad, carga, restore y soporte. |
 
 El [roadmap HukID original](hukid-roadmap.md) conserva entregables POS/SIS y preguntas de negocio. El primer cliente Events puede diferir OID4VP completo; anunciar compatibilidad del perfil requiere su gate aunque la entrega comercial sea menor.
+
+La fase 0 de credenciales sigue pendiente: probar OIDC para operadores no demuestra firma/verificación de VC ni interoperabilidad wallet/verifier. La fase 1 sólo tiene una base parcial con AUTH-T01–T08; faltan, entre otros, administración real, emisores, clientes/grants de integración, auditoría integrada y puerto KMS. Las fases 2–6 no se declaran implementadas por disponer de sus especificaciones.
+
+El primer recorrido de negocio objetivo es **sistema fuente → oferta → wallet → credencial firmada → verificación y estado**. Ver la relación fase/historias en el roadmap antes de descomponer un incremento HK. El producto documentado verifica credenciales digitales y su emisor/estado; comprobar la autenticidad de un PDF o fotografía arbitrarios requiere requisitos propios y no se asume incluido.
 
 ## Dependencias y salida
 

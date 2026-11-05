@@ -14,6 +14,8 @@ Repositorio de especificación de Events y HukID. La reorganización documental 
 
 Para implementar consola HukID, continuar con [docs/features](docs/features/README.md). Leer spec.md, plan.md y tasks.md de la feature antes de editar código; respetar las dependencias AUTH→USR→DASH y distinguir contrato propuesto de artefacto ejecutable. La [propuesta ADR-0002](docs/decisions/ADR-0002.md) fija las validaciones iniciales; no heredar el login de Events ni alterar la wallet.
 
+Usar el [plan vigente](docs/05-delivery/implementation-plan.md) para retomar trabajo: AUTH-T01–T08 entregadas en laboratorio, AUTH-T09 siguiente y AUTH-T10 pendiente. Consola significa panel web administrativo, no terminal. Las tareas del panel no completan el [roadmap HK](docs/05-delivery/hukid-roadmap.md); la propuesta de adelantar emisión/verificación después de AUTH-T10 no cambia por sí sola la prioridad acordada. Los tasks.md son la fuente de estado por tarea y las evidencias fechadas conservan el alcance histórico de su incremento.
+
 ## Autoridad documental
 
 - Las entradas solicitadas por categoría son la navegación principal; sus anexos conservan el detalle normativo y los IDs originales.

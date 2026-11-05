@@ -21,7 +21,7 @@ AUTH-T05 incorpora [middleware operator y /me](../../03-design/console-operator-
 | platform/internal/adapters/console | Login/callback, /me, refresh/logout, cookies rotatorias, Origin/CSRF, rate limiting y errores; step-up/tenant-context desde AUTH-T07. |
 | platform/internal/adapters/secretbox | Envelopes AES-256-GCM con AAD y clave externa; gestión productiva pendiente. |
 | platform/internal/adapters/postgres | Migraciones, roles/RLS, contexto y descubrimiento mínimo, transacciones OIDC y creación inicial de identidad/sesión. Rotación/refresh/logout y purga desde AUTH-T06. |
-| console/src/authentication | Futuro: login/retorno, selector, guards y recuperación de sesión. |
+| console/src/authentication | AUTH-T08: login/retorno, selector, guards y recuperación de sesión. |
 
 Existen el entry point de consola, bootstrap, contratos/configuración y reglas de política indicados. Los demás módulos se crean al implementar su tarea. El fixture IdP reside en tests y no forma parte de Platform. No crear módulos de emisión ni wallet para demostrar login.
 
@@ -80,3 +80,7 @@ Se implementa el [ciclo de sesión](../../03-design/console-session-lifecycle.md
 ## Incremento AUTH-T07
 
 [Reautenticación y contexto](../../03-design/console-reauthentication.md), según [ADR-0008](../../decisions/ADR-0008.md): nueva transacción OIDC ligada a familia/generación, autenticación reciente de la misma identidad y rotación atómica sin ampliar el absoluto. La migración 0005 añade generación al propósito step_up. Step-up y selección tenant exigen Origin/CSRF, JSON estricto y autorización server-side. Las futuras mutaciones privilegiadas deberán usar el gate VerifyPrivilegedOperator además de sus capacidades. AUTH-T08/T09/T10 conservan UI, auditoría integrada y gate A4.
+
+## Incremento AUTH-T08
+
+La [interfaz de autenticación](../../03-design/console-auth-interface.md), según [ADR-0009](../../decisions/ADR-0009.md), conecta React al BFF same-origin. Login y step-up ofrecen navegación JSON opcional, conservando 303; callback ofrece error HTML fijo al navegador. El origen de proxy local debe configurarse explícitamente y no se toma de headers. UI en español, teclado/foco, selección/acceso pendiente, refresh/logout/step-up, retiro de contexto y descarte de respuestas obsoletas. Web Locks coordina las peticiones entre pestañas sin transmitir secretos; BroadcastChannel invalida el contexto visual. No hay polling ni tokens/CSRF persistidos. La suite Chromium usa API, IdP y PostgreSQL propios. AUTH-T09/T10 conservan auditoría integrada y gate A4.

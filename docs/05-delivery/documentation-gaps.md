@@ -56,7 +56,7 @@ Owners: Team 4 y Team 5 coordinan el contrato de integración; cada equipo mater
 
 ## Foundation de consola documentada
 
-Los paquetes [FEAT-001/002/003](../features/README.md) añaden especificación, plan y tareas para la consola HukID confirmada por el usuario. [ADR-0002](../decisions/ADR-0002.md) registra propuestas de BFF, operador, miembros y dashboard. AUTH-T01–T05 implementan bootstrap, contratos, PostgreSQL, login/callback y lecturas autorizadas /me de laboratorio; AUTH-T06/T07 añaden ciclo de sesión y step-up/contexto; UI, miembros y dashboard siguen pendientes. Los apartados siguientes conservan evidencia por incremento, no sustituyen el estado actual de las tareas.
+Los paquetes [FEAT-001/002/003](../features/README.md) añaden especificación, plan y tareas para la consola HukID confirmada por el usuario. [ADR-0002](../decisions/ADR-0002.md) registra propuestas de BFF, operador, miembros y dashboard. AUTH-T01–T05 implementan bootstrap, contratos, PostgreSQL, login/callback y lecturas autorizadas /me de laboratorio; AUTH-T06/T07 añaden ciclo de sesión y step-up/contexto; AUTH-T08 conecta [UI y navegador](../03-design/console-auth-interface.md); miembros y dashboard siguen pendientes. Los apartados siguientes conservan evidencia por incremento, no sustituyen el estado actual de las tareas.
 
 Para empezar AUTH-T01 no es necesario recuperar los ejemplos de emisión ni configurar KMS issuer. Para completar login integrado sí hacen falta IdP test compatible, políticas de sesión/MFA, contrato de operador y migraciones mínimas; miembros necesita policy de invitación/notificación. No marcar esos artefactos como disponibles por existir el plan.
 
@@ -101,3 +101,7 @@ Existe [ciclo de sesión](../03-design/console-session-lifecycle.md) con lease p
 Existe [MFA/step-up y cambio de contexto](../03-design/console-reauthentication.md), con [ADR-0008](../decisions/ADR-0008.md) y migración 0005. Se prueban reautenticación de la misma identidad, binding de familia/generación, rotación atómica, Origin/CSRF/JSON, concurrencia/logout/lease/rollback y selector backend entre dos tenants. No se concede autoridad desde claims/body del navegador ni se amplía el límite absoluto.
 
 Pendientes: IdP/factores productivos, interfaz/navegador y limpieza de estado visual (AUTH-T08), auditoría integrada (AUTH-T09), operación y gate A4 (AUTH-T10). El gate de freshness está implementado y probado para ser invocado por las futuras mutaciones privilegiadas de FEAT-002; no hay aún administración de miembros. No se probaron carga/restore ni se publicó o migró un entorno existente. El perfil sigue draft.
+
+### Incremento AUTH-T08
+
+Conecta las pantallas de autenticación con los endpoints reales y añade negociación de navegación compatible con 303, error de callback recuperable y origen explícito para proxy local. [Referencia](../03-design/console-auth-interface.md) y [ADR-0009](../decisions/ADR-0009.md) mantienen el detalle. E2E Chromium verifica UI, permisos vivos, expiración, aislamiento visual y ausencia de credenciales en storage/HTML. No amplía permisos de persistencia ni añade migraciones. AUTH-T09 conserva auditoría/redacción integrada; AUTH-T10 operación/gate A4. Siguen pendientes factores reales, proveedor productivo, carga/restore y conformidad del perfil.

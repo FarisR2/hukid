@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -61,6 +62,10 @@ func (h *LoginHandler) allow(key string) bool {
 }
 
 func (h *LoginHandler) serve(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path == "/console/auth/callback" && strings.Contains(r.Header.Get("Accept"), "text/html") {
+		w = browserProblemWriter{w}
+	}
+	w.Header().Set("Vary", "Accept")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Referrer-Policy", "no-referrer")
 	correlation := make([]byte, 16)
@@ -119,8 +124,7 @@ func (h *LoginHandler) start(ctx context.Context, w http.ResponseWriter, r *http
 		return
 	}
 	http.SetCookie(w, &http.Cookie{Name: TransactionCookie, Value: start.Binding, Path: "/console/auth", HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: *h.Service.Policy.CookieSecure, Expires: start.ExpiresAt, MaxAge: h.Service.Policy.TransactionSeconds})
-	w.Header().Set("Location", start.Location)
-	w.WriteHeader(http.StatusSeeOther)
+	authorizationResponse(w, r, start.Location)
 }
 
 func (h *LoginHandler) complete(ctx context.Context, w http.ResponseWriter, r *http.Request, q url.Values) {

@@ -18,6 +18,7 @@
     "check:docs": "node scripts/check-docs.mjs",
     "test:auth": "node scripts/test-auth.mjs",
     "test:postgres": "node scripts/test-postgres.mjs",
+    "test:browser": "node scripts/test-postgres.mjs --browser",
     "db:migrate:test": "node scripts/platform.mjs migrate:test",
     "db:bootstrap:test": "node scripts/platform.mjs bootstrap:test",
     "check": "npm run check:platform && npm run check:console && npm run test:auth && npm run check:docs",

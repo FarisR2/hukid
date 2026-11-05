@@ -1,6 +1,6 @@
 # Desarrollo local de HukID
 
-Estado: AUTH-T01–T05 entregan bootstrap, contratos, PostgreSQL, [login/callback OIDC](../03-design/console-oidc-login.md) y [middleware operator y /me](../03-design/console-operator-context.md) de laboratorio. AUTH-T06/T07 añaden [ciclo de sesión](../03-design/console-session-lifecycle.md) y [MFA/step-up/contexto](../03-design/console-reauthentication.md). La consola React aún no renderiza pantallas.
+Estado: AUTH-T01–T05 entregan bootstrap, contratos, PostgreSQL, [login/callback OIDC](../03-design/console-oidc-login.md) y [middleware operator y /me](../03-design/console-operator-context.md) de laboratorio. AUTH-T06/T07 añaden [ciclo de sesión](../03-design/console-session-lifecycle.md) y [MFA/step-up/contexto](../03-design/console-reauthentication.md). AUTH-T08 conecta [interfaz y navegador](../03-design/console-auth-interface.md) al BFF.
 
 Existe [contrato y laboratorio OIDC](../03-design/console-auth-contract.md), con política test, matriz y reglas Go. El IdP sólo se inicia desde tests y simula MFA; no arranca con Platform. AUTH-T04 conecta HTTP con la [persistencia de consola](../03-design/console-persistence.md) cuando se proporciona configuración test completa.
 
@@ -14,7 +14,7 @@ El owner confirmó esta distribución el 2026-11-03:
 | `src/platform/internal/bootstrap` | Configuración loopback, liveness y pruebas del perímetro inicial. |
 | `src/platform/internal/adapters/postgres` | Migraciones, roles/RLS, pools y contexto transaccional, descubrimiento mínimo y bootstrap test-only. |
 | `src/platform/cmd/testdb` | CLI restringido para migrar/provisionar una base de pruebas explícita. |
-| `src/console` | Workspace npm React/TypeScript con Vite; entry point sin pantalla funcional. |
+| `src/console` | Workspace React/TypeScript con Vite, autenticación visual y proxy BFF local AUTH-T08. |
 | `scripts/platform.mjs` | Comandos Go portables, control de versión y caché local. |
 
 No crear módulos vacíos de autenticación, emisión, wallet o Events. Se incorporan al implementar cada tarea con su contrato validado. El nombre de módulo `hukid.local/platform` es local al repositorio; no declara un dominio de despliegue ni una ruta pública de distribución.
@@ -93,10 +93,10 @@ npm run dev:console
 ```
 
 - Platform: `http://127.0.0.1:8080/healthz`, GET/HEAD devuelve 204 sin cuerpo. Es liveness del proceso, no readiness de dependencias.
-- Vite: `http://127.0.0.1:5173/`, HTML con entry point React vacío. La ausencia de pantalla es esperada hasta AUTH-T08; no existe un botón de login simulado.
+- Vite: `http://127.0.0.1:5173/`, interfaz de autenticación AUTH-T08. Sin configuración test completa del backend, muestra indisponibilidad; no hay bypass de login.
 - Cerrar Platform con Ctrl+C inicia shutdown ordenado, con límite de cinco segundos.
 - `HUKID_LISTEN_ADDR` permite otro IP loopback/puerto (por ejemplo `127.0.0.1:8081` o `[::1]:8081`). Un host abierto, nombre DNS o puerto inválido impide arrancar.
-- Vite usa loopback y puerto estricto. No se configura proxy, CORS ni autorización hasta materializar los contratos. Sus servidores dev/preview son locales.
+- Vite usa loopback y puerto estricto. AUTH-T08 configura proxy same-origin para /console/ sin reescribir Origin; no habilita CORS. Sus servidores dev/preview son locales.
 
 ## Configuración e IdP
 
@@ -176,3 +176,11 @@ Validación final AUTH-T06: `npm run check`, `npm run test:postgres`, `npm run b
 `npm run check`, `npm run test:postgres`, `npm run build` y `npm run smoke` aprobados en Windows. Las trece pruebas superiores PostgreSQL amplían subcasos de upgrade 0004→0005, binding de generación, concurrencia/logout/refresh/rollback y comandos HTTP step-up/contexto con API e IdP de biblioteca. El upgrade conserva sesión y transacción login pendientes. La suite HTTP comprueba selección A→B→B→A, rotación CSRF/cookie y suspensión viva. Unitarias verifican evidencia MFA reciente, identidad y límites con reloj controlado. Ver [detalle AUTH-T07](../03-design/console-reauthentication.md).
 
 No cambia la configuración runtime; aplicar migraciones mediante el CLI restringido de laboratorio antes del API. Las nueve operaciones OpenAPI quedan habilitadas únicamente con la configuración test completa existente. No hay pantallas ni factores reales: AUTH-T08 añade UI/navegador y AUTH-T09/T10 auditoría/operación. Las futuras mutaciones privilegiadas de FEAT-002 deberán aplicar el gate de freshness y sus capacidades locales. No se publicaron cambios ni se migraron bases existentes.
+
+## Evidencia AUTH-T08 — 2026-11-05
+
+Consola de autenticación en español con UI conectada y pruebas Chromium headless: acceso pendiente/selector/contexto, refresh/step-up/logout, suspensión/expiración, fallos recuperables, teclado, historial, pestañas, almacenamiento y capturas responsive/oscuro. Los procesos API/IdP/Vite y PostgreSQL de `npm run test:browser` son propios y descartables. Requiere build previo y Python con [requirements](../../tests/browser/requirements.txt) y Chromium; instrucciones, limitaciones y capturas en [referencia AUTH-T08](../03-design/console-auth-interface.md).
+
+El proxy usa HUKID_CONSOLE_API_TARGET (default http://127.0.0.1:8080). En el API configurar HUKID_CONSOLE_PROXY_ORIGIN igual a consoleOrigin de la política (por ejemplo http://127.0.0.1:5173), y registrar redirectUri bajo ese origen. La igualdad directa origen/listener sigue siendo el default sin proxy explícito. No se toman forwarded headers ni se habilita producción.
+
+Checks generales, PostgreSQL, builds, smoke y navegador forman la evidencia del incremento. MFA real, auditoría/redacción integrada, carga/restore y gate operativo siguen pendientes.

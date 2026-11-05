@@ -12,6 +12,7 @@
 | HukID reglas de interoperabilidad | [Perfil v0.1-draft](hukid-profile.md) |
 | HukID consola — autenticación ejecutable de laboratorio | [Contrato y política](console-auth-contract.md), [OpenAPI propio](../../src/platform/contracts/console-auth.openapi.json); sus nueve operaciones están implementadas, con [interfaz AUTH-T08](console-auth-interface.md). |
 | HukID consola — miembros USR-T01, contrato sin handlers | [Contrato/políticas](console-members-contract.md), [OpenAPI propio](../../src/platform/contracts/console-members.openapi.json) |
+| HukID consola — persistencia USR-T02 | [Modelo, RLS y protocolo transaccional](console-members-persistence.md); no habilita rutas HTTP. |
 | HukID consola — contratos futuros | [Dashboard](../features/FEAT-003-dashboard/plan.md) |
 
 ## Frontera Events→HukID

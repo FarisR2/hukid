@@ -1,11 +1,11 @@
 # FEAT-002 — Tareas
 
-Estado: USR-T01 completada como baseline de contrato y reglas puras de laboratorio; USR-T02 siguiente. Endpoints, ampliación de persistencia, entrega y UI pendientes. Owner: Team 5, tenancy/seguridad, backend/worker y consola.
+Estado: USR-T01 contrato/reglas y USR-T02 persistencia/RLS/transacciones completadas en laboratorio; USR-T03 siguiente. Endpoints, entrega y UI pendientes. Owner: Team 5, tenancy/seguridad, backend/worker y consola.
 
 | Estado / ID | Objetivo y artefacto | Depende de | Componentes | Aceptación / verificación | Riesgo |
 | --- | --- | --- | --- | --- | --- |
 | [x] USR-T01 | Materializar contrato/matriz, política email/TTL, reingreso y schemas de invitación/member. | AUTH-T02, AUTH-T03, AUTH-T05, AUTH-T07 | OpenAPI, tenancy, ADR-0002, ADR-0011 | Baseline de 12 operaciones contract-only, schemas/ejemplos y reglas Go; aceptación sin membership y 409 último admin validados. Sin handlers/DDL de invitación. | Escalación de permisos. |
-| [ ] USR-T02 | Ampliar migraciones, RLS, locks y audit/outbox compartidos. | USR-T01 | Postgres/tenancy/audit | Base previa migra sin pérdida; únicos/tenant scope y pool reuse funcionan; no segundo registro de identidad. | Integridad y concurrencia. |
+| [x] USR-T02 | Ampliar migraciones, RLS, locks y audit/outbox compartidos. | USR-T01 | Postgres/tenancy/audit, ADR-0012 | Migración 0007 desde vacío/0006; únicos/FK/RLS, credencial separada y pool reuse probados; lock tenant/último admin y evidencia atómica. Sin segundo registro de identidad ni handlers. | Integridad y concurrencia. |
 | [ ] USR-T03 | Implementar listado/consulta autorizada con filtros y cursor. | USR-T02 | API/repositorios | AC01: sólo datos del tenant y campos permitidos; rol sin lectura no consulta directorio; cursor manipulado falla. | Enumeración/PII. |
 | [ ] USR-T04 | Implementar crear/revocar invitación y entrega cifrada idempotente. | USR-T02 | Tenancy, notification port/worker | AC02/04: token hasheado, payload temporal cifrado, proveedor falso/sandbox, errores separados de aceptación y sin secretos en logs. | Entrega y replay. |
 | [ ] USR-T05 | Implementar aceptación y reinvitación con identidad verificada. | USR-T04, AUTH-T04, AUTH-T05 | Tenancy, IdP, API | AC03: identidad correcta acepta una vez; dos aceptaciones concurrentes no duplican; token expirado/ajeno falla; token viejo no revive al reenviar. | Toma de cuenta. |
@@ -50,3 +50,15 @@ Las cinco pruebas nuevas de contrato validan OpenAPI/referencias y todos los eje
 Se ejecutaron y aprobaron `npm run check` (Go/vet, TypeScript, catorce tests de contrato/IdP y documentación), `npm run test:postgres` (regresión AUTH con DB/HTTP/IdP propios), `npm run build`, `npm run smoke` y `git diff --check`. La suite acumulada encontró inicialmente el puerto 19090 ocupado por la demo manual; se detuvo el laboratorio propio y la repetición pasó. No se cambió el fixture ni se omitieron tests para resolverlo.
 
 No hay migración nueva, handlers, worker/email ni UI de miembros. No se ejecutó Chromium para este incremento sin cambios visuales; el E2E de AUTH conserva su evidencia histórica. Verificación email real del IdP y su perfil sintético ampliado corresponden a T05; fuente issuer confiable, lifecycle/historial y transacciones a T02/T06; entrega a T04 y gate final a T09. Producción y perfil VC conservan sus bloqueos. Siguiente: USR-T02.
+
+## Evidencia USR-T02 — 2026-11-05
+
+[Persistencia](../../03-design/console-members-persistence.md) y [ADR-0012](../../decisions/ADR-0012.md) materializan la migración 0007 expand: lifecycle/fechas y archivo revocado, alcance issuer, invitaciones con hash/HMAC/destinatario cifrado, envelope de entrega separado y fingerprints/referencias idempotentes. Se conserva identidad issuer/subject, membership lógica, sesiones e historia AUTH. Para revocaciones legacy sin fecha, el corte de reingreso es conservador al instante de migración; no se inventa una fecha histórica.
+
+El nuevo runtime de miembros es separado, no propietario/NOBYPASSRLS, con RLS forzada y permisos mínimos por columnas. No amplía las credenciales AUTH. WithMemberMutation toma lock transaccional por UUID normalizado del tenant y confirma mutación/audit/outbox juntos; el callback debe reautorizar actor/MFA o destinatario antes del efecto. ArchiveRevokedMembership conserva grants finales sin permitir su modificación posterior al runtime. No hay otro registro de identidad.
+
+Seis escenarios nuevos con PostgreSQL real cubren upgrade 0006→0007 y repetición, RLS/default deny/pool físico reutilizado y dos tenants, credenciales mezcladas rechazadas, FK/unique/CHECK, evidencia atómica ante fallos de audit/outbox, archivo y reemplazo sin duplicar membership, huellas administrativas/de aceptación ligadas al hash exacto, almacenamiento/purga de destinatario sin borrar token hash/evidencia, carrera de dos últimos admins, UUID equivalente y rollback/panic/cancelación del lock/waiter. Los comandos sintéticos de prueba demuestran la foundation de persistencia, no autorización HTTP ni el canje USR-T05.
+
+Se ejecutaron y aprobaron `npm run check` (Go/vet, TypeScript, catorce tests de contrato/IdP y docs), `npm run test:postgres`, `npm run build`, `npm run smoke`, `npm run test:browser` (regresión Chromium AUTH con esquema nuevo) y `git diff --check`. El primer check general encontró 19090 ocupado por la demo propia; se detuvo ese laboratorio y la repetición aprobó los catorce tests. No se cambiaron fixtures ni omitieron verificaciones para resolver la colisión.
+
+Sin endpoints/credencial USR conectada a API, lookup global de invitación, evidencia email, worker, replay HTTP, purga programada ni UI de miembros. La fuente confiable de ownership issuer sigue ausente: se prepara almacenamiento, sin conceder grants. Producción, carga/restore y retención institucional siguen pendientes. Siguiente: USR-T03, listado/consulta autorizada con filtros/cursor.

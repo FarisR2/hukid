@@ -12,7 +12,7 @@ import (
 
 // OpenRuntimePool checks the login's effective privileges before serving queries.
 func OpenRuntimePool(ctx context.Context, dsn, role string, maxConnections int32) (*pgxpool.Pool, error) {
-	if role != "hukid_tenant_runtime" && role != "hukid_context_runtime" && role != "hukid_session_runtime" {
+	if role != "hukid_tenant_runtime" && role != "hukid_context_runtime" && role != "hukid_session_runtime" && role != "hukid_members_runtime" {
 		return nil, errors.New("unknown runtime role")
 	}
 	config, err := pgxpool.ParseConfig(dsn)
@@ -31,7 +31,7 @@ func OpenRuntimePool(ctx context.Context, dsn, role string, maxConnections int32
 AND NOT pg_has_role(current_user,'hukid_owner','MEMBER')
 AND NOT pg_has_role(current_user,'hukid_context_reader','MEMBER')
 AND NOT pg_has_role(current_user,'hukid_identity_writer','MEMBER')
-AND NOT EXISTS (SELECT FROM pg_catalog.pg_roles other WHERE other.rolname IN ('hukid_tenant_runtime','hukid_context_runtime','hukid_session_runtime') AND other.rolname<>$1 AND pg_has_role(current_user,other.oid,'MEMBER'))
+AND NOT EXISTS (SELECT FROM pg_catalog.pg_roles other WHERE other.rolname IN ('hukid_tenant_runtime','hukid_context_runtime','hukid_session_runtime','hukid_members_runtime') AND other.rolname<>$1 AND pg_has_role(current_user,other.oid,'MEMBER'))
 AND NOT EXISTS (SELECT FROM pg_catalog.pg_roles inherited WHERE pg_has_role(current_user,inherited.oid,'MEMBER') AND (inherited.rolsuper OR inherited.rolbypassrls OR inherited.rolcreaterole OR inherited.rolcreatedb OR inherited.rolreplication))
 AND NOT EXISTS (SELECT FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname IN ('tenancy','console_auth','platform') AND pg_has_role(current_user,c.relowner,'MEMBER'))
 AND pg_has_role(current_user,$1,'USAGE') FROM pg_catalog.pg_roles WHERE rolname=current_user`, role).Scan(&safe)

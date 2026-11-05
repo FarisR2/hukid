@@ -45,6 +45,13 @@ func (s *LoginStore) RotateSession(ctx context.Context, old a.ReadSession, next 
 			return a.ErrDependency
 		}
 	}
+	action, tenant := "auth.step_up.completed", old.ActiveTenantID
+	if selection != nil {
+		action, tenant = "auth.context.changed", selection.TenantID
+	}
+	if err := appendAuthEvent(ctx, tx, action, "success", old.ActorID, tenant, old.FamilyID); err != nil {
+		return a.ErrDependency
+	}
 	if tx.Commit(ctx) != nil {
 		return a.ErrDependency
 	}

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"log"
 	"log/slog"
 	"net/http"
 	"os"
@@ -36,6 +37,7 @@ func run() error {
 	}
 	defer cleanup()
 	server := &http.Server{
+		ErrorLog:          log.New(redactedServerLog{}, "", 0),
 		Addr:              address,
 		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,

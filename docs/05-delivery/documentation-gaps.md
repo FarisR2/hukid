@@ -62,7 +62,7 @@ Los paquetes [FEAT-001/002/003](../features/README.md) añaden especificación, 
 
 Para empezar AUTH-T01 no es necesario recuperar los ejemplos de emisión ni configurar KMS issuer. Para completar login integrado sí hacen falta IdP test compatible, políticas de sesión/MFA, contrato de operador y migraciones mínimas; miembros necesita policy de invitación/notificación. No marcar esos artefactos como disponibles por existir el plan.
 
-Pendientes actuales del panel: AUTH-T09 auditoría/redacción integrada, AUTH-T10 operación/gate, FEAT-002 miembros y FEAT-003 dashboard. Hay un harness E2E descartable y pantallas conectadas, pero no se ha preparado un entorno de demo manual persistente ni un despliegue productivo. Preparar esa demo es trabajo adicional y no acredita emisión o verificación documental. Las secciones de incremento que siguen conservan el estado histórico de su fecha.
+Pendientes actuales del panel: AUTH-T10 operación/gate, FEAT-002 miembros y FEAT-003 dashboard. Hay un harness E2E descartable y pantallas conectadas, pero no se ha preparado un entorno de demo manual persistente ni un despliegue productivo. Preparar esa demo es trabajo adicional y no acredita emisión o verificación documental. Las secciones de incremento que siguen conservan el estado histórico de su fecha.
 
 ### Incremento AUTH-T01
 
@@ -109,3 +109,7 @@ Pendientes: IdP/factores productivos, interfaz/navegador y limpieza de estado vi
 ### Incremento AUTH-T08
 
 Conecta las pantallas de autenticación con los endpoints reales y añade negociación de navegación compatible con 303, error de callback recuperable y origen explícito para proxy local. [Referencia](../03-design/console-auth-interface.md) y [ADR-0009](../decisions/ADR-0009.md) mantienen el detalle. E2E Chromium verifica UI, permisos vivos, expiración, aislamiento visual y ausencia de credenciales en storage/HTML. No amplía permisos de persistencia ni añade migraciones. AUTH-T09 conserva auditoría/redacción integrada; AUTH-T10 operación/gate A4. Siguen pendientes factores reales, proveedor productivo, carga/restore y conformidad del perfil.
+
+### Incremento AUTH-T09
+
+Existe [auditoría integrada](../03-design/console-auth-audit.md) con [ADR-0010](../decisions/ADR-0010.md), migración 0006, eventos/outbox atómicos y pruebas de redacción/permisos/rollback/concurrencia en laboratorio. Las denegaciones tienen registro acotado y alerta fija; no se garantiza conservarlas ante caída de DB/proceso. No se entrega retención institucional, WORM, worker/visor, SIEM ni redacción de proxies/infraestructura externos. AUTH-T10 conserva operación/gate A4; MFA real, carga/restore, proveedor y preparación productiva siguen pendientes.

@@ -35,9 +35,7 @@ func TestSessionLifecycleMigrationPreservesInitialSession(t *testing.T) {
 	family := "73000000-0000-4000-8000-000000000001"
 	ciphertext, nonce := testEnvelope(t, a.SessionAAD(family))
 	initial := a.InitialSession{FamilyID: family, SessionID: "73000000-0000-4000-8000-000000000002", PolicyVersion: "auth-test-v1", CookieHash: a.Digest("upgrade-cookie"), CSRFHash: a.Digest("upgrade-csrf"), RefreshDigest: a.Digest("upgrade-refresh"), Secrets: a.Envelope{Ciphertext: ciphertext, Nonce: nonce, KeyVersion: "test"}, CreatedAt: now, IdleExpiresAt: now.Add(time.Minute), AbsoluteExpiresAt: now.Add(time.Hour), Identity: a.VerifiedLogin{Issuer: "http://127.0.0.1:19090", Subject: "upgrade-session", AuthTime: now, AMR: []string{"pwd", "otp"}, ACR: "urn:hukid:test:mfa"}}
-	if err := store.CreateInitialSession(testContext, initial); err != nil {
-		t.Fatal(err)
-	}
+	seedLegacySession(t, db, initial)
 	// Preserve an outstanding login transaction across the 0004 -> 0005 upgrade.
 	if err := migrateThrough(testContext, db.admin, "0004_session_lifecycle.sql"); err != nil {
 		t.Fatal(err)

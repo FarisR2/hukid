@@ -37,11 +37,17 @@ func lockCommandSession(ctx context.Context, tx pgx.Tx, hash []byte) (commandSes
 }
 
 func invalidateFamily(ctx context.Context, tx pgx.Tx, family string) error {
-	if _, err := tx.Exec(ctx, `UPDATE console_auth.session_families SET state='revoked',refresh_lease=NULL,refresh_deadline=NULL,revision=revision+1 WHERE family_id=$1`, family); err != nil {
+	result, err := tx.Exec(ctx, `UPDATE console_auth.session_families SET state='revoked',refresh_lease=NULL,refresh_deadline=NULL,revision=revision+1 WHERE family_id=$1 AND state='active'`, family)
+	if err != nil {
 		return a.ErrDependency
 	}
 	if _, err := tx.Exec(ctx, `UPDATE console_auth.sessions SET state='revoked',secret_ciphertext=NULL,secret_nonce=NULL,secret_key_version=NULL,refresh_digest=NULL,revision=revision+1 WHERE family_id=$1`, family); err != nil {
 		return a.ErrDependency
+	}
+	if result.RowsAffected() == 1 {
+		if err := appendAuthEvent(ctx, tx, "auth.family.revoked", "success", "", "", family); err != nil {
+			return a.ErrDependency
+		}
 	}
 	return nil
 }
@@ -129,6 +135,9 @@ func (s *LoginStore) FinishRefresh(ctx context.Context, old a.ReadSession, lease
 	if _, err := tx.Exec(ctx, `UPDATE console_auth.session_families SET refresh_lease=NULL,refresh_deadline=NULL,revision=revision+1 WHERE family_id=$1`, old.FamilyID); err != nil {
 		return a.ErrDependency
 	}
+	if err := appendAuthEvent(ctx, tx, "auth.refresh.completed", "success", old.ActorID, old.ActiveTenantID, old.FamilyID); err != nil {
+		return a.ErrDependency
+	}
 	if tx.Commit(ctx) != nil {
 		return a.ErrDependency
 	}
@@ -159,6 +168,11 @@ func (s *LoginStore) Logout(ctx context.Context, cookie, csrf []byte, now time.T
 	}
 	if err := invalidateFamily(ctx, tx, v.FamilyID); err != nil {
 		return a.ReadSession{}, err
+	}
+	if v.familyState == "active" {
+		if err := appendAuthEvent(ctx, tx, "auth.logout.completed", "success", v.ActorID, v.ActiveTenantID, v.FamilyID); err != nil {
+			return a.ReadSession{}, a.ErrDependency
+		}
 	}
 	if tx.Commit(ctx) != nil {
 		return a.ReadSession{}, a.ErrDependency

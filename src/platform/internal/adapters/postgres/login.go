@@ -27,8 +27,23 @@ func (s *LoginStore) CreateTransaction(ctx context.Context, t authentication.Log
 	if t.FamilyID != "" {
 		purpose, family, generation = "step_up", t.FamilyID, t.Generation
 	}
-	_, err := s.Pool.Exec(ctx, `INSERT INTO console_auth.oidc_transactions(transaction_id,purpose,state_hash,nonce_hash,binding_hash,oidc_issuer,client_id,redirect_uri,return_to,verifier_ciphertext,verifier_nonce,verifier_key_version,created_at,expires_at,family_id,session_generation) VALUES($1,$14,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$15,$16)`, t.ID, t.StateHash, t.NonceHash, t.BindingHash, t.Issuer, t.ClientID, t.RedirectURI, t.ReturnTo, t.Verifier.Ciphertext, t.Verifier.Nonce, t.Verifier.KeyVersion, t.CreatedAt, t.ExpiresAt, purpose, family, generation)
-	return err
+	tx, err := s.Pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer rollbackLogin(tx)
+	_, err = tx.Exec(ctx, `INSERT INTO console_auth.oidc_transactions(transaction_id,purpose,state_hash,nonce_hash,binding_hash,oidc_issuer,client_id,redirect_uri,return_to,verifier_ciphertext,verifier_nonce,verifier_key_version,created_at,expires_at,family_id,session_generation) VALUES($1,$14,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$15,$16)`, t.ID, t.StateHash, t.NonceHash, t.BindingHash, t.Issuer, t.ClientID, t.RedirectURI, t.ReturnTo, t.Verifier.Ciphertext, t.Verifier.Nonce, t.Verifier.KeyVersion, t.CreatedAt, t.ExpiresAt, purpose, family, generation)
+	if err != nil {
+		return err
+	}
+	action := "auth.login.started"
+	if t.FamilyID != "" {
+		action = "auth.step_up.started"
+	}
+	if err := appendAuthEvent(ctx, tx, action, "success", "", "", t.ID); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
 
 func (s *LoginStore) Consume(ctx context.Context, state, binding []byte, issuer, client, redirect string, now time.Time) (authentication.LoginTransaction, error) {
@@ -77,6 +92,9 @@ func (s *LoginStore) CreateInitialSession(ctx context.Context, v authentication.
 	}
 	_, err = tx.Exec(ctx, `INSERT INTO console_auth.sessions(session_id,family_id,operator_identity_id,generation,cookie_hash,csrf_hash,created_at,last_seen_at,idle_expires_at,absolute_expires_at,secret_ciphertext,secret_nonce,secret_key_version,refresh_digest) VALUES($1,$2,$3,1,$4,$5,$6,$6,$7,$8,$9,$10,$11,$12)`, v.SessionID, v.FamilyID, actor, v.CookieHash, v.CSRFHash, v.CreatedAt, v.IdleExpiresAt, v.AbsoluteExpiresAt, v.Secrets.Ciphertext, v.Secrets.Nonce, v.Secrets.KeyVersion, v.RefreshDigest)
 	if err != nil {
+		return err
+	}
+	if err := appendAuthEvent(ctx, tx, "auth.login.completed", "success", actor, "", v.FamilyID); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)

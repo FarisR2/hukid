@@ -4,7 +4,7 @@
 
 Actualizado: 2026-11-05, con AUTH-T08 integrado en develop mediante PR #7 (merge `94785b0`, implementación `e822529`). AUTH-T01–T08 entregan autenticación de laboratorio: backend Go, persistencia PostgreSQL, OIDC, contexto autorizado, sesiones y [panel web React conectado](../03-design/console-auth-interface.md). El IdP y la MFA de las pruebas son sintéticos. No hay evidencia productiva ni entrega de emisión/verificación de credenciales.
 
-La siguiente tarea es **AUTH-T09: auditoría/redacción integrada y pruebas negativas/concurrencia**. AUTH-T10 cierra operación, rollout, reversión y evidencia de la autenticación. Sus criterios están en [tareas FEAT-001](../features/FEAT-001-authentication/tasks.md); no completan por sí solos usuarios, dashboard ni el negocio documental.
+AUTH-T09 añade [auditoría/redacción integrada](../03-design/console-auth-audit.md), con eventos/outbox y pruebas negativas/concurrencia. La siguiente tarea es **AUTH-T10**. AUTH-T10 cierra operación, rollout, reversión y evidencia de la autenticación. Sus criterios están en [tareas FEAT-001](../features/FEAT-001-authentication/tasks.md); no completan por sí solos usuarios, dashboard ni el negocio documental.
 
 Autoridad: los `tasks.md` de cada feature mantienen estado y evidencia por tarea; este plan mantiene la secuencia global; el [roadmap HukID](hukid-roadmap.md) mantiene las fases del producto y el [backlog Team 5](../02-requirements/backlogs/team-5-hukid.md) conserva las historias HK. Las secciones fechadas de evidencia describen su incremento histórico, no el estado actual completo.
 
@@ -15,8 +15,8 @@ En estos documentos, **consola significa panel web de administración en el nave
 | Orden de entrega | Resultado | Estado |
 | --- | --- | --- |
 | 1. AUTH-T01–T08 | Login, /me, selección tenant, sesión, refresh/logout, step-up y pantallas accesibles. | Implementado y probado en laboratorio. |
-| 2. AUTH-T09 | Eventos de auditoría integrados, redacción de secretos y pruebas negativas/concurrencia de la feature. | Siguiente tarea; pendiente. |
-| 3. AUTH-T10 | Runbook, rollout, reversión y evidencia del gate A4 de autenticación. | Pendiente; depende de AUTH-T09. |
+| 2. AUTH-T09 | Eventos de auditoría integrados, redacción de secretos y pruebas negativas/concurrencia de la feature. | Implementado y probado en laboratorio. |
+| 3. AUTH-T10 | Runbook, rollout, reversión y evidencia del gate A4 de autenticación. | Siguiente tarea; depende de AUTH-T09 completada. |
 | 4. USR-T01–T09 | Miembros, invitaciones, roles, suspensión y sus pantallas/gate. | Pendiente en [FEAT-002](../features/FEAT-002-user-management/tasks.md). |
 | 5. DASH-T01–T08 | Navegación y resumen con miembros/actividad autorizados; fuentes de otros dominios cuando existan. | Pendiente en [FEAT-003](../features/FEAT-003-dashboard/tasks.md). |
 
@@ -24,13 +24,12 @@ Es el orden de entrega de [features del panel](../features/README.md); sus tarea
 
 Estos paquetes concretan parte de foundation; no sustituyen el recorrido de emisión/verificación ni completan todas sus dependencias. La propuesta de pasar directamente a un primer flujo HK después de AUTH-T10, posponiendo miembros/dashboard, no está adoptada como cambio de prioridad. Debe acordarse su alcance antes de modificar el backlog; no existe una dependencia técnica global que obligue a terminar todo el dashboard para iniciar el laboratorio de credenciales.
 
-## Cómo retomar AUTH-T09
+## Cómo retomar AUTH-T10
 
-1. Leer [spec](../features/FEAT-001-authentication/spec.md), [plan](../features/FEAT-001-authentication/plan.md) y [tareas](../features/FEAT-001-authentication/tasks.md) vigentes de FEAT-001; conservar los contratos y límites ya adoptados en sus ADR.
-2. Inspeccionar auditoría/outbox existentes y los handlers de login/callback, sesión, step-up y contexto. Registrar qué eventos, redacción y pruebas ya existen antes de ampliar la implementación.
-3. Integrar los eventos mínimos correlacionables y verificar que no se registren códigos, cookies, tokens, secretos ni datos personales innecesarios. Resolver fallos/concurrencia según la spec sin anunciar auditoría completa por disponer de tablas.
-4. Ejecutar los checks aplicables de [desarrollo local](../04-engineering/local-development.md), incluidos PostgreSQL cuando cambie persistencia y navegador para el recorrido integrado; registrar evidencia y límites en las tareas.
-5. Completar AUTH-T09 antes de declarar el gate de AUTH-T10. Esta actualización documental no implementa ninguna de las dos tareas.
+1. Leer spec, plan y [tareas FEAT-001](../features/FEAT-001-authentication/tasks.md), incluida evidencia AUTH-T09 y sus límites.
+2. Documentar operación, rollout y reversión con checks reproducibles, conservando la [referencia de auditoría](../03-design/console-auth-audit.md) como fuente técnica.
+3. Resolver y probar el gate A4 sin anunciar MFA real, retención institucional ni preparación productiva por ejecutar suites de laboratorio.
+4. Conservar la secuencia AUTH→USR→DASH y la separación del roadmap HK.
 
 ## Preparación común / Sprint 0
 

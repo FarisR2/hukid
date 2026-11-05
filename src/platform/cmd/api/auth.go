@@ -5,6 +5,8 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
+	"hukid.local/platform/internal/adapters/audithttp"
+	"log/slog"
 	"net/http"
 	"os"
 	"time"
@@ -128,5 +130,5 @@ func configureHandler(ctx context.Context, address string) (http.Handler, func()
 	me := &consolehttp.MeHandler{Verifier: provider, Tenancy: contexts, Sessions: sessions}
 	commands := consolehttp.NewSessions(&authentication.SessionLifecycle{Sessions: sessions, Store: store, OIDC: provider, Random: rand.Reader})
 	stopCleanup := store.StartSessionCleanup(context.Background())
-	return bootstrap.Handler(consolehttp.New(service).Register, management.Register, me.Register, commands.Register, protectedCommands.Register), func() { stopCleanup(); closePools() }, nil
+	return audithttp.Wrap(bootstrap.Handler(consolehttp.New(service).Register, management.Register, me.Register, commands.Register, protectedCommands.Register), store, slog.Default()), func() { stopCleanup(); closePools() }, nil
 }

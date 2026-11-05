@@ -60,7 +60,7 @@ La unicidad de membership y los estados son foundation. Terminalidad, reinvitaci
 
 Los cinco roles son NOSUPERUSER/NOCREATEDB/NOCREATEROLE/NOREPLICATION/NOBYPASSRLS. Los logins reales se provisionan fuera del SQL versionado; las pruebas crean logins y contraseñas aleatorias efímeras. `OpenRuntimePool` rechaza superuser, flags privilegiados directos/heredados, membership del owner/lector privilegiado y ownership de relaciones de los schemas de aplicación. Es una validación al abrir el pool, no monitorización continua de cambios administrativos.
 
-`FORCE ROW LEVEL SECURITY` se aplica a tenants, memberships, roles, audit y outbox. Audit/outbox aún no reciben grants runtime ni policies de lectura/escritura: esas superficies se ampliarán explícitamente en AUTH-T09/USR. Las tablas globales de identidad y sesión no usan tenant_id artificial; su protección se basa en roles separados, funciones mínimas y secretos cifrados.
+`FORCE ROW LEVEL SECURITY` se aplica a tenants, memberships, roles, audit y outbox. AUTH-T09 añade INSERT restringido para autenticación al runtime de sesión, con policies RLS y sin permisos de lectura/alteración/publicación; detalle en [auditoría de autenticación](console-auth-audit.md). Las tablas globales de identidad y sesión no usan tenant_id artificial; su protección se basa en roles separados, funciones mínimas y secretos cifrados.
 
 `WithTenant` abre transacción y usa `set_config(..., true)`, equivalente parametrizado de `SET LOCAL`, para actor y tenant. Commit, error, panic y cancelación terminan o descartan la transacción antes de reutilizar el pool. No se usa `SET` de sesión ni se interpolan identificadores recibidos. El fixture verifica una misma conexión física para A/A → A/B denegado → B/B, y ausencia de contexto tras los caminos de salida.
 
@@ -97,3 +97,7 @@ Fuentes de implementación: [PostgreSQL RLS](https://www.postgresql.org/docs/18/
 ## Migración AUTH-T07 y panel AUTH-T08
 
 [0005_console_reauthentication.sql](../../src/platform/internal/adapters/postgres/migrations/0005_console_reauthentication.sql) liga transacciones step_up a una generación de sesión mediante FK y CHECK. El detalle y los upgrades probados están en [reautenticación](console-reauthentication.md). AUTH-T08 conecta el panel y sus pruebas sin nuevas migraciones ni ampliación de grants. La administración real de memberships conserva FEAT-002.
+
+## Migración AUTH-T09
+
+[0006_auth_audit.sql](../../src/platform/internal/adapters/postgres/migrations/0006_auth_audit.sql) conserva historia y permite hechos auth sin tenant, con FK de evento y scope generado para mantener igualdad de contexto incluso con null. Los cambios de sesión y sus eventos/outbox se confirman juntos. Diccionario, permisos, fallos y pruebas en [auditoría de autenticación](console-auth-audit.md). El esquema mínimo AUTH-T03 de arriba conserva su origen histórico; el estado vigente incluye esta ampliación. Retención y publicación siguen pendientes.

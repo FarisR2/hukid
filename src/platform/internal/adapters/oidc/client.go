@@ -20,12 +20,13 @@ import (
 )
 
 type Client struct {
-	policy   authentication.Policy
-	oauth    oauth2.Config
-	verifier *coreoidc.IDTokenVerifier
-	keys     *coreoidc.RemoteKeySet
-	http     *http.Client
-	now      func() time.Time
+	policy     authentication.Policy
+	oauth      oauth2.Config
+	verifier   *coreoidc.IDTokenVerifier
+	keys       *coreoidc.RemoteKeySet
+	http       *http.Client
+	revocation string
+	now        func() time.Time
 }
 
 // confinedTransport also covers library-internal discovery, JWKS and token calls.
@@ -68,12 +69,17 @@ func New(ctx context.Context, p authentication.Policy, secret string, now func()
 		PKCE            []string `json:"code_challenge_methods_supported"`
 		AuthMethods     []string `json:"token_endpoint_auth_methods_supported"`
 		Algorithms      []string `json:"id_token_signing_alg_values_supported"`
+		Revocation      string   `json:"revocation_endpoint"`
 	}
 	if provider.Claims(&metadata) != nil || !metadata.IssuerParameter || !slices.Contains(metadata.PKCE, "S256") || !slices.Contains(metadata.AuthMethods, "client_secret_basic") || !slices.Contains(metadata.Algorithms, "ES256") {
 		return nil, authentication.ErrDependency
 	}
 	endpoints := provider.Endpoint()
-	for _, raw := range []string{endpoints.AuthURL, endpoints.TokenURL, metadata.JWKS} {
+	urls := []string{endpoints.AuthURL, endpoints.TokenURL, metadata.JWKS}
+	if metadata.Revocation != "" {
+		urls = append(urls, metadata.Revocation)
+	}
+	for _, raw := range urls {
 		endpoint, e := url.Parse(raw)
 		if e != nil || endpoint.Scheme != u.Scheme || endpoint.Host != u.Host || endpoint.User != nil || endpoint.RawQuery != "" || endpoint.Fragment != "" {
 			return nil, authentication.ErrDependency
@@ -82,7 +88,7 @@ func New(ctx context.Context, p authentication.Policy, secret string, now func()
 	keys := coreoidc.NewRemoteKeySet(ctx, metadata.JWKS)
 	verifier := coreoidc.NewVerifier(p.Issuer, keys, &coreoidc.Config{ClientID: p.ClientID, SupportedSigningAlgs: []string{"ES256"}, Now: now})
 	endpoints.AuthStyle = oauth2.AuthStyleInHeader
-	return &Client{policy: p, oauth: oauth2.Config{ClientID: p.ClientID, ClientSecret: secret, Endpoint: endpoints, RedirectURL: p.RedirectURI, Scopes: p.Scopes}, verifier: verifier, keys: keys, http: hc, now: now}, nil
+	return &Client{policy: p, oauth: oauth2.Config{ClientID: p.ClientID, ClientSecret: secret, Endpoint: endpoints, RedirectURL: p.RedirectURI, Scopes: p.Scopes}, verifier: verifier, keys: keys, http: hc, revocation: metadata.Revocation, now: now}, nil
 }
 
 func (c *Client) AuthorizationURL(state, nonce, challenge string) string {
@@ -131,9 +137,13 @@ type evidence struct {
 }
 
 func (c *Client) checkTimes(e evidence) bool {
+	return c.checkEvidenceTimes(e, false)
+}
+
+func (c *Client) checkEvidenceTimes(e evidence, allowExpired bool) bool {
 	now := c.now()
 	future := now.Add(time.Duration(c.policy.ClockSkewSeconds) * time.Second).Unix()
-	return e.Issued > 0 && e.Expires > e.Issued && now.Unix() < e.Expires && e.Issued <= future && e.NotBefore <= future && e.Expires-e.Issued <= int64(c.policy.AccessTokenSeconds) && e.AuthTime > 0
+	return e.Issued > 0 && e.Expires > e.Issued && (allowExpired || now.Unix() < e.Expires) && e.Issued <= future && e.NotBefore <= future && e.Expires-e.Issued <= int64(c.policy.AccessTokenSeconds) && e.AuthTime > 0
 }
 
 // Validate keeps ID-token authentication distinct from operator access authority.
@@ -205,6 +215,10 @@ func (c *Client) VerifyOperator(ctx context.Context, raw string) (authentication
 }
 
 func (c *Client) operatorEvidence(ctx context.Context, raw string) (evidence, error) {
+	return c.validateOperator(ctx, raw, false)
+}
+
+func (c *Client) validateOperator(ctx context.Context, raw string, allowExpired bool) (evidence, error) {
 	invalid := authentication.ErrCredential
 	if len(raw) == 0 || len(raw) > 64<<10 {
 		return evidence{}, invalid
@@ -223,7 +237,7 @@ func (c *Client) operatorEvidence(ctx context.Context, raw string) (evidence, er
 	}
 	var e evidence
 	var audience string
-	if json.Unmarshal(payload, &e) != nil || !c.checkTimes(e) || json.Unmarshal(e.Audience, &audience) != nil || audience != c.policy.Audience || e.Issuer != c.policy.Issuer || e.Subject == "" || len(e.Subject) > 128 || e.Client != c.policy.ClientID || e.Class != "operator" || e.Grant != "authorization_code" || !slices.Contains(strings.Fields(e.Scope), "operator:read") || e.JTI == "" || len(e.JTI) > 128 || !sameMethods(e.AMR, e.AMR) {
+	if json.Unmarshal(payload, &e) != nil || !c.checkEvidenceTimes(e, allowExpired) || json.Unmarshal(e.Audience, &audience) != nil || audience != c.policy.Audience || e.Issuer != c.policy.Issuer || e.Subject == "" || len(e.Subject) > 128 || e.Client != c.policy.ClientID || e.Class != "operator" || e.Grant != "authorization_code" || !slices.Contains(strings.Fields(e.Scope), "operator:read") || e.JTI == "" || len(e.JTI) > 128 || !sameMethods(e.AMR, e.AMR) {
 		return evidence{}, invalid
 	}
 	if c.policy.CheckMFA(time.Unix(e.AuthTime, 0), c.now(), e.AMR, e.ACR, false) != nil {

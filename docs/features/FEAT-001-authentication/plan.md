@@ -4,7 +4,7 @@ Referencia: [spec](spec.md), [tareas](tasks.md), [decisión propuesta](../../dec
 
 ## Evidencia y decisiones
 
-AUTH-T01 incorpora bootstrap Go y entry point React/TypeScript con Vite; ver [desarrollo local](../../04-engineering/local-development.md). El owner acordó `src/platform` y `src/console`. AUTH-T02 añade [contrato y política](../../03-design/console-auth-contract.md) según ADR-0003 y AUTH-T03 [persistencia con RLS](../../03-design/console-persistence.md) según ADR-0004. AUTH-T04 implementa [login/callback y sesión inicial](../../03-design/console-oidc-login.md) según ADR-0005; los demás handlers siguen pendientes. No se heredan sesiones/claims de Events.
+AUTH-T01 incorpora bootstrap Go y entry point React/TypeScript con Vite; ver [desarrollo local](../../04-engineering/local-development.md). El owner acordó `src/platform` y `src/console`. AUTH-T02 añade [contrato y política](../../03-design/console-auth-contract.md) según ADR-0003 y AUTH-T03 [persistencia con RLS](../../03-design/console-persistence.md) según ADR-0004. AUTH-T04 implementa [login/callback y sesión inicial](../../03-design/console-oidc-login.md) según ADR-0005; AUTH-T05/T06 añaden lecturas y ciclo de sesión; step-up y tenant-context siguen pendientes. No se heredan sesiones/claims de Events.
 
 AUTH-T05 incorpora [middleware operator y /me](../../03-design/console-operator-context.md), con decisión de lectura mínima de sesión en [ADR-0006](../../decisions/ADR-0006.md). El BFF guarda tokens en servidor y llama a Management con access token operator. Management sigue exigiendo Bearer: no se modifica para aceptar la cookie del navegador. Si se ejecutan en el mismo proceso, el adaptador conserva idénticas validaciones de token/actor y los límites de aplicación.
 
@@ -14,20 +14,20 @@ AUTH-T05 incorpora [middleware operator y /me](../../03-design/console-operator-
 | --- | --- |
 | platform/cmd/api | Bootstrap, configuración test y routing login/callback, /me y contexto operator. |
 | platform/internal/bootstrap | Liveness y validación loopback existentes. |
-| platform/internal/authentication | Política, puertos y casos de uso login/callback/sesión inicial existentes; ciclo operativo de sesión pendiente. |
+| platform/internal/authentication | Política, puertos y casos de uso login/callback/sesión inicial existentes; ciclo de sesión implementado en AUTH-T06. |
 | platform/internal/tenancy | Actor, membership, tenant y capacidades propias; administración de miembros pendiente. |
 | platform/internal/adapters/oidc | Discovery restringido, intercambio PKCE y verificación de ambos tokens. |
 | platform/internal/adapters/privateapi | Middleware operator, /me y contexto tenant, sin acoplar DTO al dominio. |
-| platform/internal/adapters/console | Login/callback, /me, cookies iniciales, rate limiting y errores; comandos/CSRF pendientes. |
+| platform/internal/adapters/console | Login/callback, /me, refresh/logout, cookies rotatorias, Origin/CSRF, rate limiting y errores; step-up/tenant-context pendientes. |
 | platform/internal/adapters/secretbox | Envelopes AES-256-GCM con AAD y clave externa; gestión productiva pendiente. |
-| platform/internal/adapters/postgres | Migraciones, roles/RLS, contexto y descubrimiento mínimo, transacciones OIDC y creación inicial de identidad/sesión. Rotación/refresh/logout pendientes. |
+| platform/internal/adapters/postgres | Migraciones, roles/RLS, contexto y descubrimiento mínimo, transacciones OIDC y creación inicial de identidad/sesión. Rotación/refresh/logout y purga desde AUTH-T06. |
 | console/src/authentication | Futuro: login/retorno, selector, guards y recuperación de sesión. |
 
 Existen el entry point de consola, bootstrap, contratos/configuración y reglas de política indicados. Los demás módulos se crean al implementar su tarea. El fixture IdP reside en tests y no forma parte de Platform. No crear módulos de emisión ni wallet para demostrar login.
 
 ## Contratos nuevos de consola
 
-AUTH-T02 los materializa en [OpenAPI propio](../../../src/platform/contracts/console-auth.openapi.json), con política/semántica en el contrato de consola. La siguiente tabla conserva el inventario; el OpenAPI es la fuente de schemas y errores. AUTH-T04/T05 implementan login/callback y tres lecturas /me/context sólo para laboratorio; los cuatro comandos restantes siguen pendientes. No son los endpoints /auth de Events.
+AUTH-T02 los materializa en [OpenAPI propio](../../../src/platform/contracts/console-auth.openapi.json), con política/semántica en el contrato de consola. La siguiente tabla conserva el inventario; el OpenAPI es la fuente de schemas y errores. AUTH-T04/T05 implementan login/callback y tres lecturas /me/context sólo para laboratorio; AUTH-T06 implementa refresh/logout; step-up y tenant-context siguen pendientes. No son los endpoints /auth de Events.
 
 | Ruta | Entrada / efecto | Seguridad |
 | --- | --- | --- |
@@ -72,3 +72,7 @@ Habilitar inicialmente a tenant sintético en entorno aislado. Un rollback revoc
 Validar que el IdP pueda producir access tokens operator con audiencia/clase del perfil y evidencia MFA suficiente; no relajar el perfil para acomodar un proveedor. Si no puede, registrar alternativa del Authorization Server antes de conectar.
 
 Se puede empezar por AUTH-T01, contratos, dominio y tests sintéticos. El gate integrado requiere políticas configuradas y membership mínima. El despliegue productivo requiere proveedor y secretos reales, HTTPS, soporte, retención y DoD.
+
+## Incremento AUTH-T06
+
+Se implementa el [ciclo de sesión](../../03-design/console-session-lifecycle.md) según [ADR-0007](../../decisions/ADR-0007.md): actividad autorizada, lease por familia, rotación atómica de generación y prueba CSRF, refresh OIDC sin reintento incierto, logout y mantenimiento acotado. El inventario anterior conserva la evolución por incremento; ahora quedan pendientes los comandos de step-up y tenant-context. AUTH-T07 conserva MFA/step-up y protección de esos comandos; AUTH-T08 la UI.

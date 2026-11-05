@@ -164,3 +164,9 @@ El runtime exige HUKID_CONTEXT_DATABASE_URL y HUKID_TENANT_DATABASE_URL adiciona
 `npm run check`, `npm run test:postgres`, `npm run build` y `npm run smoke` aprobaron en Windows con los toolchains locales fijados. El validador documental comprobó 74 Markdown y sus enlaces/anclas. Los procesos/clúster de las pruebas se detuvieron al finalizar. El sandbox bloqueó inicialmente temporales/caché; las ejecuciones finales Go/PostgreSQL/build usaron permisos externos al sandbox, sin cambiar controles del repositorio.
 
 El siguiente trabajo es AUTH-T06. /me todavía no extiende idle ni renueva access tokens. No se ejecutó navegador ni MFA real y no se habilitaron comandos de sesión o despliegue productivo.
+
+## Evidencia AUTH-T06 — 2026-11-04
+
+La rama `feature/auth-t06-session-lifecycle-v2` parte de develop integrado hasta AUTH-T05. `npm run test:postgres` añade pruebas de ciclo de sesión y flujo HTTP de refresh/logout con IdP/DB descartables. La migración 0004 añade lease e índice de generación activa; el API ejecuta purga acotada. [Referencia de sesión](../03-design/console-session-lifecycle.md) y [ADR-0007](../decisions/ADR-0007.md) contienen los límites y la evidencia por escenario. No se usaron bases existentes ni factores reales.
+
+Validación final AUTH-T06: `npm run check`, `npm run test:postgres`, `npm run build`, `npm run smoke` y `git diff --check` aprobados en Windows. La suite PostgreSQL contiene trece pruebas Go superiores con subcasos; incluye upgrade 0003→0004 conservando la sesión y rechazo de dos generaciones activas. No hubo publicación ni cambios sobre bases existentes.

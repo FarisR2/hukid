@@ -18,6 +18,9 @@ func (s *readStore) ReadSession(context.Context, []byte, time.Time) (ReadSession
 	s.calls++
 	return s.value, s.err
 }
+func (s *readStore) TouchSession(context.Context, []byte, time.Time, time.Duration) error {
+	return s.err
+}
 
 type readCipher struct {
 	data []byte
@@ -49,7 +52,7 @@ func TestSessionReadStrictBoundariesAndIntegrity(t *testing.T) {
 			case "future":
 				store.value.LastSeenAt = now.Add(time.Second)
 			case "wrong_generation":
-				store.value.Generation = 2
+				store.value.Generation = 0
 			case "wrong_policy":
 				store.value.PolicyVersion = "other"
 			case "cipher":

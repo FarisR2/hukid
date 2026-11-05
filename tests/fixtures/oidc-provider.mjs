@@ -31,6 +31,7 @@ export async function startTestIdp(policy) {
     acrValues: policy.acceptedAcr,
     pkce: { required: () => true, methods: ['S256'] },
     features: {
+      revocation: { enabled: true },
       devInteractions: { enabled: false }, userinfo: { enabled: false },
       resourceIndicators: {
         enabled: true,

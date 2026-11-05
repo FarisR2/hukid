@@ -2,12 +2,17 @@
 import { createInterface } from 'node:readline';
 import { startTestIdp } from './oidc-provider.mjs';
 
+// oidc-provider emits runtime notices (including grant revocation) through
+// console.info. Reserve stdout exclusively for this driver's JSON protocol.
+console.info = (...messages) => console.error(...messages);
+
 const lines = createInterface({ input: process.stdin, crlfDelay: Infinity });
-let idp, policy;
+let idp, policy, phase = 'start', status = '';
 const reply = value => process.stdout.write(`${JSON.stringify(value)}\n`);
 try {
   for await (const line of lines) {
     const command = JSON.parse(line);
+    phase = command.action;
     if (command.action === 'start') {
       policy = command.policy;
       idp = await startTestIdp(policy);
@@ -24,6 +29,8 @@ try {
         const headers = { cookie: [...cookies].map(([k,v]) => `${k}=${v}`).join('; ') };
         if (current.pathname.startsWith('/interaction/')) headers['X-Hukid-Test-Interaction'] = idp.interactionKey;
         const response = await fetch(current, { redirect: 'manual', headers, signal: AbortSignal.timeout(5000) });
+        phase = current.pathname.startsWith('/interaction/') ? 'interaction' : 'authorization';
+        status = String(response.status);
         for (const cookie of response.headers.getSetCookie()) {
           const pair = cookie.split(';')[0], index = pair.indexOf('=');
           cookies.set(pair.slice(0,index),pair.slice(index+1));
@@ -35,5 +42,5 @@ try {
     } else if (command.action === 'stop') { await idp.close(); idp = undefined; reply({ stopped: 'true' }); break; }
     else throw new Error('Unknown test command');
   }
-} catch { reply({ error: 'Isolated OIDC test driver failed' }); process.exitCode = 1; }
+} catch { reply({ error: 'Isolated OIDC test driver failed', phase, status }); process.exitCode = 1; }
 finally { if (idp) await idp.close(); lines.close(); }

@@ -118,6 +118,10 @@ func configureHandler(ctx context.Context, address string) (http.Handler, func()
 		return nil, nil, authentication.ErrDependency
 	}
 	management := &privateapi.Handler{Verifier: provider, Tenancy: contexts}
-	me := &consolehttp.MeHandler{Verifier: provider, Tenancy: contexts, Sessions: &authentication.SessionService{Store: &postgres.LoginStore{Pool: pool}, Cipher: box, Policy: config.policy, Now: time.Now}}
-	return bootstrap.Handler(consolehttp.New(service).Register, management.Register, me.Register), closePools, nil
+	store := &postgres.LoginStore{Pool: pool}
+	sessions := &authentication.SessionService{Store: store, Cipher: box, Policy: config.policy, Now: time.Now}
+	me := &consolehttp.MeHandler{Verifier: provider, Tenancy: contexts, Sessions: sessions}
+	commands := consolehttp.NewSessions(&authentication.SessionLifecycle{Sessions: sessions, Store: store, OIDC: provider, Random: rand.Reader})
+	stopCleanup := store.StartSessionCleanup(context.Background())
+	return bootstrap.Handler(consolehttp.New(service).Register, management.Register, me.Register, commands.Register), func() { stopCleanup(); closePools() }, nil
 }

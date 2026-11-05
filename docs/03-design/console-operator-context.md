@@ -18,7 +18,7 @@ El login todavía crea selección null. AUTH-T05 no implementa el comando de cam
 
 ## Sesión y dependencias
 
-La lectura sólo admite la generación inicial 1 creada por AUTH-T04. No actualiza lastSeenAt ni extiende idle, rota cookies, renueva access tokens o implementa logout. Un access token vencido devuelve 401 aunque la sesión aún esté dentro de su deadline; AUTH-T06 completará continuidad/refresh. Ciphertext o CSRF inconsistente falla con 503 sin filtrar errores. Una cookie inválida/expirada/revocada devuelve 401. No se anuncia una sesión operativa completa.
+AUTH-T06 amplía la lectura a generaciones activas posteriores y actualiza inactividad sólo tras autorización completa. Un access token vencido devuelve 401: el navegador debe solicitar refresh explícito. Rotación, logout y purga se describen en el [ciclo de sesión](console-session-lifecycle.md). Ciphertext o CSRF inconsistente falla con 503 sin filtrar errores. Una cookie inválida/expirada/revocada devuelve 401. No se anuncia una sesión operativa completa.
 
 El arranque test requiere ahora tres DSN externos para la misma base de laboratorio: HUKID_SESSION_DATABASE_URL (hukid_session_runtime), HUKID_CONTEXT_DATABASE_URL (hukid_context_runtime) y HUKID_TENANT_DATABASE_URL (hukid_tenant_runtime). Cada pool verifica su rol y rechaza herencia de otro runtime, owners o privilegios peligrosos. Se mantienen loopback, prefijo de base test, ausencia de fallback, configuración completa y fallo antes de escuchar. No se agregan migraciones ni permisos a los roles existentes.
 
@@ -34,4 +34,4 @@ Las respuestas controladas incluyen no-store, no-referrer y correlación nueva. 
 | AC06/07 | PostgreSQL real, dos tenants, cuatro roles, contexto propio, suspensión/revocación, revisión nueva y conexión reutilizada sin contexto residual. Binario HTTP real verifica tenant ajeno y suspensión con credenciales vigentes. El selector UI/comando sigue pendiente. |
 | AC09/QR04 | Binario Go + IdP + PostgreSQL: /me sin membresía, contexto null/seleccionado consistente, CSRF, no-store y ausencia de credenciales en respuestas. Pruebas con reloj controlado verifican deadlines, política/generación y corrupción del envelope/CSRF. |
 
-Comandos: npm run check, npm run test:postgres, npm run build y npm run smoke. La suite PostgreSQL se amplía a once pruebas Go superiores con subcasos; no son pruebas de navegador, MFA real, carga, restore o producción. Refresh/logout/rotación siguen en AUTH-T06; step-up/CSRF de comandos en AUTH-T07; UI en AUTH-T08; auditoría integrada y gate operativo en AUTH-T09/T10.
+Comandos: npm run check, npm run test:postgres, npm run build y npm run smoke. La suite PostgreSQL se amplía a once pruebas Go superiores con subcasos; no son pruebas de navegador, MFA real, carga, restore o producción. AUTH-T06 completa refresh/logout/rotación con Origin/CSRF; step-up y protección de comandos restantes siguen en AUTH-T07; UI en AUTH-T08; auditoría integrada y gate operativo en AUTH-T09/T10.

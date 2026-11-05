@@ -1,6 +1,6 @@
 # Persistencia de consola — AUTH-T03
 
-Estado: DDL nuevo ejecutado y probado en PostgreSQL 18.6 descartable; no es el DDL histórico del issuer. AUTH-T04 añade [login/callback, cifrado y sesión inicial](console-oidc-login.md), conectando HTTP con PostgreSQL. Lectura/rotación de sesión, refresh/logout, middleware y miembros siguen pendientes. Este documento conserva el detalle de foundation AUTH-T03.
+Estado: DDL nuevo ejecutado y probado en PostgreSQL 18.6 descartable; no es el DDL histórico del issuer. AUTH-T04 añade [login/callback, cifrado y sesión inicial](console-oidc-login.md), conectando HTTP con PostgreSQL. AUTH-T05 añade [lecturas autorizadas](console-operator-context.md) y AUTH-T06 [rotación, refresh/logout y purga](console-session-lifecycle.md); administración de miembros sigue pendiente. Este documento conserva el detalle de foundation AUTH-T03.
 
 ## Artefactos y decisiones
 
@@ -42,7 +42,7 @@ erDiagram
 
 Todos los timestamps son `timestamptz`. Los índices cubren identidad estable, consulta de memberships por operador, lookup de cookie/state y expiración. No hay índices ni objetivos de rendimiento inventados para cargas todavía no medidas.
 
-Los registros de sesión/transacción guardan únicamente hashes de búsqueda y envelopes recuperables, no columnas de tokens/verifier en claro. El envelope de secretos de una generación agrupa access/refresh/CSRF; guarda ciphertext con tag, nonce de 12 bytes y key version, más digest de refresh separado. El ciphertext activo debe existir y los registros rotated/revoked/expired deben purgarlo. La familia puede quedar revocada antes de modificar generaciones sólo dentro de una transacción que haga ambos cambios: AUTH-T06 deberá implementar ese orden y su rollback.
+Los registros de sesión/transacción guardan únicamente hashes de búsqueda y envelopes recuperables, no columnas de tokens/verifier en claro. El envelope de secretos de una generación agrupa access/refresh/CSRF; guarda ciphertext con tag, nonce de 12 bytes y key version, más digest de refresh separado. El ciphertext activo debe existir y los registros rotated/revoked/expired deben purgarlo. La familia puede quedar revocada antes de modificar generaciones sólo dentro de una transacción que haga ambos cambios: AUTH-T06 implementa ese orden y prueba su rollback; véase el ciclo de sesión.
 
 Las CHECK verifican forma y coherencia del envelope, no autenticidad AES-GCM. El adaptador criptográfico productivo y gestión de claves quedan en AUTH-T04/T06; una prueba almacena un envelope sintético generado con AES-GCM para comprobar compatibilidad. Su key sólo vive en memoria. AAD debe incluir propósito, familia/generación (o transaction ID para verifier); no se guarda ni entrega una clave desde PostgreSQL. Las FK no prueban que una membership esté activa: esa autorización se vuelve a consultar, además del límite estructural.
 
@@ -87,3 +87,7 @@ Se verifican: base vacía/upgrade con datos; checksums y versiones desconocidas;
 No se han probado restauración/DR, perfiles de carga, migrations sobre DDL externo, workers, refresh concurrente ni cookies/CSRF en navegador. AUTH-T04 amplía esta foundation con login/callback HTTP, cifrado y sesión inicial; su evidencia y límites se mantienen en [login OIDC](console-oidc-login.md). La sesión operativa continúa en AUTH-T05/T06.
 
 Fuentes de implementación: [PostgreSQL RLS](https://www.postgresql.org/docs/18/ddl-rowsecurity.html), [funciones y SECURITY DEFINER](https://www.postgresql.org/docs/18/sql-createfunction.html), [pgx y su changelog](https://github.com/jackc/pgx/blob/master/CHANGELOG.md). Configuración local, versiones y evidencia: [desarrollo local](../04-engineering/local-development.md).
+
+## Migración AUTH-T06
+
+[0004_session_lifecycle.sql](../../src/platform/internal/adapters/postgres/migrations/0004_session_lifecycle.sql) añade lease/deadline coherentes e índice único de generación activa por familia. La semántica de rotación, bloqueo y mantenimiento se mantiene en [ciclo de sesión](console-session-lifecycle.md). Las migraciones anteriores permanecen inmutables.

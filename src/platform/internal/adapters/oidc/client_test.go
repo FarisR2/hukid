@@ -18,13 +18,14 @@ import (
 )
 
 type signingFixture struct {
-	mu     sync.Mutex
-	key    *ecdsa.PrivateKey
-	kid    string
-	server *httptest.Server
-	policy authentication.Policy
-	now    time.Time
-	client *Client
+	mu           sync.Mutex
+	key          *ecdsa.PrivateKey
+	kid          string
+	server       *httptest.Server
+	policy       authentication.Policy
+	now          time.Time
+	client       *Client
+	tokenHandler http.Handler
 }
 
 func newSigningFixture(t *testing.T) *signingFixture {
@@ -43,6 +44,15 @@ func newSigningFixture(t *testing.T) *signingFixture {
 	s.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
+		case "/token":
+			s.mu.Lock()
+			handler := s.tokenHandler
+			s.mu.Unlock()
+			if handler == nil {
+				w.WriteHeader(404)
+			} else {
+				handler.ServeHTTP(w, r)
+			}
 		case "/.well-known/openid-configuration":
 			json.NewEncoder(w).Encode(map[string]any{"issuer": s.server.URL, "authorization_endpoint": s.server.URL + "/auth", "token_endpoint": s.server.URL + "/token", "jwks_uri": s.server.URL + "/jwks", "authorization_response_iss_parameter_supported": true, "code_challenge_methods_supported": []string{"S256"}, "token_endpoint_auth_methods_supported": []string{"client_secret_basic"}, "id_token_signing_alg_values_supported": []string{"ES256"}})
 		case "/jwks":

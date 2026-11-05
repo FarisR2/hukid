@@ -84,6 +84,8 @@ Exigen `HUKID_ENV=test`, `HUKID_TEST_DATABASE=1` y `HUKID_DATABASE_URL` explíci
 
 ## Arranque de API y consola
 
+USR-T01 añade el [contrato de miembros y política test](../03-design/console-members-contract.md). Sus pruebas se incluyen en `npm run test:auth` y `npm run check:platform`, ambos dentro de `npm run check`. No agrega variables runtime, rutas habilitadas ni migraciones. No se habilitan escrituras por colocar el nuevo archivo de política junto a auth.test.json.
+
 En dos terminales desde la raíz:
 
 ```sh

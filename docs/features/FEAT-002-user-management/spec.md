@@ -1,7 +1,7 @@
 # FEAT-002 — Gestión de miembros de tenant
 
 - Producto: HukID Console / Team 5.
-- Estado: especificación inicial; nuevos contratos de administración propuestos.
+- Estado: USR-T01 materializa la baseline de contrato y reglas de laboratorio; handlers, persistencia ampliada y UI pendientes.
 - Depende de: [FEAT-001](../FEAT-001-authentication/spec.md).
 - Salidas: [plan](plan.md), [tareas](tasks.md).
 
@@ -13,9 +13,9 @@ Usuario significa operador humano de la consola. No es el holder de Flutter, un 
 
 No incluye alta pública de tenants, passwords, account recovery, borrado global de identidad, impersonation, creación de issuer/keys ni grants de integración. La primera membership administrativa procede del bootstrap restringido de FEAT-001.
 
-## Matriz propuesta de capacidades
+## Matriz de capacidades
 
-Esta matriz concreta la consola y debe validarse/materializarse con los contratos; los roles provienen de la seguridad HukID, pero la asignación detallada es nueva. capabilities no reemplazan scopes/audience de los tokens.
+Esta matriz se materializa en la [fuente única de capacidades](../../../src/platform/contracts/capabilities.json) y el [contrato USR-T01](../../03-design/console-members-contract.md). Los roles provienen de la seguridad HukID; capabilities no reemplazan scopes/audience de los tokens ni implementan handlers por sí solas.
 
 | Rol local | Miembros e invitaciones | Auditoría | Operación de issuer / dashboard |
 | --- | --- | --- | --- |
@@ -24,7 +24,7 @@ Esta matriz concreta la consola y debe validarse/materializarse con los contrato
 | issuer_operator | Sin directorio de miembros ni invitaciones. | Sólo datos explícitamente concedidos por policy; no audit global. | Lectura operativa de issuers asignados. |
 | support_readonly | Sin directorio de miembros ni invitaciones. | Sin audit por defecto. | Resumen técnico mínimo sin claims/PII de terceros. |
 
-Las capacidades de escritura propuestas son members:invite, members:update, members:revoke e invitations:revoke; members:read habilita lectura. Sólo tenant_admin puede conceder roles de esta matriz en su tenant tras step-up. No puede otorgar permisos globales ni issuer IDs ajenos.
+Las capacidades de escritura son members:invite, members:update, members:revoke e invitations:revoke; members:read habilita lectura e invitations:read la consulta de invitaciones. Sólo tenant_admin puede conceder roles de esta matriz en su tenant tras step-up. No puede otorgar permisos globales ni issuer IDs ajenos. El scope operator:read permite evaluar una credencial operator; no concede por sí solo ninguna de estas operaciones.
 
 ## Requisitos y aceptación
 
@@ -45,7 +45,7 @@ Las capacidades de escritura propuestas son members:invite, members:update, memb
 
 Invitación: pending→accepted/revoked/expired. deliveryState es independiente: queued/sent/failed; sent indica aceptación del proveedor, no lectura ni aceptación del usuario.
 
-Membership: active/suspended/revoked. Roles y conjunto de issuers autorizados tienen revisión; una nueva invitación tras revocación se resuelve con vínculo/historial según contrato, conservando unicidad e identidad. No se sobreescribe la evidencia previa.
+Membership: active/suspended/revoked. Roles y conjunto de issuers autorizados tienen revisión; revoked es terminal por lifecycle. Una invitación posterior a la revocación puede abrir un lifecycle nuevo en la misma membership lógica, conservando membershipId, identidad y revisiones monotónicas, con sólo los grants nuevos e historial previo inmutable. No elude suspended. Semántica y condiciones en el [contrato USR-T01](../../03-design/console-members-contract.md) y [ADR-0011](../../decisions/ADR-0011.md).
 
 Datos mínimos: tenantId, membershipId, operatorIdentityId, roles, issuerIds, state, revision y fechas; invitación añade destinatario, token hasheado, expiración, roles/alcance propuestos y deliveryState. Email se protege con cifrado/retención y no funciona como primary key de identidad.
 
@@ -64,4 +64,4 @@ El token de aceptación viaja sólo por canal seguro al destinatario. Si hace fa
 
 Fundamentos: [arquitectura tenant/membership](../../03-design/hukid-architecture.md), [roles y seguridad](../../04-engineering/hukid-security-and-operations.md), [modelo](../../03-design/hukid-data-model.md), [HK-001/005](../../02-requirements/backlogs/team-5-hukid.md).
 
-El detalle de invitaciones/matriz/último admin se propone aquí como requisitos nuevos de consola; no se importa de Events como contrato vigente. USR-T01 concreta unicidad/reinvitación, políticas email, TTL, permisos y OpenAPI. USR-T04 valida canal de notificación. Estas decisiones técnicas no justifican ampliar permisos globales.
+El detalle de invitaciones/matriz/último admin es propio de consola; no se importa de Events. USR-T01 concreta unicidad/reinvitación, políticas email, TTL, permisos y OpenAPI en la referencia enlazada. USR-T04 implementará el canal sintético y USR-T05 la evidencia email verificada del IdP. Estas decisiones técnicas no justifican ampliar permisos globales ni afirman que esas integraciones existan.

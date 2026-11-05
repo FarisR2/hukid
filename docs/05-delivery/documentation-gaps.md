@@ -116,4 +116,6 @@ Existe [auditoría integrada](../03-design/console-auth-audit.md) con [ADR-0010]
 
 ### Incremento AUTH-T10
 
+La primera ejecución CI reportada por el owner aprobó check/build y falló al iniciar PostgreSQL antes de las pruebas de integración. Se corrige el lanzamiento directo mediante `pg_ctl`, junto con permisos del runner sobre los clústeres descartables y diagnóstico de arranque. La validación local de esta corrección no acredita éxito remoto; queda pendiente repetir el workflow con la revisión corregida.
+
 [Runbook](../04-engineering/console-auth-runbook.md), [matriz A4](authentication-gate.md), comando offline de invalidación y ensayo real de retirada/reactivación, gate local con reporte de metadatos y workflow Windows. No se entregan ni se acreditan ejecución CI remota, demo persistente, restore, drenado por señales, rollback a versión binaria anterior, factores reales, retención/publisher/visor ni observabilidad productiva. El escenario mantiene el esquema y no reactiva familias/callbacks anteriores. La invalidación local no revoca Bearer/grants del IdP. Las diferencias entre requisitos generales y alcance de laboratorio están expuestas en la matriz; producción permanece NO-GO. Continúa USR-T01.

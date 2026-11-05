@@ -38,6 +38,13 @@ jobs:
           npm ci --ignore-scripts
       - name: Verify portable PostgreSQL
         run: ./scripts/install-test-postgres.ps1
+      - name: Grant runner access to disposable clusters
+        run: |
+          $clusterRoot = Join-Path $env:GITHUB_WORKSPACE '.cache/postgres-tests'
+          New-Item -ItemType Directory -Force -Path $clusterRoot | Out-Null
+          $runnerSid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+          icacls $clusterRoot /grant "*${runnerSid}:(OI)(CI)F" /Q
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Install browser test tooling
         run: |
           python -m venv .cache/browser-venv

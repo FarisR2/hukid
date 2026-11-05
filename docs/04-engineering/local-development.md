@@ -71,6 +71,8 @@ npm run test:postgres
 
 El comando crea su propio clúster en `.cache/postgres-tests/run-*`, usa puerto libre/loopback y password administrativo aleatorio en memoria. Borra el archivo temporal de inicialización, ejecuta las pruebas Go con tag integration y finalmente elimina sólo bases/logins creados por las pruebas y detiene su servidor. Conserva el directorio ignorado y `postgres.log` para diagnóstico. No lee `HUKID_DATABASE_URL` de una aplicación existente, ni necesita Docker. La inicialización puede tardar en el primer arranque.
 
+El arranque usa `pg_ctl -w` con espera de hasta 30 segundos; en Windows permite reducir los privilegios del proceso servidor cuando la terminal es administrativa. El workflow concede al SID del runner permisos heredables sólo sobre `.cache/postgres-tests`, para que el proceso restringido pueda escribir sus clústeres. La salida del controlador va a `startup.log`, evitando pipes heredados que impedirían terminar el comando. Ante fallo de arranque se muestra un diagnóstico acotado; no se vuelcan logs tras ejecutar pruebas de autenticación.
+
 Los comandos manuales siguientes requieren una base test ya creada por el operador y credenciales externas al repo; no crean ni seleccionan una automáticamente:
 
 ```sh

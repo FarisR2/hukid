@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hukid.example.invalid/schemas/user-management-policy-v0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "environment": {
+      "const": "test"
+    },
+    "version": {
+      "const": "usr-t01-test-v1"
+    },
+    "invitationSeconds": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 86400
+    },
+    "idempotencySeconds": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 604800
+    },
+    "deliverySecretSeconds": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 604800
+    },
+    "recipientRetentionSeconds": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 604800
+    },
+    "cursorSeconds": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 900
+    },
+    "emailEvidenceSeconds": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 300
+    },
+    "maxPageSize": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100
+    },
+    "emailProfile": {
+      "const": "ascii-case-sensitive-local-v1"
+    },
+    "reentry": {
+      "const": "same-membership-new-lifecycle"
+    },
+    "notification": {
+      "const": "synthetic-only"
+    }
+  },
+  "required": [
+    "environment",
+    "version",
+    "invitationSeconds",
+    "idempotencySeconds",
+    "deliverySecretSeconds",
+    "recipientRetentionSeconds",
+    "cursorSeconds",
+    "emailEvidenceSeconds",
+    "maxPageSize",
+    "emailProfile",
+    "reentry",
+    "notification"
+  ]
+}

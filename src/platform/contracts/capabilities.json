@@ -36,5 +36,5 @@
     "security_admin": "Tenant-authorized security events; no membership mutations.",
     "tenant_admin": "No global authority; issuer operations require their own domain policy."
   },
-  "note": "AUTH-T02 fixes read context. Future mutation contracts/scopes and invitation policy remain USR-T01; token scopes never follow from this matrix alone."
+  "note": "USR-T01 materializes these unchanged tenant-local capabilities in console-members.openapi.json. operator:read only establishes token eligibility; local authorization and fresh MFA govern admin writes. Acceptance instead requires the same verified identity/email and a valid invitation; no directory access. Handlers remain pending USR-T03–T07."
 }

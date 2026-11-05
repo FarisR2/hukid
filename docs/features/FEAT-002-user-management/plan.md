@@ -2,6 +2,8 @@
 
 Referencias: [spec](spec.md), [tareas](tasks.md), [FEAT-001](../FEAT-001-authentication/plan.md).
 
+USR-T01 materializa U0: [contrato y políticas](../../03-design/console-members-contract.md), [OpenAPI](../../../src/platform/contracts/console-members.openapi.json), schemas y reglas puras según [ADR-0011](../../decisions/ADR-0011.md). Las doce operaciones están marcadas contract-only. Los hitos siguientes conservan la implementación pendiente; el siguiente incremento es USR-T02.
+
 ## Estado inicial y módulos
 
 Partir del tenant/identidad/membership/session store de FEAT-001. Ampliar tenancy y autorización existentes; no crear un servicio users independiente ni un segundo sistema de login.
@@ -15,9 +17,9 @@ Partir del tenant/identidad/membership/session store de FEAT-001. Ampliar tenanc
 | Platform cmd/worker + notification port | Entrega de invitaciones con reintentos y payload sensible cifrado. No usar workers Events. |
 | Console src/user-management | Lista, filtros, invitación, edición y confirmaciones. |
 
-## Contratos propuestos
+## Baseline de contratos USR-T01
 
-Todas las rutas Management exigen Bearer operator conforme al perfil, membership válida y capacidad. El tenantId de ruta selecciona recurso; el servidor valida pertenencia. Browser usa rutas equivalentes bajo /console/api mediante cookie/CSRF; no expone access token.
+Management exige Bearer operator conforme al perfil. Las rutas tenant-scoped exigen membership válida y capacidad; aceptación tiene la excepción explícita descrita abajo. El tenantId de ruta selecciona recurso; el servidor valida pertenencia. Browser usa rutas equivalentes bajo /console/api mediante cookie/CSRF/Origin; no expone access token. El detalle normativo de campos, filtros, reintentos, scopes y errores vive sólo en la referencia del contrato USR-T01.
 
 | Ruta Management | Entrada / resultado |
 | --- | --- |
@@ -34,7 +36,7 @@ Comandos usan Idempotency-Key acotada por actor/operación/tenant y hash; accept
 
 ## Migraciones y concurrencia
 
-Añadir invitaciones y estados/roles/alcance necesarios mediante expand; conservar identidad única issuer/subject y membership lógica por tenant/identidad. USR-T01 define el modelo de reingreso tras revocación: conservar historial y usar una nueva revisión/lifecycle sin duplicar membership efectiva.
+Añadir invitaciones y estados/roles/alcance necesarios mediante expand; conservar identidad única issuer/subject y membership lógica por tenant/identidad. El modelo de reingreso de USR-T01 conserva historial y membershipId y abre lifecycle nuevo con revisión monotónica y grants explícitos, sin duplicar membership efectiva. T02 debe registrar la generación/revocación objetivo de invitaciones para que ninguna anterior reactive un lifecycle revocado.
 
 Proteger mutaciones de administradores bloqueando el agregado tenant antes de contar tenant_admin activos y cambiar membership. Invitar/aceptar/promover/reactivar/degradar deben usar el mismo orden de locks para no eludir la invariante por otra ruta.
 
@@ -46,7 +48,7 @@ Invite token se genera con CSPRNG, se guarda hasheado para canje y se transporta
 
 | Hito | Dependencias | Gate |
 | --- | --- | --- |
-| U0 — Contrato y matriz | AUTH-T02/T03/T05/T07 | Permisos/campos/estados/modelo acordados; OpenAPI validado. |
+| U0 — Contrato y matriz | AUTH-T02/T03/T05/T07 | Materializado en USR-T01; OpenAPI/schemas/ejemplos y reglas puras, sin handlers. |
 | U1 — Lectura/aislamiento | U0 | Tabla real con filtros/cursor y roles negativos probados. |
 | U2 — Invitación vertical | U1 + worker/IdP test | Admin invita, entrega sintética, identidad correcta acepta una vez. |
 | U3 — Ciclo de acceso | U2 | Roles/suspensión/revocación y último admin bajo concurrencia. |
@@ -62,4 +64,4 @@ Rollout tenant sintético, luego piloto. Deshabilitar escrituras si falla la val
 
 ## Riesgos
 
-IdP debe proporcionar identidad/email verificados conforme a política; no usar sólo igualdad de correo no verificado. El proveedor de notificación y TTL se concretan en USR-T01/T04. DB/RLS y consulta mínima de memberships del login deben coordinarse con AUTH para evitar circularidad o bypass global.
+IdP debe proporcionar identidad/email verificados conforme a política; no usar sólo igualdad de correo no verificado. TTL y puerto/evidencia están definidos en USR-T01; T04 implementa entrega sintética y T05 integra el perfil email del IdP, todavía ausente. DB/RLS y consulta mínima de memberships del login deben coordinarse con AUTH para evitar circularidad o bypass global. La propiedad issuer necesita fuente confiable antes de habilitar grants issuerIds; no crear emisores ficticios ni ampliar permisos por esa dependencia.

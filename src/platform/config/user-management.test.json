@@ -1,0 +1,14 @@
+{
+  "environment": "test",
+  "version": "usr-t01-test-v1",
+  "invitationSeconds": 86400,
+  "idempotencySeconds": 86400,
+  "deliverySecretSeconds": 3600,
+  "recipientRetentionSeconds": 604800,
+  "cursorSeconds": 900,
+  "emailEvidenceSeconds": 300,
+  "maxPageSize": 100,
+  "emailProfile": "ascii-case-sensitive-local-v1",
+  "reentry": "same-membership-new-lifecycle",
+  "notification": "synthetic-only"
+}

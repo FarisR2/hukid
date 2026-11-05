@@ -1,12 +1,12 @@
 # Contrato de autenticación de consola — AUTH-T02
 
-Estado: baseline ejecutable de laboratorio validada como OpenAPI/JSON Schema y contra un IdP OIDC de pruebas. AUTH-T03 añade [persistencia/RLS](console-persistence.md) y AUTH-T04 [login/callback con sesión inicial](console-oidc-login.md). Los otros handlers BFF/Management siguen pendientes; no hay MFA real ni interoperabilidad de credenciales demostradas. El perfil HukID sigue `v0.1-draft`.
+Estado: baseline ejecutable de laboratorio validada como OpenAPI/JSON Schema y contra un IdP OIDC de pruebas. AUTH-T03 añade [persistencia/RLS](console-persistence.md), AUTH-T04 [login/callback](console-oidc-login.md) y AUTH-T05 [middleware operator y /me](console-operator-context.md). Los cuatro comandos BFF restantes siguen pendientes; no hay MFA real ni interoperabilidad de credenciales demostradas. El perfil HukID sigue `v0.1-draft`.
 
 ## Fuentes de detalle
 
 | Artefacto | Autoridad y alcance |
 | --- | --- |
-| [OpenAPI de consola y operador](../../src/platform/contracts/console-auth.openapi.json) | Nueve operaciones nuevas de FEAT-001: login/callback marcados `implemented-test-only` por AUTH-T04; las otras siete `not-implemented`. No reemplaza el OpenAPI histórico ausente. |
+| [OpenAPI de consola y operador](../../src/platform/contracts/console-auth.openapi.json) | Nueve operaciones nuevas de FEAT-001: login/callback y tres lecturas /me/context marcadas `implemented-test-only`; los cuatro comandos restantes `not-implemented`. No reemplaza el OpenAPI histórico ausente. |
 | [Política test](../../src/platform/config/auth.test.json) y [schema](../../src/platform/contracts/auth-policy.schema.json) | Valores del laboratorio; Go valida además relaciones entre duraciones y configuración explícita. |
 | [Claims operator](../../src/platform/contracts/operator-token.schema.json) | Shape de claims del access token test; no verifica criptografía por sí solo. |
 | [Matriz de capacidades](../../src/platform/contracts/capabilities.json) | Roles locales y restricciones; no otorga scopes OAuth ni permisos globales. |
@@ -68,7 +68,7 @@ Logout invalida primero la familia local y limpia cookie aunque falle el IdP. Un
 
 `npm run test:auth` valida OpenAPI y sus ejemplos con schemas estrictos, rechaza campos extra y escalamiento de rol/capacidad, verifica matriz y política, arranca el IdP real de biblioteca y realiza Code + S256 PKCE, firma/JWKS, audiencia/clase, separación de ID token, expiración, refresh y rechazo de reuse. El agente HTTP de pruebas no es un navegador. El adapter en memoria del IdP es deliberado y avisa de su uso exclusivo de laboratorio.
 
-`npm run check:platform` verifica política/configuración, tiempos, criptografía OIDC, cifrado y casos de uso/HTTP. AUTH-T04 amplía `npm run test:postgres` con binario real, IdP y DB para cookies iniciales, callback concurrente y rollback; detalle y límites en [login AUTH-T04](console-oidc-login.md). AUTH-T05 deberá aplicar verificación operator y membership a cada petición Management. CSRF de comandos, refresh/logout/rotación, MFA real y UI siguen pendientes; el gate A4 no está completo.
+`npm run check:platform` verifica política/configuración, tiempos, criptografía OIDC, cifrado y casos de uso/HTTP. AUTH-T04 amplía `npm run test:postgres` con binario real, IdP y DB para cookies iniciales, callback concurrente y rollback; detalle en [login AUTH-T04](console-oidc-login.md). AUTH-T05 aplica verificación operator y membership a cada petición Management y prueba [lecturas /me](console-operator-context.md), roles y suspensión viva. CSRF de comandos, refresh/logout/rotación, MFA real y UI siguen pendientes; el gate A4 no está completo.
 
 Fuentes externas para el diseño: [OpenAPI 3.1](https://spec.openapis.org/oas/v3.1.0), [OIDC Core](https://openid.net/specs/openid-connect-core-1_0.html), [RFC 9068](https://www.rfc-editor.org/rfc/rfc9068.html), [OAuth Security BCP](https://www.rfc-editor.org/rfc/rfc9700.html) y [API oficial de oidc-provider](https://github.com/panva/node-oidc-provider/blob/main/docs/README.md). El uso del formato de RFC 9068 en el laboratorio no declara conformidad completa con todos sus algoritmos o requisitos.
 

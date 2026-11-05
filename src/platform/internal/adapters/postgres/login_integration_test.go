@@ -98,6 +98,8 @@ func TestLoginHTTPWithRealOIDCAndPostgres(t *testing.T) {
 	db := newTestDatabase(t)
 	mustMigrate(t, db)
 	pool := db.pool(t, "hukid_session_runtime")
+	discovery := db.pool(t, "hukid_context_runtime")
+	tenantPool := db.pool(t, "hukid_tenant_runtime")
 	file, err := os.Open("../../../config/auth.test.json")
 	if err != nil {
 		t.Fatal(err)
@@ -135,6 +137,7 @@ func TestLoginHTTPWithRealOIDCAndPostgres(t *testing.T) {
 	}
 	command := exec.Command(binary)
 	command.Env = append(os.Environ(), "HUKID_ENV=test", "HUKID_AUTH_POLICY="+policyPath, "HUKID_LISTEN_ADDR="+listen, "HUKID_SESSION_DATABASE_URL="+pool.Config().ConnString(), "HUKID_OIDC_CLIENT_SECRET="+secret, "HUKID_AUTH_KEY="+base64.StdEncoding.EncodeToString(key), "HUKID_AUTH_KEY_VERSION=integration-v1")
+	command.Env = append(command.Env, "HUKID_CONTEXT_DATABASE_URL="+discovery.Config().ConnString(), "HUKID_TENANT_DATABASE_URL="+tenantPool.Config().ConnString())
 	logs := &capturedLogs{}
 	command.Stdout = logs
 	command.Stderr = logs
@@ -159,6 +162,7 @@ func TestLoginHTTPWithRealOIDCAndPostgres(t *testing.T) {
 		t.Fatal("configured API did not become live")
 	}
 	secretValues := []string{secret, base64.StdEncoding.EncodeToString(key)}
+	var sessionCookie *http.Cookie
 	request := func(t *testing.T, path string, cookie *http.Cookie) *http.Response {
 		t.Helper()
 		req, _ := http.NewRequest("GET", p.ConsoleOrigin+path, nil)
@@ -258,6 +262,7 @@ func TestLoginHTTPWithRealOIDCAndPostgres(t *testing.T) {
 		found := false
 		for _, c := range response.Cookies() {
 			if c.Name == p.CookieName {
+				sessionCookie = c
 				found = true
 				secretValues = append(secretValues, c.Value)
 				if len(c.Value) != 43 || !c.HttpOnly || c.SameSite != http.SameSiteLaxMode || c.Path != "/" || c.Domain != "" {
@@ -376,6 +381,98 @@ func TestLoginHTTPWithRealOIDCAndPostgres(t *testing.T) {
 		if db.admin.QueryRow(testContext, `SELECT EXISTS(SELECT FROM console_auth.oidc_transactions WHERE consumed_at IS NOT NULL AND verifier_ciphertext IS NOT NULL)`).Scan(&leaked) != nil || leaked {
 			t.Fatal("consumed verifier not purged")
 		}
+	})
+	t.Run("operator_and_console_me_live_authorization", func(t *testing.T) {
+		if sessionCookie == nil {
+			t.Fatal("login session missing")
+		}
+		var actor, family string
+		var envelope a.Envelope
+		if err := db.admin.QueryRow(testContext, `SELECT operator_identity_id::text,family_id::text,secret_ciphertext,secret_nonce,secret_key_version FROM console_auth.sessions WHERE cookie_hash=$1`, a.Digest(sessionCookie.Value)).Scan(&actor, &family, &envelope.Ciphertext, &envelope.Nonce, &envelope.KeyVersion); err != nil {
+			t.Fatal(err)
+		}
+		plain, err := box.Open(envelope, a.SessionAAD(family))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var secrets a.SessionSecrets
+		if json.Unmarshal(plain, &secrets) != nil {
+			t.Fatal("bad secrets")
+		}
+		clear(plain)
+		call := func(path, token string, cookie *http.Cookie, status int) map[string]any {
+			t.Helper()
+			req, _ := http.NewRequest("GET", p.ConsoleOrigin+path, nil)
+			if token != "" {
+				req.Header.Set("Authorization", "Bearer "+token)
+			}
+			if cookie != nil {
+				req.AddCookie(cookie)
+			}
+			response, err := client.Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer response.Body.Close()
+			body, _ := io.ReadAll(response.Body)
+			if response.StatusCode != status {
+				t.Fatalf("%s: expected %d, got %d", path, status, response.StatusCode)
+			}
+			if response.Header.Get("Cache-Control") != "no-store" || response.Header.Get("Referrer-Policy") != "no-referrer" || response.Header.Get("X-Correlation-Id") == "" {
+				t.Fatal("missing headers")
+			}
+			for _, secret := range []string{secrets.AccessToken, secrets.RefreshToken, sessionCookie.Value} {
+				if strings.Contains(string(body), secret) {
+					t.Fatal("response exposed credential")
+				}
+			}
+			if (response.Header.Get("WWW-Authenticate") != "") != (status == 401 && strings.HasPrefix(path, "/v1/")) {
+				t.Fatal("wrong bearer challenge")
+			}
+			var result map[string]any
+			if json.Unmarshal(body, &result) != nil {
+				t.Fatal("invalid JSON")
+			}
+			return result
+		}
+		call("/v1/operator/me", "", sessionCookie, 401)
+		call("/console/api/me", secrets.AccessToken, nil, 401)
+		pending := call("/console/api/me", "", sessionCookie, 200)
+		if pending["actorId"] != actor || len(pending["tenants"].([]any)) != 0 || pending["activeTenantId"] != nil || pending["context"] != nil || pending["csrfToken"] != secrets.CSRF {
+			t.Fatal("wrong pending access")
+		}
+		mustExec(t, db.admin, `INSERT INTO tenancy.tenants(tenant_id,display_name) VALUES($1,'Own'),($2,'Foreign')`, TestTenantA, TestTenantB)
+		mustExec(t, db.admin, `INSERT INTO tenancy.memberships(membership_id,tenant_id,operator_identity_id) VALUES($1,$2,$3)`, TestMemberA, TestTenantA, actor)
+		mustExec(t, db.admin, `INSERT INTO tenancy.membership_roles(tenant_id,membership_id,role) VALUES($1,$2,'security_admin')`, TestTenantA, TestMemberA)
+		me := call("/v1/operator/me", secrets.AccessToken, nil, 200)
+		if me["actorId"] != actor || len(me["tenants"].([]any)) != 1 {
+			t.Fatal("wrong operator contexts")
+		}
+		call("/v1/operator/tenants/"+TestTenantB+"/context", secrets.AccessToken, nil, 404)
+		call("/v1/operator/tenants/invalid/context", secrets.AccessToken, nil, 404)
+		own := "/v1/operator/tenants/" + TestTenantA + "/context"
+		c := call(own, secrets.AccessToken, nil, 200)
+		if c["authorizationRevision"] != float64(1) || len(c["issuerIds"].([]any)) != 0 {
+			t.Fatal("wrong authorization revision")
+		}
+		mustExec(t, db.admin, `UPDATE console_auth.sessions SET active_tenant_id=$1,authorization_revision=1 WHERE cookie_hash=$2`, TestTenantA, a.Digest(sessionCookie.Value))
+		selected := call("/console/api/me", "", sessionCookie, 200)
+		if selected["activeTenantId"] != TestTenantA || selected["context"].(map[string]any)["tenantId"] != TestTenantA {
+			t.Fatal("context inconsistent")
+		}
+		mustExec(t, db.admin, `UPDATE tenancy.memberships SET state='suspended',authorization_revision=2 WHERE membership_id=$1`, TestMemberA)
+		call(own, secrets.AccessToken, nil, 404)
+		call("/console/api/me", "", sessionCookie, 404)
+		mustExec(t, db.admin, `UPDATE tenancy.memberships SET state='active',authorization_revision=3 WHERE membership_id=$1`, TestMemberA)
+		c = call(own, secrets.AccessToken, nil, 200)
+		if c["authorizationRevision"] != float64(3) {
+			t.Fatal("cached authorization")
+		}
+		mustExec(t, db.admin, `UPDATE tenancy.tenants SET state='suspended' WHERE tenant_id=$1`, TestTenantA)
+		call(own, secrets.AccessToken, nil, 404)
+		mustExec(t, db.admin, `UPDATE tenancy.tenants SET state='active' WHERE tenant_id=$1`, TestTenantA)
+		mustExec(t, db.admin, `UPDATE console_auth.sessions SET created_at=created_at-interval '2 hours',last_seen_at=created_at-interval '2 hours',idle_expires_at=now()-interval '1 second' WHERE cookie_hash=$1`, a.Digest(sessionCookie.Value))
+		call("/console/api/me", "", sessionCookie, 401)
 	})
 	t.Run("idp_outage_requires_new_login", func(t *testing.T) {
 		u, cookie := begin(t)

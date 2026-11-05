@@ -1,6 +1,6 @@
 # FEAT-001 — Tareas
 
-Estado: AUTH-T01/T02/T03/T04 completadas para bootstrap, contratos, PostgreSQL y login/callback con sesión inicial de laboratorio; AUTH-T05–T10 pendientes. Owner: Team 5; backend/seguridad, consola y plataforma coordinan contratos y migraciones. No hay consola operativa ni evidencia productiva.
+Estado: AUTH-T01–T05 completadas para bootstrap, contratos, PostgreSQL, login/callback y lecturas autorizadas /me de laboratorio; AUTH-T06–T10 pendientes. Owner: Team 5; backend/seguridad, consola y plataforma coordinan contratos y migraciones. No hay consola operativa ni evidencia productiva.
 
 | Estado / ID | Objetivo y artefacto | Depende de | Componentes | Aceptación / verificación | Riesgo |
 | --- | --- | --- | --- | --- | --- |
@@ -8,7 +8,7 @@ Estado: AUTH-T01/T02/T03/T04 completadas para bootstrap, contratos, PostgreSQL y
 | [x] AUTH-T02 | Materializar OpenAPI BFF/Management, modelo de sesión, matriz de capacidades y política validada de TTL/MFA. | AUTH-T01 | Contratos, configuración, authentication/policy, fixture OIDC, ADR-0003 | OpenAPI/schemas/ejemplos y negativos validados; intercambio Code/PKCE con JWT operator y MFA sintética, refresh/reuse y límites de política probados. Decisiones resueltas sólo para laboratorio. | IdP/factores productivos aún no seleccionados; handlers pendientes. |
 | [x] AUTH-T03 | Crear migraciones mínimas tenant/identidad/membership/sesión y bootstrap sintético restringido. | AUTH-T02 | migrations, adapters/postgres, cmd/testdb, audit/outbox | PostgreSQL 18.6 descartable: base vacía/upgrade con datos, dos tenants en conexión reutilizada, RLS/grants/FK, rollback/panic/cancelación, bootstrap atómico sin regrant y CLI test-only probados. Sin endpoint público. | Provisioning productivo, cifrado operativo y autorización HTTP aún pendientes. |
 | [x] AUTH-T04 | Implementar puertos OIDC y callback de un uso con validación completa. | AUTH-T02, AUTH-T03 | Authentication, adapters OIDC/BFF/PostgreSQL, secretbox | AC01/02 backend: binario Go real + IdP/DB descartables, retorno, binding/state/nonce/issuer/PKCE, replay/concurrencia, cookies opacas y rollback probados. Alta mínima sin membresía y sesión inicial cifrada. | MFA real, sesión operativa y UI siguen en sus gates. |
-| [ ] AUTH-T05 | Implementar middleware operator y contexto tenant/capacidades con /me. | AUTH-T03, AUTH-T04 | Private API, tenancy, /me | AC03/06/07/09: token de otra clase falla; tenant ajeno no carga; suspensión bloquea siguiente petición; consulta mínima sin tenant no enumera terceros. | Confusión de autoridad. |
+| [x] AUTH-T05 | Implementar middleware operator y contexto tenant/capacidades con /me. | AUTH-T03, AUTH-T04 | Private API, tenancy, /me | AC03/06/07/09 backend: Bearer verificado antes de tenancy, roles locales, tenant ajeno rechazado, suspensión bloquea siguiente petición y /me no enumera terceros. Binario real/IdP/DB y límites de sesión probados. Selector/comandos/UI siguen pendientes. | Sin refresh ni sesión operativa completa. |
 | [ ] AUTH-T06 | Implementar almacenamiento/rotación de sesión, refresh coordinado y logout. | AUTH-T04, AUTH-T05 | Session store, BFF | AC04/08: concurrencia y respuesta perdida no duplican familias; logout local persiste con IdP caído; reutilización revocada se rechaza. | Concurrencia/tokens. |
 | [ ] AUTH-T07 | Implementar MFA/step-up y CSRF/origin para comandos. | AUTH-T02, AUTH-T06 | Authentication, IdP, BFF | AC05/10: amr/acr/auth_time verificados; CSRF malo no cambia nada; reloj prueba cada límite configurado. | Reautenticación insuficiente. |
 | [ ] AUTH-T08 | Conectar login, selector y acceso pendiente en consola con estados accesibles. | AUTH-T05, AUTH-T06, AUTH-T07 | Console auth/guards | E2E login→tenant→/me→logout; teclado/foco, expiración, 403 y fallo IdP sin bucles; no token en JS storage. | UX/caché de tenant. |
@@ -32,6 +32,10 @@ Fuente de detalle: [contrato de consola](../../03-design/console-auth-contract.m
 ## Evidencia AUTH-T04 — 2026-11-04
 
 [Login OIDC](../../03-design/console-oidc-login.md) y [ADR-0005](../../decisions/ADR-0005.md) documentan puertos, librerías fijadas, consumo confirmado antes del intercambio, cifrado y alta mínima de identidad/sesión inicial. Pruebas Go verifican claims/firmas, deadlines, cifrado/AAD, fallos de entropía y HTTP/rate limiting. `npm run test:postgres` añade binario real/IdP/DB, cookies, callback concurrente, PKCE/nonce, replay, rollback, upgrade 0002→0003 y permisos sin escritura de memberships. No prueba navegador ni factores reales. AUTH-T05 es la siguiente tarea; AUTH-T06 conserva refresh/logout/rotación.
+
+## Evidencia AUTH-T05 — 2026-11-04
+
+[Contexto operator y /me](../../03-design/console-operator-context.md) y [ADR-0006](../../decisions/ADR-0006.md) describen las tres lecturas, middleware Bearer, capacidades locales y pools separados. Se adelanta únicamente lectura/descifrado de generación inicial desde AUTH-T06, sin extender actividad ni renovar tokens. La selección inicial sigue null; el comando tenant requiere su protección CSRF posterior. Pruebas Go, HTTP y once pruebas superiores PostgreSQL con subcasos verifican clases/firma/audience/MFA, ausencia de consultas antes de autenticar, dos tenants, roles/revisión, suspensión/revocación y sesión sin fuga de credenciales. El siguiente trabajo es AUTH-T06: actividad/rotación, refresh coordinado y logout.
 
 ## Cobertura requisito → aceptación → tarea
 

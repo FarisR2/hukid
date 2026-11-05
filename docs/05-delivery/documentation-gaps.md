@@ -56,7 +56,7 @@ Owners: Team 4 y Team 5 coordinan el contrato de integración; cada equipo mater
 
 ## Foundation de consola documentada
 
-Los paquetes [FEAT-001/002/003](../features/README.md) añaden especificación, plan y tareas para la consola HukID confirmada por el usuario. [ADR-0002](../decisions/ADR-0002.md) registra propuestas de BFF, operador, miembros y dashboard. AUTH-T01–T04 implementan bootstrap, contratos, PostgreSQL y login/callback de laboratorio; autorización HTTP, sesión operativa, UI, miembros y dashboard siguen pendientes. Los apartados siguientes conservan evidencia por incremento, no sustituyen el estado actual de las tareas.
+Los paquetes [FEAT-001/002/003](../features/README.md) añaden especificación, plan y tareas para la consola HukID confirmada por el usuario. [ADR-0002](../decisions/ADR-0002.md) registra propuestas de BFF, operador, miembros y dashboard. AUTH-T01–T05 implementan bootstrap, contratos, PostgreSQL, login/callback y lecturas autorizadas /me de laboratorio; ciclo operativo de sesión, comandos, UI, miembros y dashboard siguen pendientes. Los apartados siguientes conservan evidencia por incremento, no sustituyen el estado actual de las tareas.
 
 Para empezar AUTH-T01 no es necesario recuperar los ejemplos de emisión ni configurar KMS issuer. Para completar login integrado sí hacen falta IdP test compatible, políticas de sesión/MFA, contrato de operador y migraciones mínimas; miembros necesita policy de invitación/notificación. No marcar esos artefactos como disponibles por existir el plan.
 
@@ -84,4 +84,10 @@ El harness no usa DB existente ni instala un servicio; crea y elimina únicament
 
 Existe [login/callback Go probado con IdP y PostgreSQL](../03-design/console-oidc-login.md), con librerías OIDC fijadas, consumo de transacción de un uso, PKCE/nonce/issuer/binding, tokens firmados, rate limiting local y cifrado AES-GCM. Una función restringida registra identidad por issuer/subject sin memberships, y la sesión inicial se guarda antes de emitir su cookie. [ADR-0005](../decisions/ADR-0005.md) documenta el límite entre creación inicial y AUTH-T06.
 
-Pendientes: middleware operator/tenant y /me (AUTH-T05), refresh/logout/rotación (AUTH-T06), step-up y CSRF de comandos (AUTH-T07), interfaz/navegador (AUTH-T08), auditoría integrada (AUTH-T09) y operación/gate A4 (AUTH-T10). No hay purga automática de transacciones abandonadas/sesiones expiradas, rotación/recuperación de claves ni rate limiting distribuido. Las claves/credenciales se suministran externamente; no se ha seleccionado gestión productiva de secretos. Los factores del fixture siguen siendo sintéticos y el perfil sigue draft.
+El estado posterior se registra en AUTH-T05 abajo. No hay purga automática de transacciones abandonadas/sesiones expiradas, rotación/recuperación de claves ni rate limiting distribuido. Las claves/credenciales se suministran externamente; no se ha seleccionado gestión productiva de secretos. Los factores del fixture siguen siendo sintéticos y el perfil sigue draft.
+
+### Incremento AUTH-T05
+
+Existe [middleware operator y lectura /me](../03-design/console-operator-context.md) con verificación Bearer, roles/capacidades propios, revalidación viva de tenant/membership y composición BFF desde sesión cifrada. Se usan tres credenciales runtime separadas y las migraciones/grants existentes. [ADR-0006](../decisions/ADR-0006.md) adelanta sólo lectura de generación inicial desde AUTH-T06 para habilitar /me.
+
+Pendientes: actualizar actividad, refresh/logout/rotación (AUTH-T06), comandos/CSRF/step-up (AUTH-T07), selector/UI/navegador (AUTH-T08), auditoría integrada (AUTH-T09) y operación/gate A4 (AUTH-T10). issuerIds vacío no acredita asignación ni autoridad sobre emisores. La sesión inicial no se renueva: access token vencido exige nuevo login. No se probaron MFA real, navegador, carga ni restore; el perfil conserva draft.

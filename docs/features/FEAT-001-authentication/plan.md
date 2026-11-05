@@ -6,19 +6,19 @@ Referencia: [spec](spec.md), [tareas](tasks.md), [decisión propuesta](../../dec
 
 AUTH-T01 incorpora bootstrap Go y entry point React/TypeScript con Vite; ver [desarrollo local](../../04-engineering/local-development.md). El owner acordó `src/platform` y `src/console`. AUTH-T02 añade [contrato y política](../../03-design/console-auth-contract.md) según ADR-0003 y AUTH-T03 [persistencia con RLS](../../03-design/console-persistence.md) según ADR-0004. AUTH-T04 implementa [login/callback y sesión inicial](../../03-design/console-oidc-login.md) según ADR-0005; los demás handlers siguen pendientes. No se heredan sesiones/claims de Events.
 
-El BFF guarda tokens en servidor y llama a Management con access token operator. Management sigue exigiendo Bearer: no se modifica para aceptar la cookie del navegador. Si se ejecutan en el mismo proceso, el adaptador conserva idénticas validaciones de token/actor y los límites de aplicación.
+AUTH-T05 incorpora [middleware operator y /me](../../03-design/console-operator-context.md), con decisión de lectura mínima de sesión en [ADR-0006](../../decisions/ADR-0006.md). El BFF guarda tokens en servidor y llama a Management con access token operator. Management sigue exigiendo Bearer: no se modifica para aceptar la cookie del navegador. Si se ejecutan en el mismo proceso, el adaptador conserva idénticas validaciones de token/actor y los límites de aplicación.
 
 ## Componentes propuestos
 
 | Área bajo src | Responsabilidad |
 | --- | --- |
-| platform/cmd/api | Bootstrap, configuración test y routing login/callback; Management pendiente. |
+| platform/cmd/api | Bootstrap, configuración test y routing login/callback, /me y contexto operator. |
 | platform/internal/bootstrap | Liveness y validación loopback existentes. |
 | platform/internal/authentication | Política, puertos y casos de uso login/callback/sesión inicial existentes; ciclo operativo de sesión pendiente. |
-| platform/internal/tenancy | Futuro: actor, membership, tenant y capacidades; registro mínimo antes de FEAT-002. |
+| platform/internal/tenancy | Actor, membership, tenant y capacidades propias; administración de miembros pendiente. |
 | platform/internal/adapters/oidc | Discovery restringido, intercambio PKCE y verificación de ambos tokens. |
-| platform/internal/adapters/privateapi | Futuro: middleware operator y /me, sin acoplar DTO al dominio. |
-| platform/internal/adapters/console | Login/callback, cookies iniciales, rate limiting y errores; comandos/CSRF pendientes. |
+| platform/internal/adapters/privateapi | Middleware operator, /me y contexto tenant, sin acoplar DTO al dominio. |
+| platform/internal/adapters/console | Login/callback, /me, cookies iniciales, rate limiting y errores; comandos/CSRF pendientes. |
 | platform/internal/adapters/secretbox | Envelopes AES-256-GCM con AAD y clave externa; gestión productiva pendiente. |
 | platform/internal/adapters/postgres | Migraciones, roles/RLS, contexto y descubrimiento mínimo, transacciones OIDC y creación inicial de identidad/sesión. Rotación/refresh/logout pendientes. |
 | console/src/authentication | Futuro: login/retorno, selector, guards y recuperación de sesión. |
@@ -27,7 +27,7 @@ Existen el entry point de consola, bootstrap, contratos/configuración y reglas 
 
 ## Contratos nuevos de consola
 
-AUTH-T02 los materializa en [OpenAPI propio](../../../src/platform/contracts/console-auth.openapi.json), con política/semántica en el contrato de consola. La siguiente tabla conserva el inventario; el OpenAPI es la fuente de schemas y errores. AUTH-T04 implementa login/callback sólo para laboratorio; los otros siete handlers siguen pendientes. No son los endpoints /auth de Events.
+AUTH-T02 los materializa en [OpenAPI propio](../../../src/platform/contracts/console-auth.openapi.json), con política/semántica en el contrato de consola. La siguiente tabla conserva el inventario; el OpenAPI es la fuente de schemas y errores. AUTH-T04/T05 implementan login/callback y tres lecturas /me/context sólo para laboratorio; los cuatro comandos restantes siguen pendientes. No son los endpoints /auth de Events.
 
 | Ruta | Entrada / efecto | Seguridad |
 | --- | --- | --- |

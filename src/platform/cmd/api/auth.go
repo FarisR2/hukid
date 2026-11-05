@@ -12,20 +12,23 @@ import (
 	consolehttp "hukid.local/platform/internal/adapters/console"
 	"hukid.local/platform/internal/adapters/oidc"
 	"hukid.local/platform/internal/adapters/postgres"
+	"hukid.local/platform/internal/adapters/privateapi"
 	"hukid.local/platform/internal/adapters/secretbox"
 	"hukid.local/platform/internal/authentication"
 	"hukid.local/platform/internal/bootstrap"
+	"hukid.local/platform/internal/tenancy"
 )
 
 type authConfig struct {
 	policy                        authentication.Policy
 	dsn, clientSecret, keyVersion string
 	key                           []byte
+	contextDSN, tenantDSN         string
 }
 
 func loadAuthConfiguration() (*authConfig, error) {
 	path, environment := os.Getenv("HUKID_AUTH_POLICY"), os.Getenv("HUKID_ENV")
-	values := []string{os.Getenv("HUKID_SESSION_DATABASE_URL"), os.Getenv("HUKID_OIDC_CLIENT_SECRET"), os.Getenv("HUKID_AUTH_KEY"), os.Getenv("HUKID_AUTH_KEY_VERSION")}
+	values := []string{os.Getenv("HUKID_SESSION_DATABASE_URL"), os.Getenv("HUKID_OIDC_CLIENT_SECRET"), os.Getenv("HUKID_AUTH_KEY"), os.Getenv("HUKID_AUTH_KEY_VERSION"), os.Getenv("HUKID_CONTEXT_DATABASE_URL"), os.Getenv("HUKID_TENANT_DATABASE_URL")}
 	configured := path != "" || environment != ""
 	for _, v := range values {
 		configured = configured || v != ""
@@ -55,10 +58,12 @@ func loadAuthConfiguration() (*authConfig, error) {
 	if err != nil || len(key) != 32 || len(values[3]) > 128 {
 		return nil, invalid
 	}
-	if postgres.ValidateLoginDatabase(values[0]) != nil {
-		return nil, invalid
+	for _, dsn := range []string{values[0], values[4], values[5]} {
+		if postgres.ValidateLoginDatabase(dsn) != nil {
+			return nil, invalid
+		}
 	}
-	return &authConfig{p, values[0], values[1], values[3], key}, nil
+	return &authConfig{policy: p, dsn: values[0], clientSecret: values[1], keyVersion: values[3], key: key, contextDSN: values[4], tenantDSN: values[5]}, nil
 }
 
 func validateAuthConfiguration() error {
@@ -89,11 +94,30 @@ func configureHandler(ctx context.Context, address string) (http.Handler, func()
 	if err != nil {
 		return nil, nil, authentication.ErrDependency
 	}
-	provider, err := oidc.New(ctx, config.policy, config.clientSecret, time.Now)
+	discovery, err := postgres.OpenRuntimePool(ctx, config.contextDSN, "hukid_context_runtime", 4)
 	if err != nil {
 		pool.Close()
 		return nil, nil, authentication.ErrDependency
 	}
+	tenant, err := postgres.OpenRuntimePool(ctx, config.tenantDSN, "hukid_tenant_runtime", 4)
+	if err != nil {
+		discovery.Close()
+		pool.Close()
+		return nil, nil, authentication.ErrDependency
+	}
+	closePools := func() { tenant.Close(); discovery.Close(); pool.Close() }
+	provider, err := oidc.New(ctx, config.policy, config.clientSecret, time.Now)
+	if err != nil {
+		closePools()
+		return nil, nil, authentication.ErrDependency
+	}
 	service := &authentication.LoginService{Policy: config.policy, OIDC: provider, Store: &postgres.LoginStore{Pool: pool}, Cipher: box, Now: time.Now, Random: rand.Reader}
-	return bootstrap.Handler(consolehttp.New(service).Register), pool.Close, nil
+	contexts, err := tenancy.New(&postgres.OperatorStore{Discovery: discovery, Tenant: tenant})
+	if err != nil {
+		closePools()
+		return nil, nil, authentication.ErrDependency
+	}
+	management := &privateapi.Handler{Verifier: provider, Tenancy: contexts}
+	me := &consolehttp.MeHandler{Verifier: provider, Tenancy: contexts, Sessions: &authentication.SessionService{Store: &postgres.LoginStore{Pool: pool}, Cipher: box, Policy: config.policy, Now: time.Now}}
+	return bootstrap.Handler(consolehttp.New(service).Register, management.Register, me.Register), closePools, nil
 }

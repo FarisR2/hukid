@@ -17,6 +17,9 @@ var (
 	ErrCallback   = errors.New("invalid callback")
 	ErrMFA        = errors.New("MFA required")
 	ErrDependency = errors.New("authentication dependency unavailable")
+	ErrCredential = errors.New("invalid operator credential")
+	ErrSession    = errors.New("invalid session")
+	ErrTenant     = errors.New("tenant not found")
 )
 
 type Envelope struct {

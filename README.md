@@ -1,6 +1,6 @@
 # Plataforma de eventos y HukID
 
-Este repositorio reúne la especificación de Events y del producto independiente HukID, bootstrap, contratos, foundation PostgreSQL y login/callback OIDC AUTH-T04 de laboratorio. El callback crea una sesión inicial; autorización HTTP, refresh/logout e interfaz siguen pendientes. No acredita interoperabilidad ni preparación productiva.
+Este repositorio reúne la especificación de Events y del producto independiente HukID, bootstrap, contratos, foundation PostgreSQL, login OIDC y [autorización operator con /me AUTH-T05](docs/03-design/console-operator-context.md) de laboratorio. Refresh/logout e interfaz siguen pendientes. No acredita interoperabilidad ni preparación productiva.
 
 ## Documentación
 

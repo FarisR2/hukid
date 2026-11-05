@@ -120,6 +120,8 @@ Decisiones y alcance: [ADR-0002](../decisions/ADR-0002.md), [FEAT-001](../featur
 
 ## Evidencia del bootstrap — 2026-11-03
 
+Las secciones de evidencia siguientes son snapshots de cada incremento. Las frases «siguiente tarea», las cantidades de pruebas y las funciones pendientes corresponden a la fecha de ese incremento; para continuar usar las [tareas vigentes](../features/FEAT-001-authentication/tasks.md) y el [plan global](../05-delivery/implementation-plan.md). AUTH-T01–T08 ya están entregadas para laboratorio y AUTH-T09 es la siguiente tarea.
+
 Entorno: Windows x64, Node 24.22.1, npm 11.19.1, Go 1.27.3 portable con checksum oficial verificado. Se validó también una copia del árbol fuente en otra ubicación sin `node_modules`, `dist` ni cachés previas; Go se indicó mediante `HUKID_GO`.
 
 | Comprobación | Resultado |

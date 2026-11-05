@@ -1,5 +1,23 @@
 # 06 — Roadmap de implementación
 
+## Estado de ejecución — 2026-11-05
+
+Este roadmap describe el producto completo; no es evidencia de fases terminadas. AUTH-T01–T08 implementan autenticación y acceso al panel web en laboratorio. AUTH-T09/T10, miembros y dashboard siguen pendientes; el [plan vigente](implementation-plan.md) enlaza su secuencia y la siguiente tarea. Completar autenticación no equivale a completar foundation ni el flujo documental.
+
+| Fase de este roadmap | Relación con historias del [backlog Team 5](../02-requirements/backlogs/team-5-hukid.md) | Estado verificable |
+| --- | --- | --- |
+| 0 — Laboratorio de credenciales | Preparación del perfil y conformance HK-056; firma/proof/binding requeridos por las historias de emisión y verificación. | Pendiente. El laboratorio OIDC de AUTH no valida VC, wallet ni verifier. |
+| 1 — Foundation | HK-001/002/004/005; FEAT-001/002 concretan parte del acceso administrativo. | Parcial: AUTH-T01–T08 entregadas. Emisores, keys/KMS, clientes/grants y cierre de auditoría/operación no están completos. |
+| 2 — Definition Registry | HK-003. | Pendiente. |
+| 3 — Emisión y recepción | HK-010–013, HK-020–025 y las historias de wallet HK-030–033 necesarias para el recorrido. | Pendiente. |
+| 4 — Status y verificación | HK-040–043, HK-050/051; las lecturas de wallet se amplían según HK-034. | Pendiente. |
+| 5 — Segundo vertical educativo | Nuevas definiciones/integraciones sobre las mismas historias y núcleo. | Pendiente; el tipo de documento y el corte del piloto deben acordarse. |
+| 6 — Hardening/piloto | HK-052–056 y gates de cada dominio. | Pendiente; las pruebas de autenticación no sustituyen estos gates. |
+
+La tabla es trazabilidad de alcance, no nuevos IDs ni una declaración de que cada historia pertenezca exclusivamente a una fase. Seguridad, retención y status también imponen requisitos previos a emitir. No se renumeran las historias ni se rellenan los artefactos ausentes por inferencia.
+
+El dashboard pertenece al panel administrativo FEAT-003 y puede incorporar lecturas de los dominios cuando existan. El negocio de credenciales vive en Platform Go, wallet Flutter y verifier según sus límites; la verificación técnica, la confianza en el emisor y la decisión de negocio deben distinguirse. Un servicio de verifier en Platform es opcional: el modo primario de presentación es wallet ↔ verifier externo, según la [arquitectura](../03-design/hukid-architecture.md).
+
 ## Principio de entrega
 
 Construir un **thin vertical slice** real: POS → oferta → wallet → credencial → verificación. No empezar por un diseñador genérico ilimitado ni por microservicios. Luego agregar un segundo vertical académico para probar agnosticismo.

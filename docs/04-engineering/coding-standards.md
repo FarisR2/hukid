@@ -1,6 +1,6 @@
 # Estándares de implementación
 
-Estas reglas consolidan restricciones de las fuentes. Las versiones y comandos de AUTH-T01–T04 se registran en [desarrollo local](local-development.md), incluidos pgx y las librerías OIDC Go. Flutter y dependencias de otros módulos siguen pendientes de selección. `.gitattributes` fija LF para Go y permite ejecutar gofmt sobre un checkout limpio en Windows.
+Estas reglas consolidan restricciones de las fuentes. Las versiones, comandos y evidencia de AUTH-T01–T08 se registran en [desarrollo local](local-development.md), incluidos pgx, las librerías OIDC Go y el navegador de pruebas. Flutter y dependencias de otros módulos siguen pendientes de selección. `.gitattributes` fija LF para Go y permite ejecutar gofmt sobre un checkout limpio en Windows.
 
 ## Límites y dependencias
 

@@ -2,6 +2,8 @@
 
 Fecha: 2026-11-03. Inventario del paquete recibido; no significa que los artefactos no existan en otro repositorio. Los diez Markdown HukID incorporados sustituyen referencias personales para arquitectura, perfil y modelo conceptual, pero no adjuntan los archivos ejecutables citados.
 
+Estado de ejecución actualizado al 2026-11-05: AUTH-T01–T08 implementadas en laboratorio, AUTH-T09/T10 pendientes. La [ruta vigente](implementation-plan.md) distingue el panel web del negocio de credenciales. Este inventario conserva procedencia y evidencia histórica; un artefacto nuevo de consola no sustituye al artefacto histórico ausente de emisión/wallet/verificación.
+
 ## Archivos referenciados que no se adjuntaron
 
 | Artefacto de origen | Referencias conservadas | Acción necesaria |
@@ -59,6 +61,8 @@ Owners: Team 4 y Team 5 coordinan el contrato de integración; cada equipo mater
 Los paquetes [FEAT-001/002/003](../features/README.md) añaden especificación, plan y tareas para la consola HukID confirmada por el usuario. [ADR-0002](../decisions/ADR-0002.md) registra propuestas de BFF, operador, miembros y dashboard. AUTH-T01–T05 implementan bootstrap, contratos, PostgreSQL, login/callback y lecturas autorizadas /me de laboratorio; AUTH-T06/T07 añaden ciclo de sesión y step-up/contexto; AUTH-T08 conecta [UI y navegador](../03-design/console-auth-interface.md); miembros y dashboard siguen pendientes. Los apartados siguientes conservan evidencia por incremento, no sustituyen el estado actual de las tareas.
 
 Para empezar AUTH-T01 no es necesario recuperar los ejemplos de emisión ni configurar KMS issuer. Para completar login integrado sí hacen falta IdP test compatible, políticas de sesión/MFA, contrato de operador y migraciones mínimas; miembros necesita policy de invitación/notificación. No marcar esos artefactos como disponibles por existir el plan.
+
+Pendientes actuales del panel: AUTH-T09 auditoría/redacción integrada, AUTH-T10 operación/gate, FEAT-002 miembros y FEAT-003 dashboard. Hay un harness E2E descartable y pantallas conectadas, pero no se ha preparado un entorno de demo manual persistente ni un despliegue productivo. Preparar esa demo es trabajo adicional y no acredita emisión o verificación documental. Las secciones de incremento que siguen conservan el estado histórico de su fecha.
 
 ### Incremento AUTH-T01
 

@@ -80,6 +80,8 @@ El bootstrap requiere además al administrador del clúster aislado. Inserta dos
 
 ## Pruebas y límites
 
+Este apartado conserva la evidencia foundation de AUTH-T03. La suite acumulada también cubre login/callback, contexto, sesiones/comandos y upgrades posteriores, según [desarrollo local](../04-engineering/local-development.md). AUTH-T08 añade el [recorrido de navegador](console-auth-interface.md); las limitaciones históricas de AUTH-T03 no anulan esas pruebas posteriores.
+
 `npm run test:postgres` exige PostgreSQL 18.6; no salta pruebas si faltan binarios. Inicializa un clúster en `.cache/postgres-tests`, liga el listener sólo a loopback/puerto libre y genera un password administrativo efímero. Ejecuta ocho pruebas Go con build tag `integration`, incluido el CLI real de migración/bootstrap, cierra conexiones, elimina sólo las bases/logins que creó y detiene su servidor. El directorio del clúster queda ignorado para diagnóstico; no se instala un servicio ni se usa una DB existente.
 
 Se verifican: base vacía/upgrade con datos; checksums y versiones desconocidas; RLS y grants; dos tenants con un pool de una conexión; rollback/panic/cancelación; suspensión/revocación; descubrimiento mínimo; FK/unique/CHECK de identidad, tenant y sesiones; deadline absoluto; eliminación de secretos al invalidar/consumir; CAS de transacción OIDC; rollback de bootstrap por fallo de outbox; idempotencia sin regrant; rechazo de roles elevados y destinos/flags no test. La restricción de nonce/ciphertext no demuestra por sí sola cifrado productivo.
@@ -91,3 +93,7 @@ Fuentes de implementación: [PostgreSQL RLS](https://www.postgresql.org/docs/18/
 ## Migración AUTH-T06
 
 [0004_session_lifecycle.sql](../../src/platform/internal/adapters/postgres/migrations/0004_session_lifecycle.sql) añade lease/deadline coherentes e índice único de generación activa por familia. La semántica de rotación, bloqueo y mantenimiento se mantiene en [ciclo de sesión](console-session-lifecycle.md). Las migraciones anteriores permanecen inmutables.
+
+## Migración AUTH-T07 y panel AUTH-T08
+
+[0005_console_reauthentication.sql](../../src/platform/internal/adapters/postgres/migrations/0005_console_reauthentication.sql) liga transacciones step_up a una generación de sesión mediante FK y CHECK. El detalle y los upgrades probados están en [reautenticación](console-reauthentication.md). AUTH-T08 conecta el panel y sus pruebas sin nuevas migraciones ni ampliación de grants. La administración real de memberships conserva FEAT-002.

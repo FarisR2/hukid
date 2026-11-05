@@ -724,6 +724,168 @@ func TestLoginHTTPWithRealOIDCAndPostgres(t *testing.T) {
 		}
 		postCommand(t, "/console/auth/refresh", next, body.CSRF, p.ConsoleOrigin, 401)
 	})
+
+	t.Run("operational_disable_invalidate_and_reenable", func(t *testing.T) {
+		cookie, _ := commandSession(t)
+		pending, binding := begin(t)
+		callback := authorize(t, pending)
+		enabledEnv := append([]string{}, command.Env...)
+		command.Process.Kill()
+		if err := command.Wait(); err == nil {
+			t.Log("API exited before offline invalidation")
+		}
+		// The shutdown mechanism is process termination on Windows. This is not a
+		// signal/graceful-drain or database disaster-recovery test.
+		conn, err := pool.Acquire(testContext)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if InvalidateAuthTest(testContext, conn.Conn()) == nil {
+			t.Fatal("runtime invalidated lab")
+		}
+		conn.Release()
+		t.Setenv("HUKID_TEST_DATABASE", "0")
+		if InvalidateAuthTest(testContext, db.admin) == nil {
+			t.Fatal("invalidation accepted missing test flag")
+		}
+		t.Setenv("HUKID_TEST_DATABASE", "1")
+		cancelled, cancel := context.WithCancel(testContext)
+		cancel()
+		if InvalidateAuthTest(cancelled, db.admin) == nil {
+			t.Fatal("cancelled invalidation succeeded")
+		}
+		cli := func(success bool) {
+			t.Helper()
+			c := exec.Command(filepath.Join(runtime.GOROOT(), "bin", goName), "run", "../../../cmd/testdb", "invalidate-auth")
+			c.Env = append(os.Environ(), "HUKID_DATABASE_URL="+db.dsn, "HUKID_ENV=test", "HUKID_TEST_DATABASE=1")
+			out, err := c.CombinedOutput()
+			if (err == nil) != success {
+				t.Fatal("unexpected lab invalidation result")
+			}
+			for _, value := range secretValues {
+				if value != "" && strings.Contains(string(out), value) {
+					t.Fatal("CLI leaked secret")
+				}
+			}
+		}
+		var before, after int
+		if err := db.admin.QueryRow(testContext, `SELECT count(*) FROM platform.audit_events`).Scan(&before); err != nil {
+			t.Fatal(err)
+		}
+		mustExec(t, db.admin, `ALTER TABLE platform.outbox_events ADD CONSTRAINT rollback_test_failure CHECK(false) NOT VALID`)
+		cli(false)
+		if err := db.admin.QueryRow(testContext, `SELECT count(*) FROM platform.audit_events`).Scan(&after); err != nil || after != before {
+			t.Fatal("partial invalidation audit survived rollback")
+		}
+		var usable bool
+		if err := db.admin.QueryRow(testContext, `SELECT state='active' AND secret_ciphertext IS NOT NULL FROM console_auth.sessions WHERE cookie_hash=$1`, a.Digest(cookie.Value)).Scan(&usable); err != nil || !usable {
+			t.Fatal("failed invalidation modified session")
+		}
+		if err := db.admin.QueryRow(testContext, `SELECT consumed_at IS NULL FROM console_auth.oidc_transactions WHERE state_hash=$1`, a.Digest(pending.Query().Get("state"))).Scan(&usable); err != nil || !usable {
+			t.Fatal("failed invalidation consumed callback")
+		}
+		mustExec(t, db.admin, `ALTER TABLE platform.outbox_events DROP CONSTRAINT rollback_test_failure`)
+		// A later failure while cancelling OIDC must also roll back revocation/audit.
+		mustExec(t, db.admin, `ALTER TABLE console_auth.oidc_transactions ADD CONSTRAINT rollback_oidc_failure CHECK(consumed_at IS NULL) NOT VALID`)
+		cli(false)
+		if err := db.admin.QueryRow(testContext, `SELECT state='active' FROM console_auth.sessions WHERE cookie_hash=$1`, a.Digest(cookie.Value)).Scan(&usable); err != nil || !usable {
+			t.Fatal("OIDC failure committed session invalidation")
+		}
+		if err := db.admin.QueryRow(testContext, `SELECT count(*) FROM platform.audit_events`).Scan(&after); err != nil || after != before {
+			t.Fatal("OIDC failure committed revocation events")
+		}
+		mustExec(t, db.admin, `ALTER TABLE console_auth.oidc_transactions DROP CONSTRAINT rollback_oidc_failure`)
+
+		var members, history int
+		if err := db.admin.QueryRow(testContext, `SELECT count(*) FROM tenancy.memberships`).Scan(&members); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.admin.QueryRow(testContext, `SELECT count(*) FROM public.hukid_schema_migrations`).Scan(&history); err != nil {
+			t.Fatal(err)
+		}
+		cli(true)
+		if err := db.admin.QueryRow(testContext, `SELECT count(*) FROM platform.audit_events`).Scan(&after); err != nil || after <= before {
+			t.Fatal("invalidation did not preserve/add audit")
+		}
+		cli(true)
+		var repeat int
+		if err := db.admin.QueryRow(testContext, `SELECT count(*) FROM platform.audit_events`).Scan(&repeat); err != nil || repeat != after {
+			t.Fatal("repeated invalidation duplicated events")
+		}
+		for _, sql := range []string{
+			`SELECT count(*) FROM console_auth.session_families WHERE state='active' OR refresh_lease IS NOT NULL`,
+			`SELECT count(*) FROM console_auth.sessions WHERE state='active' OR secret_ciphertext IS NOT NULL OR secret_nonce IS NOT NULL OR secret_key_version IS NOT NULL OR refresh_digest IS NOT NULL`,
+			`SELECT count(*) FROM console_auth.oidc_transactions WHERE consumed_at IS NULL OR verifier_ciphertext IS NOT NULL OR verifier_nonce IS NOT NULL OR verifier_key_version IS NOT NULL`,
+		} {
+			var n int
+			if err := db.admin.QueryRow(testContext, sql).Scan(&n); err != nil || n != 0 {
+				t.Fatal("rollback retained authentication material")
+			}
+		}
+		var n int
+		if err := db.admin.QueryRow(testContext, `SELECT count(*) FROM tenancy.memberships`).Scan(&n); err != nil || n != members {
+			t.Fatal("rollback changed memberships")
+		}
+		if err := db.admin.QueryRow(testContext, `SELECT count(*) FROM public.hukid_schema_migrations`).Scan(&n); err != nil || n != history {
+			t.Fatal("rollback changed schema")
+		}
+		restart := func(enabled bool) {
+			t.Helper()
+			command = exec.Command(binary)
+			if enabled {
+				command.Env = enabledEnv
+			} else {
+				for _, entry := range os.Environ() {
+					if !strings.HasPrefix(entry, "HUKID_") {
+						command.Env = append(command.Env, entry)
+					}
+				}
+				command.Env = append(command.Env, "HUKID_LISTEN_ADDR="+listen)
+			}
+			command.Stdout, command.Stderr = logs, logs
+			if command.Start() != nil {
+				t.Fatal("cannot restart lab API")
+			}
+			live := false
+			for range 100 {
+				r, err := client.Get(p.ConsoleOrigin + "/healthz")
+				if err == nil {
+					r.Body.Close()
+					if r.StatusCode == 204 {
+						live = true
+						break
+					}
+				}
+				time.Sleep(50 * time.Millisecond)
+			}
+			if !live {
+				t.Fatal("restarted API not live")
+			}
+		}
+		restart(false)
+		for _, path := range []string{"/console/auth/login", "/console/api/me", "/v1/operator/me"} {
+			req, _ := http.NewRequest("GET", p.ConsoleOrigin+path, nil)
+			req.AddCookie(cookie)
+			r, err := client.Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			r.Body.Close()
+			if r.StatusCode != 404 || r.Header.Get("Cache-Control") != "no-store" {
+				t.Fatal("auth remained available during disablement")
+			}
+		}
+		command.Process.Kill()
+		command.Wait()
+		restart(true)
+		assertError(t, request(t, "/console/api/me", cookie), 401)
+		assertError(t, request(t, callback, binding), 400)
+		fresh, _ := commandSession(t)
+		if r := request(t, "/console/api/me", fresh); r.StatusCode != 200 {
+			t.Fatal("new login failed after reenablement")
+		}
+	})
+
 	t.Run("idp_outage_requires_new_login", func(t *testing.T) {
 		logoutCookie, csrf := commandSession(t)
 		u, cookie := begin(t)

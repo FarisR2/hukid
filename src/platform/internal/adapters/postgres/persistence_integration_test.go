@@ -439,7 +439,7 @@ func TestTestDBCLIUsesOnlyExplicitTestDatabase(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		goName = "go.exe"
 	}
-	for _, operation := range []string{"migrate", "migrate", "bootstrap", "bootstrap"} {
+	for _, operation := range []string{"migrate", "migrate", "bootstrap", "bootstrap", "invalidate-auth", "invalidate-auth"} {
 		command := exec.Command(filepath.Join(runtime.GOROOT(), "bin", goName), "run", "../../../cmd/testdb", operation)
 		command.Env = append(os.Environ(), "HUKID_DATABASE_URL="+db.dsn, "HUKID_ENV=test", "HUKID_TEST_DATABASE=1")
 		if output, err := command.CombinedOutput(); err != nil {

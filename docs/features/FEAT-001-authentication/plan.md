@@ -23,7 +23,7 @@ AUTH-T05 incorpora [middleware operator y /me](../../03-design/console-operator-
 | platform/internal/adapters/postgres | Migraciones, roles/RLS, contexto y descubrimiento mínimo, transacciones OIDC y creación inicial de identidad/sesión. Rotación/refresh/logout y purga desde AUTH-T06. |
 | console/src/authentication | AUTH-T08: login/retorno, selector, guards y recuperación de sesión. |
 
-Los componentes de autenticación indicados están implementados hasta AUTH-T09 en laboratorio, incluido el panel React y la [auditoría integrada](../../03-design/console-auth-audit.md). Operación/gate siguen en AUTH-T10. Los módulos de miembros, dashboard y credenciales conservan sus tareas propias. El fixture IdP reside en tests y no forma parte de Platform. No crear módulos de emisión ni wallet para demostrar login.
+Los componentes de autenticación indicados están implementados hasta AUTH-T09 en laboratorio, incluido el panel React y la [auditoría integrada](../../03-design/console-auth-audit.md). AUTH-T10 añade [runbook y gate de laboratorio](../../05-delivery/authentication-gate.md). Los módulos de miembros, dashboard y credenciales conservan sus tareas propias. El fixture IdP reside en tests y no forma parte de Platform. No crear módulos de emisión ni wallet para demostrar login.
 
 ## Contratos nuevos de consola
 
@@ -63,7 +63,7 @@ Bootstrap local crea dos tenants y operadores sintéticos, con secreto externo a
 
 ## Verificación y rollout
 
-Los comandos vigentes están en [desarrollo local](../../04-engineering/local-development.md): check, test:postgres, build, smoke y test:browser. AUTH-T03–T07 agregan PostgreSQL/RLS, HTTP y middleware, sesión concurrente y comandos; AUTH-T08 incorpora navegador. El estado y la evidencia por tarea están en [tasks.md](tasks.md); las suites de laboratorio no acreditan MFA real, carga/restore ni producción. AUTH-T09 amplía auditoría/redacción y AUTH-T10 conserva el gate A4.
+Los comandos vigentes están en [desarrollo local](../../04-engineering/local-development.md): check, test:postgres, build, smoke y test:browser. AUTH-T03–T07 agregan PostgreSQL/RLS, HTTP y middleware, sesión concurrente y comandos; AUTH-T08 incorpora navegador. El estado y la evidencia por tarea están en [tasks.md](tasks.md); las suites de laboratorio no acreditan MFA real, carga/restore ni producción. AUTH-T09 amplía auditoría/redacción y AUTH-T10 documenta y prueba el [gate A4 de laboratorio](../../05-delivery/authentication-gate.md).
 
 Habilitar inicialmente a tenant sintético en entorno aislado. Un rollback revoca/deshabilita acceso a consola, conserva auditoría y usa migración forward; no borra tablas de sesión ni cambia comportamiento OID4VCI. No hay modificaciones destructivas previstas.
 
@@ -71,7 +71,7 @@ Habilitar inicialmente a tenant sintético en entorno aislado. Un rollback revoc
 
 Validar que el IdP pueda producir access tokens operator con audiencia/clase del perfil y evidencia MFA suficiente; no relajar el perfil para acomodar un proveedor. Si no puede, registrar alternativa del Authorization Server antes de conectar.
 
-AUTH-T09 ya integra auditoría sobre AUTH-T01–T08; el siguiente incremento AUTH-T10 documenta operación y evidencia del gate. El despliegue productivo conserva requisitos de proveedor/factores reales, secretos, HTTPS, soporte, retención y DoD, sin asumirlos aprobados por cerrar tareas de laboratorio.
+AUTH-T09 integra auditoría y AUTH-T10 completa operación/evidencia del gate de laboratorio. El siguiente incremento es USR-T01. El despliegue productivo conserva requisitos de proveedor/factores reales, secretos, HTTPS, soporte, retención y DoD, sin asumirlos aprobados por cerrar tareas de laboratorio.
 
 ## Incremento AUTH-T06
 
@@ -90,3 +90,7 @@ La [interfaz de autenticación](../../03-design/console-auth-interface.md), seg�
 ## Incremento AUTH-T09
 
 La [auditoría integrada](../../03-design/console-auth-audit.md), según [ADR-0010](../../decisions/ADR-0010.md), confirma cambios y eventos/outbox atómicamente, conserva correlación HTTP generada en servidor y registra denegaciones sin identidad inferida. La migración 0006 amplía las tablas mínimas existentes, sus FK y grants bajo RLS. Auditoría/telemetría no reciben secretos ni payload libre; la caída del registro de denegaciones tiene alerta fija y límite documentado. AUTH-T10 conserva operación/gate.
+
+## Incremento AUTH-T10
+
+[Runbook](../../04-engineering/console-auth-runbook.md), [matriz A4](../../05-delivery/authentication-gate.md), gate reproducible y workflow Windows. El CLI test-only invalidate-auth conserva las restricciones de provisioning y se ejecuta offline con administrador: revoca familias, purga secretos y consume transacciones pendientes sin borrar historia. Se prueba retirada/reactivación del mismo binario y esquema, con rollback atómico ante fallo. No se cambia el OpenAPI ni se añade DDL. Cierre sólo de laboratorio; producción y CI remoto tienen límites explícitos. Siguiente: USR-T01.

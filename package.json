@@ -25,7 +25,9 @@
     "build:platform": "node scripts/platform.mjs build",
     "build:console": "npm run build --workspace @hukid/console",
     "build": "npm run build:platform && npm run build:console",
-    "smoke": "node scripts/smoke-bootstrap.mjs"
+    "smoke": "node scripts/smoke-bootstrap.mjs",
+    "db:invalidate-auth:test": "node scripts/platform.mjs invalidate-auth:test",
+    "test:auth:gate": "node scripts/auth-gate.mjs"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "13.1.0",

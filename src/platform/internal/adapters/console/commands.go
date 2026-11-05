@@ -122,8 +122,7 @@ func (h *CommandHandler) serve(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		http.SetCookie(w, &http.Cookie{Name: TransactionCookie, Value: start.Binding, Path: "/console/auth", HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: *p.CookieSecure, Expires: start.ExpiresAt, MaxAge: p.TransactionSeconds})
-		w.Header().Set("Location", start.Location)
-		w.WriteHeader(http.StatusSeeOther)
+		authorizationResponse(w, r, start.Location)
 		return
 	}
 	operator, err := h.Verifier.VerifyOperator(ctx, session.AccessToken)

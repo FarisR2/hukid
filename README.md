@@ -1,6 +1,6 @@
 # Plataforma de eventos y HukID
 
-Este repositorio reúne la especificación de Events y del producto independiente HukID, bootstrap, contratos, foundation PostgreSQL, login OIDC y [autorización operator con /me AUTH-T05](docs/03-design/console-operator-context.md) de laboratorio. AUTH-T06 añade [ciclo de sesión, refresh/logout y purga](docs/03-design/console-session-lifecycle.md); AUTH-T07 añade [MFA/step-up y contexto AUTH-T07](docs/03-design/console-reauthentication.md); interfaz, auditoría integrada y gate operativo siguen pendientes. No acredita interoperabilidad ni preparación productiva.
+Este repositorio reúne la especificación de Events y del producto independiente HukID, bootstrap, contratos, foundation PostgreSQL, login OIDC y [autorización operator con /me AUTH-T05](docs/03-design/console-operator-context.md) de laboratorio. AUTH-T06 añade [ciclo de sesión, refresh/logout y purga](docs/03-design/console-session-lifecycle.md); AUTH-T07 añade [MFA/step-up y contexto AUTH-T07](docs/03-design/console-reauthentication.md); AUTH-T08 añade [interfaz y navegador](docs/03-design/console-auth-interface.md); auditoría integrada y gate operativo siguen pendientes. No acredita interoperabilidad ni preparación productiva.
 
 ## Documentación
 

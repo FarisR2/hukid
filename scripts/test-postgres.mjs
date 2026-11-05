@@ -49,7 +49,8 @@ try {
   if(!ready) throw new Error('PostgreSQL startup timeout');
   const admin=new URL(`postgresql://127.0.0.1:${port}/postgres?sslmode=disable`);admin.username='hukid_test_admin';admin.password=password;
   console.log(`${version}; disposable loopback cluster; no existing database is used.`);
-  const result=spawnSync(process.execPath,['scripts/platform.mjs','test:postgres'],{cwd:root,env:{...process.env,HUKID_ENV:'test',HUKID_TEST_DATABASE:'1',HUKID_TEST_ADMIN_URL:admin.href},stdio:'inherit',windowsHide:true});
+  const command=process.argv.includes('--browser') ? 'test:browser' : 'test:postgres';
+  const result=spawnSync(process.execPath,['scripts/platform.mjs',command],{cwd:root,env:{...process.env,HUKID_ENV:'test',HUKID_TEST_DATABASE:'1',HUKID_TEST_ADMIN_URL:admin.href},stdio:'inherit',windowsHide:true});
   if(result.error || result.status!==0) throw new Error('PostgreSQL integration tests failed');
 } finally {
   // This unique data directory was created by this process; never stop another cluster.

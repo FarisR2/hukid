@@ -1,6 +1,6 @@
 # MFA, step-up y comandos de contexto — AUTH-T07
 
-Estado: backend de laboratorio; factores sintéticos y sin consola visual. Decisión: [ADR-0008](../decisions/ADR-0008.md). Complementa [login](console-oidc-login.md), [sesión](console-session-lifecycle.md) y [contexto operator](console-operator-context.md). [OpenAPI](../../src/platform/contracts/console-auth.openapi.json) conserva schemas y respuestas.
+Estado: backend de laboratorio; factores sintéticos, conectado a [consola AUTH-T08](console-auth-interface.md). Decisión: [ADR-0008](../decisions/ADR-0008.md). Complementa [login](console-oidc-login.md), [sesión](console-session-lifecycle.md) y [contexto operator](console-operator-context.md). [OpenAPI](../../src/platform/contracts/console-auth.openapi.json) conserva schemas y respuestas.
 
 ## Inicio y callback
 
@@ -18,7 +18,7 @@ La actualización compara generación bajo lock de familia, sin locks durante la
 
 `POST /console/auth/tenant-context` recibe exclusivamente `{"tenantId":"<id>"}` y exige la misma protección Origin/CSRF. Antes de rotar se verifica Bearer operator server-side, identidad local y membership/tenant activos mediante los pools separados existentes. Tenant ajeno, suspendido o malformado produce 404 sin modificar contexto.
 
-El comando rota cookie/CSRF/AAD y guarda tenant/revisión resueltos en servidor; no devuelve tokens ni capacidades persistidas desde el navegador. Repetir la selección vuelve a autorizar y rotar. `/console/api/me` compone nuevamente capacidades vigentes. Una suspensión que termine entre la lectura y el commit puede dejar una selección sin autorización vigente: la siguiente petición la rechaza. No se promete cancelar operaciones que ya terminaron. AUTH-T08 debe limpiar estado/caché de vista al cambiar tenant.
+El comando rota cookie/CSRF/AAD y guarda tenant/revisión resueltos en servidor; no devuelve tokens ni capacidades persistidas desde el navegador. Repetir la selección vuelve a autorizar y rotar. `/console/api/me` compone nuevamente capacidades vigentes. Una suspensión que termine entre la lectura y el commit puede dejar una selección sin autorización vigente: la siguiente petición la rechaza. No se promete cancelar operaciones que ya terminaron. AUTH-T08 retira el estado visible y descarta respuestas obsoletas al cambiar tenant.
 
 ## Perímetro, almacenamiento y errores
 
@@ -34,4 +34,8 @@ Pruebas unitarias cubren parámetros OIDC, MFA/freshness, familia/generación/co
 
 Comandos de validación: `npm run check`, `npm run test:postgres`, `npm run build`, `npm run smoke` y `git diff --check`. La evidencia final se registra en [tareas](../features/FEAT-001-authentication/tasks.md). El harness crea sólo IdP/DB/procesos descartables; no usa bases existentes.
 
-No acredita factores reales, navegador, rate limiting distribuido, carga/restore ni producción. AUTH-T08 conserva interfaz y pruebas de navegador; AUTH-T09 auditoría/redacción integrada y AUTH-T10 operación/gate A4. El perfil sigue v0.1-draft y no cambia Events ni wallet.
+La evidencia anterior corresponde al backend AUTH-T07; AUTH-T08 añade [interfaz y pruebas de navegador](console-auth-interface.md). No acredita factores reales, rate limiting distribuido, carga/restore ni producción; AUTH-T09 auditoría/redacción integrada y AUTH-T10 operación/gate A4. El perfil sigue v0.1-draft y no cambia Events ni wallet.
+
+## Navegación de navegador AUTH-T08
+
+Step-up conserva el 303 predeterminado. Con Accept exactamente application/json devuelve 200 con authorizationUrl, tras las mismas validaciones y cookie de transacción. La consola navega la ventana al IdP. El callback devuelve una página fija de recuperación a navegaciones HTML fallidas y mantiene Problem Details para el resto. Ver ADR-0009 y el OpenAPI.

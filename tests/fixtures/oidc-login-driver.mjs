@@ -16,7 +16,7 @@ try {
     if (command.action === 'start') {
       policy = command.policy;
       idp = await startTestIdp(policy);
-      reply({ clientSecret: idp.clientSecret });
+      reply({ clientSecret: idp.clientSecret, interactionKey: idp.interactionKey });
     } else if (command.action === 'authorize') {
       let current = new URL(command.url);
       const cookies = new Map();

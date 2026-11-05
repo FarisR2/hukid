@@ -41,8 +41,10 @@ test('all request/response examples validate; extra fields cannot carry tokens o
         for (const media of Object.values(message?.content || {})) {
           const check = validate(media.schema);
           assert.equal(check(media.example), true, JSON.stringify(check.errors));
-          assert.equal(check({...media.example,accessToken:'synthetic-not-a-token'}), false);
-          assert.equal(check({...media.example,roles:['tenant_admin']}), false);
+          if (typeof media.example === 'object') {
+            assert.equal(check({...media.example,accessToken:'synthetic-not-a-token'}), false);
+            assert.equal(check({...media.example,roles:['tenant_admin']}), false);
+          }
           count++;
         }
       }

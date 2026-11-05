@@ -83,7 +83,9 @@ func configureHandler(ctx context.Context, address string) (http.Handler, func()
 		return bootstrap.Handler(), func() {}, nil
 	}
 	defer clear(config.key)
-	if config.policy.ConsoleOrigin != "http://"+address {
+	// A local Vite proxy can own the browser origin. This is explicit config,
+	// never a forwarded/request header; policy validation still confines it to loopback.
+	if config.policy.ConsoleOrigin != "http://"+address && os.Getenv("HUKID_CONSOLE_PROXY_ORIGIN") != config.policy.ConsoleOrigin {
 		return nil, nil, errors.New("auth origin must match the explicit listener")
 	}
 	box, err := secretbox.New(config.key, config.keyVersion, rand.Reader)

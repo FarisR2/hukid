@@ -31,9 +31,67 @@
               ],
               "default": "/"
             }
+          },
+          {
+            "name": "Accept",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Exact application/json opts into 200 AuthorizationNavigation. Other values retain 303. Browser navigation follows the URL at top level."
           }
         ],
         "responses": {
+          "200": {
+            "description": "AUTH-T08: explicit JSON navigation; same transaction, cookies and security as 303.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "Referrer-Policy": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              },
+              "Set-Cookie": {
+                "description": "Opaque session/transaction cookies only. HttpOnly; SameSite=Lax; no Domain. This test profile permits HTTP loopback; production cookie policy is not approved.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Vary": {
+                "schema": {
+                  "type": "string",
+                  "const": "Accept"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthorizationNavigation"
+                },
+                "example": {
+                  "authorizationUrl": "http://127.0.0.1:19090/auth?client_id=hukid-console-test&response_type=code"
+                }
+              }
+            }
+          },
           "303": {
             "description": "Redirección controlada",
             "headers": {
@@ -70,6 +128,12 @@
                 "description": "Opaque session/transaction cookies only. HttpOnly; SameSite=Lax; no Domain. This test profile permits HTTP loopback; production cookie policy is not approved.",
                 "schema": {
                   "type": "string"
+                }
+              },
+              "Vary": {
+                "schema": {
+                  "type": "string",
+                  "const": "Accept"
                 }
               }
             }
@@ -219,7 +283,7 @@
       "get": {
         "operationId": "completeLogin",
         "summary": "Consumir transacción OIDC una vez",
-        "description": "AUTH-T04 handler implemented for the explicit isolated test profile. All responses are no-store and correlated; codes/cookies/tokens must not be logged. Exactly one of code or error is required together with state and the HttpOnly transaction binding cookie. Reject duplicate parameters, invalid state/nonce/issuer/PKCE/replay. OAuth error_description is never reflected or logged. A valid ID token establishes identity only; Management requires its own access token. AUTH-T07 also consumes step_up transactions bound to the original session family/generation and verifies fresh MFA for the same identity before atomic rotation.",
+        "description": "AUTH-T04 handler implemented for the explicit isolated test profile. All responses are no-store and correlated; codes/cookies/tokens must not be logged. Exactly one of code or error is required together with state and the HttpOnly transaction binding cookie. Reject duplicate parameters, invalid state/nonce/issuer/PKCE/replay. OAuth error_description is never reflected or logged. A valid ID token establishes identity only; Management requires its own access token. AUTH-T07 also consumes step_up transactions bound to the original session family/generation and verifies fresh MFA for the same identity before atomic rotation. AUTH-T08: browser requests accepting text/html receive a fixed recovery page on errors, preserving the status and private headers; no query, IdP detail or secret is rendered. Non-browser clients retain Problem Details.",
         "security": [
           {
             "oidcTransaction": []
@@ -346,6 +410,12 @@
                   "code": "invalid_request",
                   "correlationId": "correlation-test-a"
                 }
+              },
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "<!doctype html><html lang=\"es\"><body><main><h1>No se pudo completar el acceso</h1><a href=\"/\">Volver a HukID</a></main></body></html>"
               }
             }
           },
@@ -394,6 +464,12 @@
                   "code": "invalid_session",
                   "correlationId": "correlation-test-a"
                 }
+              },
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "<!doctype html><html lang=\"es\"><body><main><h1>No se pudo completar el acceso</h1><a href=\"/\">Volver a HukID</a></main></body></html>"
               }
             }
           },
@@ -435,6 +511,12 @@
                   "code": "mfa_required",
                   "correlationId": "correlation-test-a"
                 }
+              },
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "<!doctype html><html lang=\"es\"><body><main><h1>No se pudo completar el acceso</h1><a href=\"/\">Volver a HukID</a></main></body></html>"
               }
             }
           },
@@ -483,6 +565,12 @@
                   "code": "rate_limited",
                   "correlationId": "correlation-test-a"
                 }
+              },
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "<!doctype html><html lang=\"es\"><body><main><h1>No se pudo completar el acceso</h1><a href=\"/\">Volver a HukID</a></main></body></html>"
               }
             }
           },
@@ -531,6 +619,12 @@
                   "code": "dependency_unavailable",
                   "correlationId": "correlation-test-a"
                 }
+              },
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "<!doctype html><html lang=\"es\"><body><main><h1>No se pudo completar el acceso</h1><a href=\"/\">Volver a HukID</a></main></body></html>"
               }
             }
           }
@@ -1003,9 +1097,67 @@
               "format": "uri"
             },
             "description": "Must exactly equal configured consoleOrigin; reject missing/null/foreign values before side effects."
+          },
+          {
+            "name": "Accept",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Exact application/json opts into 200 AuthorizationNavigation. Other values retain 303. Browser navigation follows the URL at top level."
           }
         ],
         "responses": {
+          "200": {
+            "description": "AUTH-T08: explicit JSON navigation; same transaction, cookies and security as 303.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "Referrer-Policy": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              },
+              "Set-Cookie": {
+                "description": "Opaque session/transaction cookies only. HttpOnly; SameSite=Lax; no Domain. This test profile permits HTTP loopback; production cookie policy is not approved.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Vary": {
+                "schema": {
+                  "type": "string",
+                  "const": "Accept"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthorizationNavigation"
+                },
+                "example": {
+                  "authorizationUrl": "http://127.0.0.1:19090/auth?client_id=hukid-console-test&response_type=code"
+                }
+              }
+            }
+          },
           "303": {
             "description": "Redirección controlada",
             "headers": {
@@ -1042,6 +1194,12 @@
                 "description": "Opaque session/transaction cookies only. HttpOnly; SameSite=Lax; no Domain. This test profile permits HTTP loopback; production cookie policy is not approved.",
                 "schema": {
                   "type": "string"
+                }
+              },
+              "Vary": {
+                "schema": {
+                  "type": "string",
+                  "const": "Accept"
                 }
               }
             }
@@ -2650,6 +2808,20 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 128
+          }
+        }
+      },
+      "AuthorizationNavigation": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "authorizationUrl"
+        ],
+        "properties": {
+          "authorizationUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "Authorization URL constructed by the BFF from the configured IdP. Transient OIDC request parameters only; no issued tokens."
           }
         }
       }

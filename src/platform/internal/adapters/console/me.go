@@ -76,5 +76,9 @@ func (h *MeHandler) serve(w http.ResponseWriter, r *http.Request) {
 		result.Context = &dto
 		result.ActiveTenantID = &session.ActiveTenantID
 	}
+	if err := h.Sessions.Touch(ctx, cookie); err != nil {
+		privateapi.Problem(w, err, false)
+		return
+	}
 	privateapi.JSON(w, result)
 }

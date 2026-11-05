@@ -9,6 +9,7 @@ import (
 	"errors"
 	"io"
 	"slices"
+	"strconv"
 	"time"
 )
 
@@ -44,6 +45,7 @@ type VerifiedLogin struct {
 	Issuer, Subject, AccessToken, RefreshToken, ACR string
 	AMR                                             []string
 	AuthTime                                        time.Time
+	NonceHash                                       []byte
 }
 
 type OIDC interface {
@@ -86,7 +88,10 @@ type LoginComplete struct {
 
 func Digest(value string) []byte      { h := sha256.Sum256([]byte(value)); return h[:] }
 func TransactionAAD(id string) string { return "hukid:oidc:" + id }
-func SessionAAD(family string) string { return "hukid:session:" + family + ":1" }
+func SessionAAD(family string) string { return SessionGenerationAAD(family, 1) }
+func SessionGenerationAAD(family string, generation int64) string {
+	return "hukid:session:" + family + ":" + strconv.FormatInt(generation, 10)
+}
 
 func (s *LoginService) random(size int) (string, error) {
 	b := make([]byte, size)
@@ -172,6 +177,7 @@ func (s *LoginService) Complete(ctx context.Context, state, binding, issuer, cod
 	if s.Policy.CheckMFA(identity.AuthTime, now, identity.AMR, identity.ACR, false) != nil {
 		return LoginComplete{}, ErrMFA
 	}
+	identity.NonceHash = tx.NonceHash
 	return s.createSession(ctx, tx.ReturnTo, identity, now)
 }
 
@@ -195,7 +201,7 @@ func (s *LoginService) createSession(ctx context.Context, returnTo string, ident
 	if err != nil {
 		return LoginComplete{}, err
 	}
-	secrets, err := encodeSecrets(identity.AccessToken, identity.RefreshToken, csrf)
+	secrets, err := encodeSecrets(identity.AccessToken, identity.RefreshToken, csrf, identity.NonceHash)
 	if err != nil {
 		return LoginComplete{}, ErrDependency
 	}

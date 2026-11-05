@@ -23,7 +23,7 @@ El [perfil v0.1-draft](../03-design/hukid-profile.md) define VCDM 2.0, applicati
 
 ## Estado del paquete
 
-Este repositorio contiene especificaciones Markdown y el [bootstrap local AUTH-T01](../04-engineering/local-development.md), sin login ni pantalla funcional. El perfil permanece draft y faltan artefactos ejecutables citados por las fuentes. La documentación y este bootstrap no equivalen a OpenAPI validado, DDL ejecutado, suites de conformidad ni un servicio desplegado. Consultar [pendientes](../05-delivery/documentation-gaps.md).
+Este repositorio contiene especificaciones Markdown y el [bootstrap local AUTH-T01](../04-engineering/local-development.md), con login/callback, lecturas autorizadas y [ciclo de sesión de laboratorio](../03-design/console-session-lifecycle.md), todavía sin pantalla funcional. El perfil permanece draft y faltan artefactos ejecutables citados por las fuentes. El OpenAPI de consola y el DDL propio se validan en laboratorio; esto no acredita los artefactos históricos ausentes, suites de conformidad ni un servicio desplegado. Consultar [pendientes](../05-delivery/documentation-gaps.md).
 
 ## Fuentes
 

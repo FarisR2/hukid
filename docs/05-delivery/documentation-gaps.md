@@ -84,10 +84,14 @@ El harness no usa DB existente ni instala un servicio; crea y elimina únicament
 
 Existe [login/callback Go probado con IdP y PostgreSQL](../03-design/console-oidc-login.md), con librerías OIDC fijadas, consumo de transacción de un uso, PKCE/nonce/issuer/binding, tokens firmados, rate limiting local y cifrado AES-GCM. Una función restringida registra identidad por issuer/subject sin memberships, y la sesión inicial se guarda antes de emitir su cookie. [ADR-0005](../decisions/ADR-0005.md) documenta el límite entre creación inicial y AUTH-T06.
 
-El estado posterior se registra en AUTH-T05 abajo. No hay purga automática de transacciones abandonadas/sesiones expiradas, rotación/recuperación de claves ni rate limiting distribuido. Las claves/credenciales se suministran externamente; no se ha seleccionado gestión productiva de secretos. Los factores del fixture siguen siendo sintéticos y el perfil sigue draft.
+El estado posterior se registra en AUTH-T05 abajo. AUTH-T06 incorpora purga automática acotada; siguen pendientes rotación/recuperación de claves y rate limiting distribuido. Las claves/credenciales se suministran externamente; no se ha seleccionado gestión productiva de secretos. Los factores del fixture siguen siendo sintéticos y el perfil sigue draft.
 
 ### Incremento AUTH-T05
 
 Existe [middleware operator y lectura /me](../03-design/console-operator-context.md) con verificación Bearer, roles/capacidades propios, revalidación viva de tenant/membership y composición BFF desde sesión cifrada. Se usan tres credenciales runtime separadas y las migraciones/grants existentes. [ADR-0006](../decisions/ADR-0006.md) adelanta sólo lectura de generación inicial desde AUTH-T06 para habilitar /me.
 
-Pendientes: actualizar actividad, refresh/logout/rotación (AUTH-T06), comandos/CSRF/step-up (AUTH-T07), selector/UI/navegador (AUTH-T08), auditoría integrada (AUTH-T09) y operación/gate A4 (AUTH-T10). issuerIds vacío no acredita asignación ni autoridad sobre emisores. La sesión inicial no se renueva: access token vencido exige nuevo login. No se probaron MFA real, navegador, carga ni restore; el perfil conserva draft.
+AUTH-T06 implementa actividad, refresh/logout y rotación. Pendientes: comandos restantes/CSRF/step-up (AUTH-T07), selector/UI/navegador (AUTH-T08), auditoría integrada (AUTH-T09) y operación/gate A4 (AUTH-T10). issuerIds vacío no acredita asignación ni autoridad sobre emisores. AUTH-T06 permite refresh explícito dentro de los límites originales; una familia incierta/revocada exige nuevo login. No se probaron MFA real, navegador, carga ni restore; el perfil conserva draft.
+
+### Incremento AUTH-T06
+
+Existe [ciclo de sesión](../03-design/console-session-lifecycle.md) con lease persistente, rotación cookie/CSRF/AAD, logout local primero y mantenimiento acotado. Se probaron pérdidas mediante inyección en puertos y desconexión HTTP; no se ensayó caída física de host ni restore. El mantenimiento no tiene SLA ni métricas/alertas de backlog; un fallo DB retrasa la eliminación física sin ampliar la validez de las credenciales. Rate limiting sigue local al proceso. MFA real, comandos restantes, navegador y operación productiva siguen en AUTH-T07–T10.

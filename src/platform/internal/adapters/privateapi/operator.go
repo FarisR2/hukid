@@ -50,6 +50,9 @@ func (h *Handler) Register(mux *http.ServeMux) {
 
 // Prepare also serves the cookie-facing read endpoint; challenges remain Bearer-only.
 func Prepare(w http.ResponseWriter, r *http.Request) bool {
+	return PrepareMethod(w, r, http.MethodGet)
+}
+func PrepareMethod(w http.ResponseWriter, r *http.Request, method string) bool {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Referrer-Policy", "no-referrer")
 	b := make([]byte, 16)
@@ -58,8 +61,8 @@ func Prepare(w http.ResponseWriter, r *http.Request) bool {
 		return false
 	}
 	w.Header().Set("X-Correlation-Id", hex.EncodeToString(b))
-	if r.Method != http.MethodGet {
-		w.Header().Set("Allow", "GET")
+	if r.Method != method {
+		w.Header().Set("Allow", method)
 		writeProblem(w, 405, "invalid_request", "Método no permitido")
 		return false
 	}
@@ -122,6 +125,15 @@ func JSON(w http.ResponseWriter, v any) {
 }
 func Problem(w http.ResponseWriter, err error, bearer bool) {
 	switch {
+	case errors.Is(err, authentication.ErrOrigin):
+		writeProblem(w, 403, "origin_invalid", "Origen de solicitud inválido")
+	case errors.Is(err, authentication.ErrCSRF):
+		writeProblem(w, 403, "csrf_invalid", "Prueba de solicitud inválida")
+	case errors.Is(err, authentication.ErrRefreshBusy):
+		w.Header().Set("Retry-After", "1")
+		writeProblem(w, 409, "refresh_in_progress", "Renovación en curso")
+	case errors.Is(err, authentication.ErrRequest):
+		writeProblem(w, 422, "invalid_request", "Solicitud inválida")
 	case errors.Is(err, authentication.ErrSession), errors.Is(err, authentication.ErrCredential):
 		code := "invalid_session"
 		if bearer {

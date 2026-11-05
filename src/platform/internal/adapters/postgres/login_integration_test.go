@@ -63,8 +63,11 @@ func (d *idpDriver) call(t *testing.T, value any) map[string]string {
 		t.Fatal("cannot send isolated IdP command")
 	}
 	var response map[string]string
-	if d.decoder.Decode(&response) != nil || response["error"] != "" {
-		t.Fatal("isolated IdP command failed")
+	if err := d.decoder.Decode(&response); err != nil {
+		t.Fatalf("isolated IdP protocol failed: %T %v", err, err)
+	}
+	if response["error"] != "" {
+		t.Fatalf("isolated IdP command failed (phase=%s status=%s)", response["phase"], response["status"])
 	}
 	return response
 }
@@ -474,13 +477,117 @@ func TestLoginHTTPWithRealOIDCAndPostgres(t *testing.T) {
 		mustExec(t, db.admin, `UPDATE console_auth.sessions SET created_at=created_at-interval '2 hours',last_seen_at=created_at-interval '2 hours',idle_expires_at=now()-interval '1 second' WHERE cookie_hash=$1`, a.Digest(sessionCookie.Value))
 		call("/console/api/me", "", sessionCookie, 401)
 	})
+	commandSession := func(t *testing.T) (*http.Cookie, string) {
+		t.Helper()
+		u, binding := begin(t)
+		response := request(t, authorize(t, u), binding)
+		if response.StatusCode != 303 {
+			t.Fatal("cannot create command session")
+		}
+		var cookie *http.Cookie
+		for _, c := range response.Cookies() {
+			if c.Name == p.CookieName {
+				cookie = c
+			}
+		}
+		if cookie == nil {
+			t.Fatal("missing command cookie")
+		}
+		me := request(t, "/console/api/me", cookie)
+		var body struct {
+			CSRF string `json:"csrfToken"`
+		}
+		if me.StatusCode != 200 || json.NewDecoder(me.Body).Decode(&body) != nil || body.CSRF == "" {
+			t.Fatal("cannot read CSRF")
+		}
+		secretValues = append(secretValues, cookie.Value, body.CSRF)
+		return cookie, body.CSRF
+	}
+	postCommand := func(t *testing.T, path string, cookie *http.Cookie, csrf, origin string, status int) *http.Response {
+		t.Helper()
+		req, _ := http.NewRequest("POST", p.ConsoleOrigin+path, nil)
+		req.AddCookie(cookie)
+		req.Header.Set("Origin", origin)
+		req.Header.Set("X-CSRF-Token", csrf)
+		response, err := client.Do(req)
+		if err != nil {
+			t.Fatal("session command transport failed")
+		}
+		t.Cleanup(func() { response.Body.Close() })
+		if response.StatusCode != status {
+			t.Fatalf("%s: expected %d got %d", path, status, response.StatusCode)
+		}
+		if response.Header.Get("Cache-Control") != "no-store" || response.Header.Get("X-Correlation-Id") == "" || response.Header.Get("WWW-Authenticate") != "" {
+			t.Fatal("unsafe command headers")
+		}
+		if status == 204 && response.ContentLength > 0 {
+			t.Fatal("command returned private body")
+		}
+		return response
+	}
+	t.Run("refresh_logout_http", func(t *testing.T) {
+		cookie, csrf := commandSession(t)
+		before := countSessions(t)
+		for _, origin := range []string{"", "null", "http://127.0.0.1:1"} {
+			response := postCommand(t, "/console/auth/refresh", cookie, csrf, origin, 403)
+			var problem struct {
+				Code string `json:"code"`
+			}
+			json.NewDecoder(response.Body).Decode(&problem)
+			if problem.Code != "origin_invalid" {
+				t.Fatal("wrong origin error")
+			}
+		}
+		postCommand(t, "/console/auth/logout", cookie, "invalid", p.ConsoleOrigin, 403)
+		response := postCommand(t, "/console/auth/refresh", cookie, csrf, p.ConsoleOrigin, 204)
+		var next *http.Cookie
+		for _, c := range response.Cookies() {
+			if c.Name == p.CookieName {
+				next = c
+			}
+		}
+		if next == nil || next.Value == cookie.Value || !next.HttpOnly || next.Path != "/" || next.SameSite != http.SameSiteLaxMode {
+			t.Fatal("bad rotated cookie")
+		}
+		if countSessions(t) != before+1 {
+			t.Fatal("refresh did not create exactly one generation")
+		}
+		if request(t, "/console/api/me", cookie).StatusCode != 401 {
+			t.Fatal("obsolete cookie accepted")
+		}
+		me := request(t, "/console/api/me", next)
+		var body struct {
+			CSRF string `json:"csrfToken"`
+		}
+		if me.StatusCode != 200 || json.NewDecoder(me.Body).Decode(&body) != nil || body.CSRF == csrf || body.CSRF == "" {
+			t.Fatal("rotated session not usable")
+		}
+		for range 2 {
+			secretValues = append(secretValues, next.Value, body.CSRF)
+			response = postCommand(t, "/console/auth/logout", next, body.CSRF, p.ConsoleOrigin, 204)
+			cookies := response.Cookies()
+			if len(cookies) != 1 || cookies[0].MaxAge != -1 {
+				t.Fatal("logout did not clear cookie")
+			}
+		}
+		if request(t, "/console/api/me", next).StatusCode != 401 {
+			t.Fatal("logout cookie reused")
+		}
+		postCommand(t, "/console/auth/refresh", next, body.CSRF, p.ConsoleOrigin, 401)
+	})
 	t.Run("idp_outage_requires_new_login", func(t *testing.T) {
+		logoutCookie, csrf := commandSession(t)
 		u, cookie := begin(t)
 		path := authorize(t, u)
 		driver.call(t, map[string]any{"action": "stop"})
 		driver.stopped = true
 		assertError(t, request(t, path, cookie), 503)
 		assertError(t, request(t, path, cookie), 400)
+		postCommand(t, "/console/auth/logout", logoutCookie, csrf, p.ConsoleOrigin, 204)
+		postCommand(t, "/console/auth/logout", logoutCookie, csrf, p.ConsoleOrigin, 204)
+		if request(t, "/console/api/me", logoutCookie).StatusCode != 401 {
+			t.Fatal("IdP outage prevented local logout")
+		}
 	})
 	t.Run("runtime_logs_exclude_secrets", func(t *testing.T) {
 		output := logs.String()

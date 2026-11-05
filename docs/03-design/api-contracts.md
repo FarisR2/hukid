@@ -33,7 +33,7 @@ En v0, el adaptador consulta GET /v1/issuance-requests/{id}. La documentación d
 
 No normalizar silenciosamente ambos contratos. El adaptador hace traducción y correlación sin reenviar tokens humanos como identidad del sistema.
 
-Las rutas /console/auth, /console/api y /v1/operator tienen baseline OpenAPI validada en AUTH-T02 según [ADR-0003](../decisions/ADR-0003.md). AUTH-T04 implementa login/callback y AUTH-T05 [lecturas /me/context](console-operator-context.md) de laboratorio; los cuatro comandos BFF restantes siguen pendientes. El BFF usa cookies para navegador; Management mantiene Bearer operator, clase y audience del perfil. El nuevo claim de procedencia humana y las restricciones del laboratorio se documentan en el contrato de consola; no reinterpretan auth Events ni OID4VCI.
+Las rutas /console/auth, /console/api y /v1/operator tienen baseline OpenAPI validada en AUTH-T02 según [ADR-0003](../decisions/ADR-0003.md). AUTH-T04 implementa login/callback y AUTH-T05 [lecturas /me/context](console-operator-context.md) de laboratorio; AUTH-T06 añade [refresh/logout y sesión](console-session-lifecycle.md); step-up y tenant-context siguen pendientes. El BFF usa cookies para navegador; Management mantiene Bearer operator, clase y audience del perfil. El nuevo claim de procedencia humana y las restricciones del laboratorio se documentan en el contrato de consola; no reinterpretan auth Events ni OID4VCI.
 
 ## Estado de los artefactos
 

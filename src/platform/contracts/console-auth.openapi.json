@@ -494,7 +494,7 @@
       "post": {
         "operationId": "refreshSession",
         "summary": "Renovar familia coordinada de sesión",
-        "description": "AUTH-T02 contract only; handler is not implemented. All responses are no-store and correlated; codes/cookies/tokens must not be logged.",
+        "description": "AUTH-T06 handler for the isolated test profile. Requires exact Origin and session-bound CSRF; tokens stay server-side. Refresh uses a persistent family lease and rotates cookie/CSRF; logout commits local invalidation before provider revocation. All responses are no-store and correlated; codes/cookies/tokens must not be logged.",
         "security": [
           {
             "consoleSession": [],
@@ -781,14 +781,14 @@
             }
           }
         },
-        "x-implementation-status": "not-implemented"
+        "x-implementation-status": "implemented-test-only"
       }
     },
     "/console/auth/logout": {
       "post": {
         "operationId": "logout",
         "summary": "Invalidar sesión local",
-        "description": "AUTH-T02 contract only; handler is not implemented. All responses are no-store and correlated; codes/cookies/tokens must not be logged. Requires same-origin and a session-bound CSRF proof. An already invalidated family returns 204 for authenticated retries while its CSRF tombstone is retained until the original absolute expiry; an absent/unverifiable proof returns 403 without side effects. A tombstone never authorizes protected reads. IdP outage cannot prevent local invalidation. No idempotency header for session commands.",
+        "description": "AUTH-T06 handler for the isolated test profile. Requires exact Origin and session-bound CSRF; tokens stay server-side. Refresh uses a persistent family lease and rotates cookie/CSRF; logout commits local invalidation before provider revocation. All responses are no-store and correlated; codes/cookies/tokens must not be logged.",
         "security": [
           {
             "consoleSession": [],
@@ -931,7 +931,7 @@
             }
           }
         },
-        "x-implementation-status": "not-implemented"
+        "x-implementation-status": "implemented-test-only"
       }
     },
     "/console/auth/step-up": {
@@ -1586,7 +1586,7 @@
       "get": {
         "operationId": "consoleMe",
         "summary": "Componer identidad y contexto de la sesión",
-        "description": "AUTH-T05 read-only handler for the isolated test profile. Initial session generation only; no idle extension, refresh, logout or tenant switch. All responses are no-store and correlated; codes/cookies/tokens must not be logged.",
+        "description": "AUTH-T05/T06 handler for the isolated test profile. Reads the active session generation, revalidates operator/tenant authority, then extends idle activity within the original absolute deadline. Refresh is explicit; tenant switch is pending. All responses are no-store and correlated; codes/cookies/tokens must not be logged.",
         "security": [
           {
             "consoleSession": []

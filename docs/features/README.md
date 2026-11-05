@@ -10,7 +10,7 @@
 
 ## Secuencia y primer incremento
 
-1. AUTH-T01–T05 entregan entorno, contratos, [PostgreSQL](../03-design/console-persistence.md), [login/callback](../03-design/console-oidc-login.md) y [middleware operator y /me](../03-design/console-operator-context.md) de laboratorio. AUTH-T06 añade [ciclo de sesión, refresh/logout y purga](../03-design/console-session-lifecycle.md). El siguiente trabajo es AUTH-T07 (step-up y comandos restantes); la consola operativa sigue pendiente.
+1. AUTH-T01–T05 entregan entorno, contratos, [PostgreSQL](../03-design/console-persistence.md), [login/callback](../03-design/console-oidc-login.md) y [middleware operator y /me](../03-design/console-operator-context.md) de laboratorio. AUTH-T06 añade [ciclo de sesión, refresh/logout y purga](../03-design/console-session-lifecycle.md). AUTH-T07 añade [MFA/step-up y cambio de tenant](../03-design/console-reauthentication.md). El siguiente trabajo es AUTH-T08: interfaz y navegador; la consola operativa sigue pendiente.
 2. AUTH-T03–T08 permiten iniciar sesión con un operador/tenant sintéticos provisionados para desarrollo.
 3. USR-T01–T08 reemplazan el fixture por administración real de miembros; no habilitar autoalta de tenants.
 4. DASH-T01–T04 entregan el shell y resumen del tenant. DASH-T05 conecta métricas de otros módulos cuando existan.

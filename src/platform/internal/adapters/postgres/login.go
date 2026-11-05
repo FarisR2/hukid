@@ -22,7 +22,12 @@ func ValidateLoginDatabase(dsn string) error {
 }
 
 func (s *LoginStore) CreateTransaction(ctx context.Context, t authentication.LoginTransaction) error {
-	_, err := s.Pool.Exec(ctx, `INSERT INTO console_auth.oidc_transactions(transaction_id,purpose,state_hash,nonce_hash,binding_hash,oidc_issuer,client_id,redirect_uri,return_to,verifier_ciphertext,verifier_nonce,verifier_key_version,created_at,expires_at) VALUES($1,'login',$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`, t.ID, t.StateHash, t.NonceHash, t.BindingHash, t.Issuer, t.ClientID, t.RedirectURI, t.ReturnTo, t.Verifier.Ciphertext, t.Verifier.Nonce, t.Verifier.KeyVersion, t.CreatedAt, t.ExpiresAt)
+	purpose := "login"
+	var family, generation any
+	if t.FamilyID != "" {
+		purpose, family, generation = "step_up", t.FamilyID, t.Generation
+	}
+	_, err := s.Pool.Exec(ctx, `INSERT INTO console_auth.oidc_transactions(transaction_id,purpose,state_hash,nonce_hash,binding_hash,oidc_issuer,client_id,redirect_uri,return_to,verifier_ciphertext,verifier_nonce,verifier_key_version,created_at,expires_at,family_id,session_generation) VALUES($1,$14,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$15,$16)`, t.ID, t.StateHash, t.NonceHash, t.BindingHash, t.Issuer, t.ClientID, t.RedirectURI, t.ReturnTo, t.Verifier.Ciphertext, t.Verifier.Nonce, t.Verifier.KeyVersion, t.CreatedAt, t.ExpiresAt, purpose, family, generation)
 	return err
 }
 
@@ -33,7 +38,7 @@ func (s *LoginStore) Consume(ctx context.Context, state, binding []byte, issuer,
 	}
 	defer rollbackLogin(tx)
 	var t authentication.LoginTransaction
-	err = tx.QueryRow(ctx, `SELECT transaction_id::text,nonce_hash,return_to,verifier_ciphertext,verifier_nonce,verifier_key_version,created_at,expires_at FROM console_auth.oidc_transactions WHERE state_hash=$1 AND binding_hash=$2 AND oidc_issuer=$3 AND client_id=$4 AND redirect_uri=$5 AND purpose='login' AND consumed_at IS NULL AND created_at<=$6 AND expires_at>$6 FOR UPDATE`, state, binding, issuer, client, redirect, now).Scan(&t.ID, &t.NonceHash, &t.ReturnTo, &t.Verifier.Ciphertext, &t.Verifier.Nonce, &t.Verifier.KeyVersion, &t.CreatedAt, &t.ExpiresAt)
+	err = tx.QueryRow(ctx, `SELECT transaction_id::text,nonce_hash,return_to,verifier_ciphertext,verifier_nonce,verifier_key_version,created_at,expires_at,COALESCE(family_id::text,''),COALESCE(session_generation,0) FROM console_auth.oidc_transactions WHERE state_hash=$1 AND binding_hash=$2 AND oidc_issuer=$3 AND client_id=$4 AND redirect_uri=$5 AND consumed_at IS NULL AND created_at<=$6 AND expires_at>$6 FOR UPDATE`, state, binding, issuer, client, redirect, now).Scan(&t.ID, &t.NonceHash, &t.ReturnTo, &t.Verifier.Ciphertext, &t.Verifier.Nonce, &t.Verifier.KeyVersion, &t.CreatedAt, &t.ExpiresAt, &t.FamilyID, &t.Generation)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return t, authentication.ErrCallback
 	}

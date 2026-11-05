@@ -1,6 +1,6 @@
 # Desarrollo local de HukID
 
-Estado: AUTH-T01–T05 entregan bootstrap, contratos, PostgreSQL, [login/callback OIDC](../03-design/console-oidc-login.md) y [middleware operator y /me](../03-design/console-operator-context.md) de laboratorio. La consola React aún no renderiza pantallas; refresh/logout, comandos y sesión operativa completa siguen pendientes.
+Estado: AUTH-T01–T05 entregan bootstrap, contratos, PostgreSQL, [login/callback OIDC](../03-design/console-oidc-login.md) y [middleware operator y /me](../03-design/console-operator-context.md) de laboratorio. AUTH-T06/T07 añaden [ciclo de sesión](../03-design/console-session-lifecycle.md) y [MFA/step-up/contexto](../03-design/console-reauthentication.md). La consola React aún no renderiza pantallas.
 
 Existe [contrato y laboratorio OIDC](../03-design/console-auth-contract.md), con política test, matriz y reglas Go. El IdP sólo se inicia desde tests y simula MFA; no arranca con Platform. AUTH-T04 conecta HTTP con la [persistencia de consola](../03-design/console-persistence.md) cuando se proporciona configuración test completa.
 
@@ -100,7 +100,7 @@ npm run dev:console
 
 ## Configuración e IdP
 
-Sin configuración sólo se expone liveness. Con configuración test completa se habilitan login/callback, /console/api/me y las dos lecturas /v1/operator. No contiene credenciales, no carga `.env` automáticamente y no tiene modo productivo. Los cuatro comandos de sesión restantes siguen pendientes. El endpoint operativo `/healthz` no sustituye el OpenAPI de AUTH-T02.
+Sin configuración sólo se expone liveness. Con configuración test completa se habilitan las nueve operaciones del OpenAPI de consola/operator. No contiene credenciales, no carga `.env` automáticamente y no tiene modo productivo. Los cuatro comandos refresh/logout/step-up/tenant-context están implementados para laboratorio desde AUTH-T06/T07. El endpoint operativo `/healthz` no sustituye el OpenAPI de AUTH-T02.
 
 AUTH-T02 configura un fixture `oidc-provider` en `tests/fixtures`, ligado a `127.0.0.1:19090` durante `npm run test:auth`. Requiere ese puerto libre. El runner establece explícitamente `NODE_ENV=test` y `HUKID_TEST_IDP=1`; el fixture rechaza flags productivos, genera claves y secreto de cliente en memoria y termina al finalizar. El cliente confidencial usa `client_secret_basic` con secreto efímero; esto no selecciona autenticación de cliente productiva. El fixture usa adapter en memoria y emite una advertencia esperada. Las interacciones automáticas del harness no autentican a personas ni comprueban OTP reales.
 
@@ -170,3 +170,9 @@ El siguiente trabajo es AUTH-T06. /me todavía no extiende idle ni renueva acces
 La rama `feature/auth-t06-session-lifecycle-v2` parte de develop integrado hasta AUTH-T05. `npm run test:postgres` añade pruebas de ciclo de sesión y flujo HTTP de refresh/logout con IdP/DB descartables. La migración 0004 añade lease e índice de generación activa; el API ejecuta purga acotada. [Referencia de sesión](../03-design/console-session-lifecycle.md) y [ADR-0007](../decisions/ADR-0007.md) contienen los límites y la evidencia por escenario. No se usaron bases existentes ni factores reales.
 
 Validación final AUTH-T06: `npm run check`, `npm run test:postgres`, `npm run build`, `npm run smoke` y `git diff --check` aprobados en Windows. La suite PostgreSQL contiene trece pruebas Go superiores con subcasos; incluye upgrade 0003→0004 conservando la sesión y rechazo de dos generaciones activas. No hubo publicación ni cambios sobre bases existentes.
+
+## Evidencia AUTH-T07 — 2026-11-05
+
+`npm run check`, `npm run test:postgres`, `npm run build` y `npm run smoke` aprobados en Windows. Las trece pruebas superiores PostgreSQL amplían subcasos de upgrade 0004→0005, binding de generación, concurrencia/logout/refresh/rollback y comandos HTTP step-up/contexto con API e IdP de biblioteca. El upgrade conserva sesión y transacción login pendientes. La suite HTTP comprueba selección A→B→B→A, rotación CSRF/cookie y suspensión viva. Unitarias verifican evidencia MFA reciente, identidad y límites con reloj controlado. Ver [detalle AUTH-T07](../03-design/console-reauthentication.md).
+
+No cambia la configuración runtime; aplicar migraciones mediante el CLI restringido de laboratorio antes del API. Las nueve operaciones OpenAPI quedan habilitadas únicamente con la configuración test completa existente. No hay pantallas ni factores reales: AUTH-T08 añade UI/navegador y AUTH-T09/T10 auditoría/operación. Las futuras mutaciones privilegiadas de FEAT-002 deberán aplicar el gate de freshness y sus capacidades locales. No se publicaron cambios ni se migraron bases existentes.

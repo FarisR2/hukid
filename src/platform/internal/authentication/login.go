@@ -17,6 +17,7 @@ var (
 	ErrRequest    = errors.New("invalid request")
 	ErrCallback   = errors.New("invalid callback")
 	ErrMFA        = errors.New("MFA required")
+	ErrStepUp     = errors.New("recent MFA required")
 	ErrDependency = errors.New("authentication dependency unavailable")
 	ErrCredential = errors.New("invalid operator credential")
 	ErrSession    = errors.New("invalid session")
@@ -34,6 +35,8 @@ type Cipher interface {
 }
 
 type LoginTransaction struct {
+	FamilyID                                    string
+	Generation                                  int64
 	ID, Issuer, ClientID, RedirectURI, ReturnTo string
 	StateHash, NonceHash, BindingHash           []byte
 	Verifier                                    Envelope
@@ -69,12 +72,14 @@ type LoginStore interface {
 }
 
 type LoginService struct {
-	Policy Policy
-	OIDC   OIDC
-	Store  LoginStore
-	Cipher Cipher
-	Now    func() time.Time
-	Random io.Reader
+	Sessions         *SessionService
+	Reauthentication ReauthenticationStore
+	Policy           Policy
+	OIDC             OIDC
+	Store            LoginStore
+	Cipher           Cipher
+	Now              func() time.Time
+	Random           io.Reader
 }
 
 type LoginStart struct {
@@ -113,6 +118,10 @@ func (s *LoginService) id() (string, error) {
 }
 
 func (s *LoginService) Start(ctx context.Context, returnTo string) (LoginStart, error) {
+	return s.start(ctx, returnTo, nil)
+}
+
+func (s *LoginService) start(ctx context.Context, returnTo string, session *ReadSession) (LoginStart, error) {
 	if returnTo == "" {
 		returnTo = "/"
 	}
@@ -138,14 +147,29 @@ func (s *LoginService) Start(ctx context.Context, returnTo string) (LoginStart, 
 	}
 	now := s.Now().UTC()
 	tx := LoginTransaction{ID: id, Issuer: s.Policy.Issuer, ClientID: s.Policy.ClientID, RedirectURI: s.Policy.RedirectURI, ReturnTo: returnTo, StateHash: Digest(state), NonceHash: Digest(nonce), BindingHash: Digest(binding), Verifier: envelope, CreatedAt: now, ExpiresAt: now.Add(time.Duration(s.Policy.TransactionSeconds) * time.Second)}
+	if session != nil {
+		tx.FamilyID, tx.Generation = session.FamilyID, session.Generation
+	}
 	if err := s.Store.CreateTransaction(ctx, tx); err != nil {
 		return LoginStart{}, ErrDependency
 	}
 	challenge := base64.RawURLEncoding.EncodeToString(Digest(verifier))
-	return LoginStart{s.OIDC.AuthorizationURL(state, nonce, challenge), binding, tx.ExpiresAt}, nil
+	location := s.OIDC.AuthorizationURL(state, nonce, challenge)
+	if session != nil {
+		provider, ok := s.OIDC.(ReauthenticationOIDC)
+		if !ok {
+			return LoginStart{}, ErrDependency
+		}
+		location = provider.ReauthenticationURL(state, nonce, challenge)
+	}
+	return LoginStart{location, binding, tx.ExpiresAt}, nil
 }
 
 func (s *LoginService) Complete(ctx context.Context, state, binding, issuer, code, oauthError string) (LoginComplete, error) {
+	return s.CompleteWithSession(ctx, state, binding, issuer, code, oauthError, "")
+}
+
+func (s *LoginService) CompleteWithSession(ctx context.Context, state, binding, issuer, code, oauthError, cookie string) (LoginComplete, error) {
 	if state == "" || binding == "" || issuer != s.Policy.Issuer || (code == "") == (oauthError == "") {
 		return LoginComplete{}, ErrCallback
 	}
@@ -159,6 +183,19 @@ func (s *LoginService) Complete(ctx context.Context, state, binding, issuer, cod
 	}
 	if oauthError != "" {
 		return LoginComplete{}, ErrCallback
+	}
+	var previous ReadSession
+	if tx.FamilyID != "" {
+		if s.Sessions == nil || s.Reauthentication == nil {
+			return LoginComplete{}, ErrDependency
+		}
+		previous, err = s.Sessions.proof(ctx, cookie, "", false)
+		if err != nil {
+			return LoginComplete{}, err
+		}
+		if previous.FamilyID != tx.FamilyID || previous.Generation != tx.Generation {
+			return LoginComplete{}, ErrSession
+		}
 	}
 	verifier, err := s.Cipher.Open(tx.Verifier, TransactionAAD(tx.ID))
 	if err != nil {
@@ -178,6 +215,9 @@ func (s *LoginService) Complete(ctx context.Context, state, binding, issuer, cod
 		return LoginComplete{}, ErrMFA
 	}
 	identity.NonceHash = tx.NonceHash
+	if tx.FamilyID != "" {
+		return s.completeStepUp(ctx, tx, previous, identity, now)
+	}
 	return s.createSession(ctx, tx.ReturnTo, identity, now)
 }
 

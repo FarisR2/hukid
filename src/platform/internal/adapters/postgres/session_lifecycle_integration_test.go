@@ -38,7 +38,36 @@ func TestSessionLifecycleMigrationPreservesInitialSession(t *testing.T) {
 	if err := store.CreateInitialSession(testContext, initial); err != nil {
 		t.Fatal(err)
 	}
+	// Preserve an outstanding login transaction across the 0004 -> 0005 upgrade.
+	if err := migrateThrough(testContext, db.admin, "0004_session_lifecycle.sql"); err != nil {
+		t.Fatal(err)
+	}
+	pending := "73000000-0000-4000-8000-000000000003"
+	mustExec(t, db.admin, `INSERT INTO console_auth.oidc_transactions(transaction_id,purpose,state_hash,nonce_hash,binding_hash,oidc_issuer,client_id,redirect_uri,return_to,verifier_ciphertext,verifier_nonce,verifier_key_version,created_at,expires_at) VALUES($1,'login',$2,$3,$4,'issuer','client','redirect','/',$5,$6,'test',$7,$8)`, pending, a.Digest("pending-state"), a.Digest("pending-nonce"), a.Digest("pending-binding"), ciphertext, nonce, now, now.Add(time.Minute))
 	mustMigrate(t, db)
+	consumed, err := store.Consume(testContext, a.Digest("pending-state"), a.Digest("pending-binding"), "issuer", "client", "redirect", now)
+	if err != nil || consumed.ID != pending || consumed.FamilyID != "" || consumed.Generation != 0 {
+		t.Fatal("upgrade changed outstanding login transaction")
+	}
+	step := a.LoginTransaction{ID: "73000000-0000-4000-8000-000000000004", FamilyID: family, Issuer: "issuer", ClientID: "client", RedirectURI: "redirect", ReturnTo: "/", StateHash: a.Digest("step-state"), NonceHash: a.Digest("step-nonce"), BindingHash: a.Digest("step-binding"), Verifier: initial.Secrets, CreatedAt: now, ExpiresAt: now.Add(time.Minute)}
+	if err := store.CreateTransaction(testContext, step); err == nil {
+		t.Fatal("step-up without generation accepted")
+	}
+	step.Generation = 2
+	if err := store.CreateTransaction(testContext, step); err == nil {
+		t.Fatal("step-up without referenced generation accepted")
+	}
+	step.Generation = 1
+	if err := store.CreateTransaction(testContext, step); err != nil {
+		t.Fatal(err)
+	}
+	consumed, err = store.Consume(testContext, step.StateHash, step.BindingHash, step.Issuer, step.ClientID, step.RedirectURI, now)
+	if err != nil || consumed.FamilyID != family || consumed.Generation != 1 {
+		t.Fatal("step-up lost family/generation binding")
+	}
+	if _, err := store.Consume(testContext, step.StateHash, step.BindingHash, step.Issuer, step.ClientID, step.RedirectURI, now); !errors.Is(err, a.ErrCallback) {
+		t.Fatal("step-up consumed twice")
+	}
 	v, err := store.ReadSession(testContext, initial.CookieHash, now)
 	if err != nil || v.Generation != 1 || !a.EqualDigest(v.RefreshDigest, initial.RefreshDigest) || !v.AbsoluteExpiresAt.Equal(initial.AbsoluteExpiresAt) {
 		t.Fatal("migration changed initial session")
@@ -84,7 +113,7 @@ func TestSessionLifecycleConcurrencyLossAndLogout(t *testing.T) {
 		return fmt.Sprintf("%s-%s-%s-%s-%s", h[:8], h[8:12], h[12:16], h[16:20], h[20:])
 	}
 	opaque := func() string { b := make([]byte, 32); rand.Read(b); return base64.RawURLEncoding.EncodeToString(b) }
-	for _, name := range []string{"rotation_replay", "concurrent", "provider_response_lost", "bff_response_lost", "commit_failure", "logout_during_refresh", "cancelled_exchange", "abandoned_lease", "idle_and_absolute", "bad_csrf", "logout_idempotent"} {
+	for _, name := range []string{"command_concurrent", "command_logout", "command_refresh", "command_rollback", "rotation_replay", "concurrent", "provider_response_lost", "bff_response_lost", "commit_failure", "logout_during_refresh", "cancelled_exchange", "abandoned_lease", "idle_and_absolute", "bad_csrf", "logout_idempotent"} {
 		t.Run(name, func(t *testing.T) {
 			now := time.Now().UTC().Truncate(time.Microsecond)
 			cookie, csrf, family := opaque(), opaque(), newID()
@@ -118,6 +147,70 @@ func TestSessionLifecycleConcurrencyLossAndLogout(t *testing.T) {
 				}
 			}
 			switch name {
+			case "command_concurrent", "command_logout", "command_refresh", "command_rollback":
+				old, err := store.ReadSession(testContext, a.Digest(cookie), now)
+				if err != nil {
+					t.Fatal(err)
+				}
+				plain, _ := json.Marshal(secret)
+				envelope, err := box.Seal(plain, a.SessionGenerationAAD(family, 2))
+				clear(plain)
+				if err != nil {
+					t.Fatal(err)
+				}
+				next := a.SessionRotation{SessionID: newID(), CookieHash: a.Digest(opaque()), CSRFHash: a.Digest(csrf), RefreshDigest: a.Digest(secret.RefreshToken), Secrets: envelope, IdleExpiresAt: now.Add(time.Minute)}
+				if name == "command_logout" {
+					if err := service.Logout(testContext, cookie, csrf); err != nil {
+						t.Fatal(err)
+					}
+					if err := store.RotateSession(testContext, old, next, &identity, nil, now); !errors.Is(err, a.ErrSession) {
+						t.Fatal("step-up resurrected logout")
+					}
+					assertRevoked()
+					return
+				}
+				if name == "command_refresh" {
+					if _, err := store.ClaimRefresh(testContext, a.Digest(cookie), a.Digest(csrf), newID(), now, now.Add(a.RefreshLease)); err != nil {
+						t.Fatal(err)
+					}
+					if err := store.RotateSession(testContext, old, next, &identity, nil, now); !errors.Is(err, a.ErrSession) {
+						t.Fatal("step-up overlapped claimed refresh")
+					}
+					return
+				}
+				if name == "command_rollback" {
+					// Fail after retiring the old generation; rollback must restore it.
+					selection := &a.ContextSelection{TenantID: TestTenantB, Revision: 1}
+					if err := store.RotateSession(testContext, old, next, &identity, selection, now); err == nil {
+						t.Fatal("foreign selection committed")
+					}
+					if _, err := sessions.Read(testContext, cookie); err != nil {
+						t.Fatal("failed rotation lost original generation")
+					}
+					return
+				}
+				results := make(chan error, 2)
+				for range 2 {
+					go func() { results <- store.RotateSession(testContext, old, next, &identity, nil, now) }()
+				}
+				success, stale := 0, 0
+				for range 2 {
+					err := <-results
+					if err == nil {
+						success++
+					} else if errors.Is(err, a.ErrSession) {
+						stale++
+					} else {
+						t.Fatal(err)
+					}
+				}
+				if success != 1 || stale != 1 {
+					t.Fatal("parallel callbacks committed multiple generations")
+				}
+				var generations int
+				if db.admin.QueryRow(testContext, `SELECT count(*) FROM console_auth.sessions WHERE family_id=$1 AND state='active'`, family).Scan(&generations) != nil || generations != 1 {
+					t.Fatal("more than one active successor")
+				}
 			case "bad_csrf":
 				if _, err := service.Refresh(testContext, cookie, opaque()); !errors.Is(err, a.ErrCSRF) {
 					t.Fatal("bad proof accepted")

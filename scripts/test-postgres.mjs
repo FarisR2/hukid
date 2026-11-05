@@ -1,5 +1,5 @@
-import { spawn, spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, writeFileSync, unlinkSync, openSync, closeSync, existsSync, createReadStream } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, writeFileSync, unlinkSync, readFileSync, openSync, closeSync, existsSync, createReadStream } from 'node:fs';
 import { createHash, randomBytes } from 'node:crypto';
 import { createServer } from 'node:net';
 import { once } from 'node:events';
@@ -34,19 +34,22 @@ try {run('initdb',['-D',data,'-U','hukid_test_admin','--pwfile',passwordFile,'--
 finally {unlinkSync(passwordFile);}
 const probe=createServer();probe.listen(0,'127.0.0.1');await once(probe,'listening');
 const port=probe.address().port;await new Promise(resolve=>probe.close(resolve));
-const logFile=path.join(scratch,'postgres.log');const log=openSync(logFile,'a');
-let failure;
-const server=spawn(executable('postgres'),['-D',data,'-h','127.0.0.1','-p',String(port),'-c','log_statement=none','-c','log_min_error_statement=panic'],{cwd:root,windowsHide:true,stdio:['ignore',log,log]});
-server.on('error',error=>{failure=error;});
+const logFile=path.join(scratch,'postgres.log');
+const startupFile=path.join(scratch,'startup.log');
 try {
-  let ready=false;
-  for(let attempt=0;attempt<100;attempt++) {
-    if(failure || server.exitCode!==null) throw new Error('Isolated PostgreSQL failed to start');
-    const probe=spawnSync(executable('pg_isready'),['-h','127.0.0.1','-p',String(port),'-U','hukid_test_admin','-d','postgres'],{windowsHide:true,stdio:'ignore'});
-    if(probe.status===0){ready=true;break;}
-    await new Promise(resolve=>setTimeout(resolve,100));
+  // pg_ctl drops administrative privileges on Windows; direct postgres does not.
+  // Use files instead of pipes: the Windows server can inherit pg_ctl handles.
+  const startupLogHandle=openSync(startupFile,'a');
+  let started;
+  try {
+    started=spawnSync(executable('pg_ctl'),['-D',data,'-l',logFile,'-o',`-h 127.0.0.1 -p ${port} -c log_statement=none -c log_min_error_statement=panic`,'-w','-t','30','start'],{cwd:root,windowsHide:true,stdio:['ignore',startupLogHandle,startupLogHandle],timeout:40000});
+  } finally {closeSync(startupLogHandle);}
+  if(started.error || started.status!==0) {
+    // Only startup output: never dump database logs after authentication tests.
+    const startupLog=existsSync(logFile) ? readFileSync(logFile,'utf8') : '';
+    const diagnostic=[readFileSync(startupFile,'utf8'),startupLog].filter(Boolean).join('\n').replaceAll(password,'[redacted]').slice(-8000);
+    throw new Error(`Isolated PostgreSQL failed to start; inspect ${logFile}\n${diagnostic}`);
   }
-  if(!ready) throw new Error('PostgreSQL startup timeout');
   const admin=new URL(`postgresql://127.0.0.1:${port}/postgres?sslmode=disable`);admin.username='hukid_test_admin';admin.password=password;
   console.log(`${version}; disposable loopback cluster; no existing database is used.`);
   const command=process.argv.includes('--browser') ? 'test:browser' : 'test:postgres';
@@ -55,6 +58,8 @@ try {
 } finally {
   // This unique data directory was created by this process; never stop another cluster.
   const stopped=spawnSync(executable('pg_ctl'),['-D',data,'-m','fast','-w','stop'],{cwd:root,windowsHide:true,stdio:'ignore',timeout:20000});
-  closeSync(log);
-  if(stopped.status!==0 && server.exitCode===null) throw new Error(`Could not stop the owned PostgreSQL test cluster; inspect ${logFile}`);
+  if(stopped.status!==0) {
+    const status=spawnSync(executable('pg_ctl'),['-D',data,'status'],{cwd:root,windowsHide:true,stdio:'ignore',timeout:10000});
+    if(status.status!==3) throw new Error(`Could not stop the owned PostgreSQL test cluster; inspect ${logFile}`);
+  }
 }

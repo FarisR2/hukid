@@ -62,7 +62,7 @@ Los paquetes [FEAT-001/002/003](../features/README.md) añaden especificación, 
 
 Para empezar AUTH-T01 no es necesario recuperar los ejemplos de emisión ni configurar KMS issuer. Para completar login integrado sí hacen falta IdP test compatible, políticas de sesión/MFA, contrato de operador y migraciones mínimas; miembros necesita policy de invitación/notificación. No marcar esos artefactos como disponibles por existir el plan.
 
-Pendientes actuales del panel: AUTH-T10 operación/gate, FEAT-002 miembros y FEAT-003 dashboard. Hay un harness E2E descartable y pantallas conectadas, pero no se ha preparado un entorno de demo manual persistente ni un despliegue productivo. Preparar esa demo es trabajo adicional y no acredita emisión o verificación documental. Las secciones de incremento que siguen conservan el estado histórico de su fecha.
+Pendientes actuales del panel: FEAT-002 miembros y FEAT-003 dashboard. AUTH-T10 cierra [operación/gate de laboratorio](authentication-gate.md), con límites productivos explícitos. Hay un harness E2E descartable y pantallas conectadas, pero no se ha preparado un entorno de demo manual persistente ni un despliegue productivo. Preparar esa demo es trabajo adicional y no acredita emisión o verificación documental. Las secciones de incremento que siguen conservan el estado histórico de su fecha.
 
 ### Incremento AUTH-T01
 
@@ -113,3 +113,9 @@ Conecta las pantallas de autenticación con los endpoints reales y añade negoci
 ### Incremento AUTH-T09
 
 Existe [auditoría integrada](../03-design/console-auth-audit.md) con [ADR-0010](../decisions/ADR-0010.md), migración 0006, eventos/outbox atómicos y pruebas de redacción/permisos/rollback/concurrencia en laboratorio. Las denegaciones tienen registro acotado y alerta fija; no se garantiza conservarlas ante caída de DB/proceso. No se entrega retención institucional, WORM, worker/visor, SIEM ni redacción de proxies/infraestructura externos. AUTH-T10 conserva operación/gate A4; MFA real, carga/restore, proveedor y preparación productiva siguen pendientes.
+
+### Incremento AUTH-T10
+
+La primera ejecución CI reportada por el owner aprobó check/build y falló al iniciar PostgreSQL antes de las pruebas de integración. Se corrige el lanzamiento directo mediante `pg_ctl`, junto con permisos del runner sobre los clústeres descartables y diagnóstico de arranque. La validación local de esta corrección no acredita éxito remoto; queda pendiente repetir el workflow con la revisión corregida.
+
+[Runbook](../04-engineering/console-auth-runbook.md), [matriz A4](authentication-gate.md), comando offline de invalidación y ensayo real de retirada/reactivación, gate local con reporte de metadatos y workflow Windows. No se entregan ni se acreditan ejecución CI remota, demo persistente, restore, drenado por señales, rollback a versión binaria anterior, factores reales, retención/publisher/visor ni observabilidad productiva. El escenario mantiene el esquema y no reactiva familias/callbacks anteriores. La invalidación local no revoca Bearer/grants del IdP. Las diferencias entre requisitos generales y alcance de laboratorio están expuestas en la matriz; producción permanece NO-GO. Continúa USR-T01.

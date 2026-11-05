@@ -1,7 +1,7 @@
 # FEAT-001 — Autenticación de operadores
 
 - Producto: HukID Console / Team 5.
-- Estado: AUTH-T01–T05 materializan bootstrap, contratos, PostgreSQL, login/callback y [lecturas autorizadas /me](../../03-design/console-operator-context.md) de laboratorio. AUTH-T06 añade [ciclo de sesión, refresh/logout y purga](../../03-design/console-session-lifecycle.md). AUTH-T07 añade [MFA/step-up y cambio de tenant](../../03-design/console-reauthentication.md). AUTH-T08 conecta [interfaz y navegador](../../03-design/console-auth-interface.md). AUTH-T09 integra [auditoría y exclusión de secretos](../../03-design/console-auth-audit.md). AUTH-T10 conserva el gate operativo.
+- Estado: AUTH-T01–T05 materializan bootstrap, contratos, PostgreSQL, login/callback y [lecturas autorizadas /me](../../03-design/console-operator-context.md) de laboratorio. AUTH-T06 añade [ciclo de sesión, refresh/logout y purga](../../03-design/console-session-lifecycle.md). AUTH-T07 añade [MFA/step-up y cambio de tenant](../../03-design/console-reauthentication.md). AUTH-T08 conecta [interfaz y navegador](../../03-design/console-auth-interface.md). AUTH-T09 integra [auditoría y exclusión de secretos](../../03-design/console-auth-audit.md). AUTH-T10 aporta [runbook y gate de laboratorio](../../05-delivery/authentication-gate.md); producción sigue bloqueada.
 - Dependencias: IdP OIDC, tenant/membership mínimo, PostgreSQL y auditoría.
 - Salidas: [plan](plan.md), [tareas](tasks.md).
 

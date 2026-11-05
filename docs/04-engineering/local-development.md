@@ -71,6 +71,8 @@ npm run test:postgres
 
 El comando crea su propio clúster en `.cache/postgres-tests/run-*`, usa puerto libre/loopback y password administrativo aleatorio en memoria. Borra el archivo temporal de inicialización, ejecuta las pruebas Go con tag integration y finalmente elimina sólo bases/logins creados por las pruebas y detiene su servidor. Conserva el directorio ignorado y `postgres.log` para diagnóstico. No lee `HUKID_DATABASE_URL` de una aplicación existente, ni necesita Docker. La inicialización puede tardar en el primer arranque.
 
+El arranque usa `pg_ctl -w` con espera de hasta 30 segundos; en Windows permite reducir los privilegios del proceso servidor cuando la terminal es administrativa. El workflow concede al SID del runner permisos heredables sólo sobre `.cache/postgres-tests`, para que el proceso restringido pueda escribir sus clústeres. La salida del controlador va a `startup.log`, evitando pipes heredados que impedirían terminar el comando. Ante fallo de arranque se muestra un diagnóstico acotado; no se vuelcan logs tras ejecutar pruebas de autenticación.
+
 Los comandos manuales siguientes requieren una base test ya creada por el operador y credenciales externas al repo; no crean ni seleccionan una automáticamente:
 
 ```sh
@@ -114,13 +116,13 @@ $env:HUKID_AUTH_POLICY = (Resolve-Path src/platform/config/auth.test.json).Path
 npm run dev:platform
 ```
 
-Este ejemplo está incompleto para el runtime actual y falla antes de escuchar: desde AUTH-T04 se exige también configuración de credenciales/clave, y desde AUTH-T05 tres DSN separados. La configuración completa se describe en [login](../03-design/console-oidc-login.md#http-y-configuración) y [contexto operator](../03-design/console-operator-context.md#sesión-y-dependencias). Sin variables de autenticación se conserva liveness-only. Para volver a ese modo, retirar todas las variables HUKID de autenticación de la terminal. HTTP/Secure=false sólo se permite en este laboratorio loopback. Los TTL/MFA productivos siguen sin aprobarse.
+Este ejemplo está incompleto para el runtime actual y falla antes de escuchar: desde AUTH-T04 se exige también configuración de credenciales/clave, y desde AUTH-T05 tres DSN separados. La configuración completa se describe en [login](../03-design/console-oidc-login.md#http-y-configuración) y [contexto operator](../03-design/console-operator-context.md#sesión-y-dependencias). Sin variables de autenticación se conserva liveness-only. Operación y retirada/reactivación en el [runbook AUTH-T10](console-auth-runbook.md). Para volver a ese modo, retirar todas las variables HUKID de autenticación de la terminal. HTTP/Secure=false sólo se permite en este laboratorio loopback. Los TTL/MFA productivos siguen sin aprobarse.
 
 Decisiones y alcance: [ADR-0002](../decisions/ADR-0002.md), [FEAT-001](../features/FEAT-001-authentication/plan.md), [pendientes](../05-delivery/documentation-gaps.md).
 
 ## Evidencia del bootstrap — 2026-11-03
 
-Las secciones de evidencia siguientes son snapshots de cada incremento. Las frases «siguiente tarea», las cantidades de pruebas y las funciones pendientes corresponden a la fecha de ese incremento; para continuar usar las [tareas vigentes](../features/FEAT-001-authentication/tasks.md) y el [plan global](../05-delivery/implementation-plan.md). AUTH-T01–T08 ya están entregadas para laboratorio y AUTH-T09 es la siguiente tarea.
+Las secciones de evidencia siguientes son snapshots de cada incremento. Las frases «siguiente tarea», las cantidades de pruebas y las funciones pendientes corresponden a la fecha de ese incremento; para continuar usar las [tareas vigentes](../features/FEAT-001-authentication/tasks.md) y el [plan global](../05-delivery/implementation-plan.md). AUTH-T01–T10 ya están entregadas para laboratorio y USR-T01 es la siguiente tarea.
 
 Entorno: Windows x64, Node 24.22.1, npm 11.19.1, Go 1.27.3 portable con checksum oficial verificado. Se validó también una copia del árbol fuente en otra ubicación sin `node_modules`, `dist` ni cachés previas; Go se indicó mediante `HUKID_GO`.
 
@@ -190,3 +192,11 @@ Checks generales, PostgreSQL, builds, smoke y navegador forman la evidencia del 
 ## Evidencia AUTH-T09 — 2026-11-05
 
 Migración 0006 y auditoría/outbox de autenticación integradas y probadas. npm run check, npm run test:postgres, npm run build, npm run smoke y npm run test:browser aprobados en Windows con herramientas fijadas. La suite DB incorpora catorce pruebas superiores con subcasos; agrega historia/permisos, rollback por fallo de auditoría y logout concurrente idempotente. El binario HTTP y Chromium verifican presencia de eventos y ausencia de secretos en sus canales observados. No cambia la configuración runtime ni se añade una dependencia; aplicar migraciones con el CLI restringido antes de arrancar el binario nuevo. No se migró una base existente. [Referencia](../03-design/console-auth-audit.md) mantiene garantías y límites. AUTH-T10 es el siguiente incremento.
+
+## Gate y operación AUTH-T10
+
+Desde un checkout con los requisitos previos instalados, npm run test:auth:gate encadena check/build/PostgreSQL/smoke/Chromium, se detiene ante fallos y genera .cache/auth-gate/latest.json con alcance laboratorio, HEAD, dirty, digest y resultados sin logs/entorno. Rechaza cambios de fuente durante la ejecución. El [workflow Windows](../../.github/workflows/authentication.yml) ejecuta el mismo comando; una ejecución local no acredita CI remoto.
+
+npm run db:invalidate-auth:test se usa sólo para retirada offline del laboratorio, con administrador, HUKID_ENV=test, HUKID_TEST_DATABASE=1 y HUKID_DATABASE_URL externos. Conserva esquema y evidencia, revoca sesiones y cancela callbacks pendientes. Preparación, orden, efectos y diagnóstico en el [runbook](console-auth-runbook.md); criterios/evidencia en el [gate A4](../05-delivery/authentication-gate.md).
+
+Evidencia 2026-11-05: gate completo aprobado en Windows; ensayo API/IdP/DB de retirada/reactivación, rollback ante outbox fallida, roles/flags/cancelación e idempotencia. El instalador portable verificó archivo existente sin descarga/extracción nueva; workflow YAML validado localmente, sin ejecución GitHub Actions. Sin nueva migración, UI, restore, MFA real ni producción. Siguiente: USR-T01.

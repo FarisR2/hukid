@@ -1,6 +1,6 @@
 # Auditoría de autenticación de consola
 
-Estado: implementada y probada en laboratorio AUTH-T09, 2026-11-05. Decisión: [ADR-0010](../decisions/ADR-0010.md). Esta referencia está dirigida a quienes mantienen Platform y sus pruebas; el gate operativo permanece en AUTH-T10.
+Estado: implementada y probada en laboratorio AUTH-T09, 2026-11-05. Decisión: [ADR-0010](../decisions/ADR-0010.md). Esta referencia está dirigida a quienes mantienen Platform y sus pruebas; AUTH-T10 añade [operación y gate de laboratorio](../05-delivery/authentication-gate.md).
 
 ## Eventos y correlación
 
@@ -68,4 +68,4 @@ El ErrorLog de net/http se sustituye por un mensaje fijo porque su diagnóstico 
 
 Comandos: npm run check, npm run test:postgres, npm run build, npm run smoke y npm run test:browser; detalle de entorno en [desarrollo local](../04-engineering/local-development.md), evidencia fechada en [tareas](../features/FEAT-001-authentication/tasks.md).
 
-No se entrega visor audit, worker de publicación, retención institucional, WORM, SIEM, métricas operativas, carga, restore o MFA real. AUTH-T10 conserva runbook, rollout/reversión y gate A4. El perfil de credenciales sigue draft.
+No se entrega visor audit, worker de publicación, retención institucional, WORM, SIEM, métricas operativas, carga, restore o MFA real. AUTH-T10 entrega [runbook y gate de laboratorio](../05-delivery/authentication-gate.md); operación productiva sigue pendiente. El perfil de credenciales sigue draft.

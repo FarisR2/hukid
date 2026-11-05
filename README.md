@@ -1,10 +1,10 @@
 # Plataforma de eventos y HukID
 
-Este repositorio reúne la especificación de Events y del producto independiente HukID, bootstrap, contratos, foundation PostgreSQL, login OIDC y [autorización operator con /me AUTH-T05](docs/03-design/console-operator-context.md) de laboratorio. AUTH-T06 añade [ciclo de sesión, refresh/logout y purga](docs/03-design/console-session-lifecycle.md); AUTH-T07 añade [MFA/step-up y contexto AUTH-T07](docs/03-design/console-reauthentication.md); AUTH-T08 añade [interfaz y navegador](docs/03-design/console-auth-interface.md); AUTH-T09 añade [auditoría integrada](docs/03-design/console-auth-audit.md); el gate operativo AUTH-T10 sigue pendiente. No acredita interoperabilidad ni preparación productiva.
+Este repositorio reúne la especificación de Events y del producto independiente HukID, bootstrap, contratos, foundation PostgreSQL, login OIDC y [autorización operator con /me AUTH-T05](docs/03-design/console-operator-context.md) de laboratorio. AUTH-T06 añade [ciclo de sesión, refresh/logout y purga](docs/03-design/console-session-lifecycle.md); AUTH-T07 añade [MFA/step-up y contexto AUTH-T07](docs/03-design/console-reauthentication.md); AUTH-T08 añade [interfaz y navegador](docs/03-design/console-auth-interface.md); AUTH-T09 añade [auditoría integrada](docs/03-design/console-auth-audit.md); AUTH-T10 añade [runbook y gate de laboratorio](docs/05-delivery/authentication-gate.md). No acredita interoperabilidad ni preparación productiva.
 
 ## Documentación
 
-Para continuar, consultar el [plan de implementación vigente](docs/05-delivery/implementation-plan.md): siguiente tarea **AUTH-T10**. El orden del panel web es AUTH→USR→DASH; el [roadmap del producto](docs/05-delivery/hukid-roadmap.md) describe el negocio de emisión, wallet y verificación, aún pendiente. Completar autenticación no entrega por sí solo dashboard ni validación de credenciales.
+Para continuar, consultar el [plan de implementación vigente](docs/05-delivery/implementation-plan.md): siguiente tarea **USR-T01**. El orden del panel web es AUTH→USR→DASH; el [roadmap del producto](docs/05-delivery/hukid-roadmap.md) describe el negocio de emisión, wallet y verificación, aún pendiente. Completar autenticación no entrega por sí solo dashboard ni validación de credenciales.
 
 | Área | Punto de entrada |
 | --- | --- |

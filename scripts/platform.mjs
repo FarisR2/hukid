@@ -25,8 +25,8 @@ function run(args, capture = false, tool = executable) {
 }
 
 const command = process.argv[2];
-if (!['dev', 'check', 'build', 'test:postgres', 'test:browser', 'migrate:test', 'bootstrap:test'].includes(command)) {
-  console.error('Uso: node scripts/platform.mjs dev|check|build|test:postgres|test:browser|migrate:test|bootstrap:test');
+if (!['dev', 'check', 'build', 'test:postgres', 'test:browser', 'migrate:test', 'bootstrap:test', 'invalidate-auth:test'].includes(command)) {
+  console.error('Uso: node scripts/platform.mjs dev|check|build|test:postgres|test:browser|migrate:test|bootstrap:test|invalidate-auth:test');
   process.exit(1);
 }
 const version = run(['version'], true).trim();
@@ -37,6 +37,7 @@ if (!/^go version go1\.27\.3\s/.test(version)) {
 
 if (command === 'dev') run(['run', './cmd/api']);
 if (command === 'migrate:test') run(['run', './cmd/testdb', 'migrate']);
+if (command === 'invalidate-auth:test') run(['run', './cmd/testdb', 'invalidate-auth']);
 if (command === 'bootstrap:test') run(['run', './cmd/testdb', 'bootstrap']);
 if (command === 'test:postgres') run(['test', '-tags=integration', '-count=1', '-timeout=120s', './internal/adapters/postgres']);
 if (command === 'test:browser') run(['test', '-tags=integration,browser', '-run=^TestConsoleBrowser$', '-count=1', '-timeout=240s', './internal/adapters/postgres']);

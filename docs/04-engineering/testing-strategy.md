@@ -1,6 +1,6 @@
 # Estrategia de pruebas
 
-Estado al 2026-11-05: AUTH-T01–T09 tienen comprobaciones ejecutables de autenticación en laboratorio; el alcance y la evidencia por incremento están en [tareas FEAT-001](../features/FEAT-001-authentication/tasks.md). AUTH-T09 prueba [auditoría/redacción integrada](../03-design/console-auth-audit.md); AUTH-T10 conserva el gate operativo. Las pruebas de credenciales, wallet, status y verifier que se describen más abajo son requisitos pendientes, no suites ya construidas.
+Estado al 2026-11-05: AUTH-T01–T10 tienen comprobaciones ejecutables de autenticación en laboratorio; el alcance y la evidencia por incremento están en [tareas FEAT-001](../features/FEAT-001-authentication/tasks.md). AUTH-T09 prueba [auditoría/redacción integrada](../03-design/console-auth-audit.md); AUTH-T10 añade [runbook, reversión ensayada y gate de laboratorio](../05-delivery/authentication-gate.md). Las pruebas de credenciales, wallet, status y verifier que se describen más abajo son requisitos pendientes, no suites ya construidas.
 
 La autenticación tiene pruebas de contratos/ejemplos y matriz, JWT y políticas, PostgreSQL/RLS/migraciones, login/callback HTTP, middleware operator, sesión/refresh/logout, step-up/contexto y navegador React. La evidencia MFA sigue siendo sintética y no selecciona proveedor ni demuestra factores reales. Alcance y matriz en el [contrato de consola](../03-design/console-auth-contract.md#pruebas-y-cobertura-actual).
 
@@ -50,3 +50,7 @@ Mantener v0.1-draft hasta publicar vectores exactos positivos/negativos y automa
 Registrar escenario, versión, ambiente, carga, resultados y limitaciones. Medir los [objetivos no funcionales](../02-requirements/non-functional-requirements.md); no convertirlos en SLA sin pruebas. Aplicar la [Definition of Done](../05-delivery/definition-of-done.md).
 
 En documentación, verificar enlaces/anclas locales, bloques y estructura con `npm run check:docs` y revisión de diff. Declarar únicamente pruebas de componentes existentes y efectivamente ejecutadas.
+
+## Gate acumulado de autenticación
+
+npm run test:auth:gate ejecuta secuencialmente los cinco comandos de la tabla, con build previo al smoke/navegador, y genera un informe de metadatos sin secretos. El ensayo AUTH-T10 dentro de test:postgres prueba retirada/invalidez/reactivación con recursos propios. [Matriz A4 y límites](../05-delivery/authentication-gate.md). El workflow versionado usa ese mismo comando; CI remoto no se declara aprobado por validación local.

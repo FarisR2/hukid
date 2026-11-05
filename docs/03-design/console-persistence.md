@@ -101,3 +101,7 @@ Fuentes de implementación: [PostgreSQL RLS](https://www.postgresql.org/docs/18/
 ## Migración AUTH-T09
 
 [0006_auth_audit.sql](../../src/platform/internal/adapters/postgres/migrations/0006_auth_audit.sql) conserva historia y permite hechos auth sin tenant, con FK de evento y scope generado para mantener igualdad de contexto incluso con null. Los cambios de sesión y sus eventos/outbox se confirman juntos. Diccionario, permisos, fallos y pruebas en [auditoría de autenticación](console-auth-audit.md). El esquema mínimo AUTH-T03 de arriba conserva su origen histórico; el estado vigente incluye esta ampliación. Retención y publicación siguen pendientes.
+
+## Mantenimiento AUTH-T10
+
+El CLI test-only invalidate-auth, descrito en el [runbook](../04-engineering/console-auth-runbook.md), requiere al administrador de la DB sintética y todas las instancias API detenidas. Revoca/purga autenticación y consume OIDC pendiente en una transacción, conserva memberships/esquema/auditoría y no añade DDL/grants. Su fallo no permite anunciar invalidación parcial como éxito. La reversión ensayada es retirada/reactivación, sin down/restore.

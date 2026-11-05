@@ -2,12 +2,12 @@
 
 ## Estado de ejecución — 2026-11-05
 
-Este roadmap describe el producto completo; no es evidencia de fases terminadas. AUTH-T01–T09 implementan autenticación y acceso al panel web en laboratorio. AUTH-T10, miembros y dashboard siguen pendientes; el [plan vigente](implementation-plan.md) enlaza su secuencia y la siguiente tarea. Completar autenticación no equivale a completar foundation ni el flujo documental.
+Este roadmap describe el producto completo; no es evidencia de fases terminadas. AUTH-T01–T10 implementan autenticación y acceso al panel web en laboratorio. Miembros y dashboard siguen pendientes; AUTH-T10 cierra sólo el gate de autenticación de laboratorio; el [plan vigente](implementation-plan.md) enlaza su secuencia y la siguiente tarea. Completar autenticación no equivale a completar foundation ni el flujo documental.
 
 | Fase de este roadmap | Relación con historias del [backlog Team 5](../02-requirements/backlogs/team-5-hukid.md) | Estado verificable |
 | --- | --- | --- |
 | 0 — Laboratorio de credenciales | Preparación del perfil y conformance HK-056; firma/proof/binding requeridos por las historias de emisión y verificación. | Pendiente. El laboratorio OIDC de AUTH no valida VC, wallet ni verifier. |
-| 1 — Foundation | HK-001/002/004/005; FEAT-001/002 concretan parte del acceso administrativo. | Parcial: AUTH-T01–T09 entregadas. Emisores, keys/KMS, clientes/grants y cierre de auditoría/operación no están completos. |
+| 1 — Foundation | HK-001/002/004/005; FEAT-001/002 concretan parte del acceso administrativo. | Parcial: AUTH-T01–T10 entregadas para autenticación de laboratorio. Emisores, keys/KMS, clientes/grants y cierre de auditoría/operación no están completos. |
 | 2 — Definition Registry | HK-003. | Pendiente. |
 | 3 — Emisión y recepción | HK-010–013, HK-020–025 y las historias de wallet HK-030–033 necesarias para el recorrido. | Pendiente. |
 | 4 — Status y verificación | HK-040–043, HK-050/051; las lecturas de wallet se amplían según HK-034. | Pendiente. |

@@ -525,6 +525,149 @@ func TestLoginHTTPWithRealOIDCAndPostgres(t *testing.T) {
 		}
 		return response
 	}
+	t.Run("step_up_and_tenant_commands_http", func(t *testing.T) {
+		cookie, csrf := commandSession(t)
+		old, err := (&LoginStore{Pool: pool}).ReadSession(testContext, a.Digest(cookie.Value), time.Now())
+		if err != nil {
+			t.Fatal(err)
+		}
+		postJSON := func(path, body, proof, origin string, c *http.Cookie, status int) *http.Response {
+			t.Helper()
+			req, _ := http.NewRequest("POST", p.ConsoleOrigin+path, strings.NewReader(body))
+			req.AddCookie(c)
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Origin", origin)
+			req.Header.Set("X-CSRF-Token", proof)
+			response, err := client.Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { response.Body.Close() })
+			if response.StatusCode != status {
+				t.Fatalf("%s expected %d got %d", path, status, response.StatusCode)
+			}
+			if response.Header.Get("Cache-Control") != "no-store" || response.Header.Get("Referrer-Policy") != "no-referrer" || response.Header.Get("X-Correlation-Id") == "" {
+				t.Fatal("missing command privacy headers")
+			}
+			return response
+		}
+		for _, path := range []string{"/console/auth/step-up", "/console/auth/tenant-context"} {
+			before := countSessions(t)
+			postJSON(path, `{}`, csrf, "null", cookie, 403)
+			postJSON(path, `{}`, strings.Repeat("a", 43), p.ConsoleOrigin, cookie, 403)
+			if countSessions(t) != before {
+				t.Fatal("invalid proof changed generation")
+			}
+		}
+		postJSON("/console/auth/step-up", `{"returnTo":"https://foreign.invalid"}`, csrf, p.ConsoleOrigin, cookie, 422)
+		postJSON("/console/auth/step-up", `{"returnTo":"/","amr":["pwd","otp"]}`, csrf, p.ConsoleOrigin, cookie, 422)
+		start := postJSON("/console/auth/step-up", `{"returnTo":"/"}`, csrf, p.ConsoleOrigin, cookie, 303)
+		u, _ := url.Parse(start.Header.Get("Location"))
+		if u.Query().Get("prompt") != "login consent" || u.Query().Get("max_age") != "0" {
+			t.Fatal("step-up did not force reauthentication")
+		}
+		var binding *http.Cookie
+		for _, c := range start.Cookies() {
+			if c.Name == "hukid_test_transaction" {
+				binding = c
+			}
+		}
+		if binding == nil {
+			t.Fatal("missing step-up transaction binding")
+		}
+		callback := authorize(t, u)
+		req, _ := http.NewRequest("GET", p.ConsoleOrigin+callback, nil)
+		req.AddCookie(cookie)
+		req.AddCookie(binding)
+		response, err := client.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		response.Body.Close()
+		if response.StatusCode != 303 {
+			t.Fatalf("step-up callback status %d", response.StatusCode)
+		}
+		var next *http.Cookie
+		for _, c := range response.Cookies() {
+			if c.Name == p.CookieName {
+				next = c
+			}
+		}
+		if next == nil || next.Value == cookie.Value {
+			t.Fatal("step-up did not rotate cookie")
+		}
+		secretValues = append(secretValues, next.Value, binding.Value)
+		if request(t, "/console/api/me", cookie).StatusCode != 401 {
+			t.Fatal("step-up preserved old cookie")
+		}
+		assertError(t, request(t, callback, binding), 400)
+		updated, err := (&LoginStore{Pool: pool}).ReadSession(testContext, a.Digest(next.Value), time.Now())
+		if err != nil || updated.FamilyID != old.FamilyID || updated.Generation != old.Generation+1 || !updated.AbsoluteExpiresAt.Equal(old.AbsoluteExpiresAt) {
+			t.Fatal("step-up changed family or absolute lifetime")
+		}
+		readMe := func(c *http.Cookie) map[string]any {
+			t.Helper()
+			r := request(t, "/console/api/me", c)
+			var v map[string]any
+			if r.StatusCode != 200 || json.NewDecoder(r.Body).Decode(&v) != nil {
+				t.Fatal("cannot read rotated me")
+			}
+			return v
+		}
+		me := readMe(next)
+		nextCSRF := me["csrfToken"].(string)
+		if nextCSRF == csrf {
+			t.Fatal("step-up did not rotate CSRF")
+		}
+		secretValues = append(secretValues, nextCSRF)
+		postJSON("/console/auth/tenant-context", `{"tenantId":"`+TestTenantB+`"}`, nextCSRF, p.ConsoleOrigin, next, 404)
+		postJSON("/console/auth/tenant-context", `{"tenantId":"invalid"}`, nextCSRF, p.ConsoleOrigin, next, 404)
+		postJSON("/console/auth/tenant-context", `{"tenantId":"`+TestTenantA+`"}`, csrf, p.ConsoleOrigin, next, 403)
+		selected := postJSON("/console/auth/tenant-context", `{"tenantId":"`+TestTenantA+`"}`, nextCSRF, p.ConsoleOrigin, next, 204)
+		var selectedCookie *http.Cookie
+		for _, c := range selected.Cookies() {
+			if c.Name == p.CookieName {
+				selectedCookie = c
+			}
+		}
+		if selectedCookie == nil || selectedCookie.Value == next.Value {
+			t.Fatal("context did not rotate cookie")
+		}
+		secretValues = append(secretValues, selectedCookie.Value)
+		selection := readMe(selectedCookie)
+		if selection["activeTenantId"] != TestTenantA || selection["context"].(map[string]any)["tenantId"] != TestTenantA || selection["csrfToken"] == nextCSRF {
+			t.Fatal("inconsistent selected context")
+		}
+		if request(t, "/console/api/me", next).StatusCode != 401 {
+			t.Fatal("old context cookie remained valid")
+		}
+		mustExec(t, db.admin, `INSERT INTO tenancy.memberships(membership_id,tenant_id,operator_identity_id) VALUES($1,$2,$3)`, TestMemberB, TestTenantB, old.ActorID)
+		mustExec(t, db.admin, `INSERT INTO tenancy.membership_roles(tenant_id,membership_id,role) VALUES($1,$2,'support_readonly')`, TestTenantB, TestMemberB)
+		// A -> B -> B -> A: repeated selection must also reauthorize and rotate.
+		for _, id := range []string{TestTenantB, TestTenantB, TestTenantA} {
+			previousCookie, previousProof := selectedCookie, selection["csrfToken"].(string)
+			response := postJSON("/console/auth/tenant-context", `{"tenantId":"`+id+`"}`, previousProof, p.ConsoleOrigin, previousCookie, 204)
+			for _, c := range response.Cookies() {
+				if c.Name == p.CookieName {
+					selectedCookie = c
+				}
+			}
+			selection = readMe(selectedCookie)
+			if selectedCookie.Value == previousCookie.Value || selection["activeTenantId"] != id || selection["context"].(map[string]any)["tenantId"] != id || selection["csrfToken"] == previousProof {
+				t.Fatal("tenant switch preserved stale state/proof")
+			}
+			secretValues = append(secretValues, selectedCookie.Value, selection["csrfToken"].(string))
+			if request(t, "/console/api/me", previousCookie).StatusCode != 401 {
+				t.Fatal("previous tenant cookie accepted")
+			}
+		}
+		mustExec(t, db.admin, `UPDATE tenancy.memberships SET state='suspended',authorization_revision=authorization_revision+1 WHERE membership_id=$1`, TestMemberA)
+		if request(t, "/console/api/me", selectedCookie).StatusCode != 404 {
+			t.Fatal("suspended membership survived context rotation")
+		}
+		postJSON("/console/auth/tenant-context", `{"tenantId":"`+TestTenantA+`"}`, selection["csrfToken"].(string), p.ConsoleOrigin, selectedCookie, 404)
+		mustExec(t, db.admin, `UPDATE tenancy.memberships SET state='active',authorization_revision=authorization_revision+1 WHERE membership_id=$1`, TestMemberA)
+	})
 	t.Run("refresh_logout_http", func(t *testing.T) {
 		cookie, csrf := commandSession(t)
 		before := countSessions(t)

@@ -56,7 +56,7 @@ Owners: Team 4 y Team 5 coordinan el contrato de integración; cada equipo mater
 
 ## Foundation de consola documentada
 
-Los paquetes [FEAT-001/002/003](../features/README.md) añaden especificación, plan y tareas para la consola HukID confirmada por el usuario. [ADR-0002](../decisions/ADR-0002.md) registra propuestas de BFF, operador, miembros y dashboard. AUTH-T01–T05 implementan bootstrap, contratos, PostgreSQL, login/callback y lecturas autorizadas /me de laboratorio; ciclo operativo de sesión, comandos, UI, miembros y dashboard siguen pendientes. Los apartados siguientes conservan evidencia por incremento, no sustituyen el estado actual de las tareas.
+Los paquetes [FEAT-001/002/003](../features/README.md) añaden especificación, plan y tareas para la consola HukID confirmada por el usuario. [ADR-0002](../decisions/ADR-0002.md) registra propuestas de BFF, operador, miembros y dashboard. AUTH-T01–T05 implementan bootstrap, contratos, PostgreSQL, login/callback y lecturas autorizadas /me de laboratorio; AUTH-T06/T07 añaden ciclo de sesión y step-up/contexto; UI, miembros y dashboard siguen pendientes. Los apartados siguientes conservan evidencia por incremento, no sustituyen el estado actual de las tareas.
 
 Para empezar AUTH-T01 no es necesario recuperar los ejemplos de emisión ni configurar KMS issuer. Para completar login integrado sí hacen falta IdP test compatible, políticas de sesión/MFA, contrato de operador y migraciones mínimas; miembros necesita policy de invitación/notificación. No marcar esos artefactos como disponibles por existir el plan.
 
@@ -90,8 +90,14 @@ El estado posterior se registra en AUTH-T05 abajo. AUTH-T06 incorpora purga auto
 
 Existe [middleware operator y lectura /me](../03-design/console-operator-context.md) con verificación Bearer, roles/capacidades propios, revalidación viva de tenant/membership y composición BFF desde sesión cifrada. Se usan tres credenciales runtime separadas y las migraciones/grants existentes. [ADR-0006](../decisions/ADR-0006.md) adelanta sólo lectura de generación inicial desde AUTH-T06 para habilitar /me.
 
-AUTH-T06 implementa actividad, refresh/logout y rotación. Pendientes: comandos restantes/CSRF/step-up (AUTH-T07), selector/UI/navegador (AUTH-T08), auditoría integrada (AUTH-T09) y operación/gate A4 (AUTH-T10). issuerIds vacío no acredita asignación ni autoridad sobre emisores. AUTH-T06 permite refresh explícito dentro de los límites originales; una familia incierta/revocada exige nuevo login. No se probaron MFA real, navegador, carga ni restore; el perfil conserva draft.
+AUTH-T06 implementa actividad, refresh/logout y rotación. AUTH-T07 completa comandos restantes/CSRF/step-up. Pendientes: selector/UI/navegador (AUTH-T08), auditoría integrada (AUTH-T09) y operación/gate A4 (AUTH-T10). issuerIds vacío no acredita asignación ni autoridad sobre emisores. AUTH-T06 permite refresh explícito dentro de los límites originales; una familia incierta/revocada exige nuevo login. No se probaron MFA real, navegador, carga ni restore; el perfil conserva draft.
 
 ### Incremento AUTH-T06
 
-Existe [ciclo de sesión](../03-design/console-session-lifecycle.md) con lease persistente, rotación cookie/CSRF/AAD, logout local primero y mantenimiento acotado. Se probaron pérdidas mediante inyección en puertos y desconexión HTTP; no se ensayó caída física de host ni restore. El mantenimiento no tiene SLA ni métricas/alertas de backlog; un fallo DB retrasa la eliminación física sin ampliar la validez de las credenciales. Rate limiting sigue local al proceso. MFA real, comandos restantes, navegador y operación productiva siguen en AUTH-T07–T10.
+Existe [ciclo de sesión](../03-design/console-session-lifecycle.md) con lease persistente, rotación cookie/CSRF/AAD, logout local primero y mantenimiento acotado. Se probaron pérdidas mediante inyección en puertos y desconexión HTTP; no se ensayó caída física de host ni restore. El mantenimiento no tiene SLA ni métricas/alertas de backlog; un fallo DB retrasa la eliminación física sin ampliar la validez de las credenciales. Rate limiting sigue local al proceso. AUTH-T07 completa comandos restantes. MFA real, navegador y operación productiva siguen pendientes.
+
+### Incremento AUTH-T07
+
+Existe [MFA/step-up y cambio de contexto](../03-design/console-reauthentication.md), con [ADR-0008](../decisions/ADR-0008.md) y migración 0005. Se prueban reautenticación de la misma identidad, binding de familia/generación, rotación atómica, Origin/CSRF/JSON, concurrencia/logout/lease/rollback y selector backend entre dos tenants. No se concede autoridad desde claims/body del navegador ni se amplía el límite absoluto.
+
+Pendientes: IdP/factores productivos, interfaz/navegador y limpieza de estado visual (AUTH-T08), auditoría integrada (AUTH-T09), operación y gate A4 (AUTH-T10). El gate de freshness está implementado y probado para ser invocado por las futuras mutaciones privilegiadas de FEAT-002; no hay aún administración de miembros. No se probaron carga/restore ni se publicó o migró un entorno existente. El perfil sigue draft.

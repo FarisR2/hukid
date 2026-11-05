@@ -144,7 +144,19 @@ func (h *LoginHandler) complete(ctx context.Context, w http.ResponseWriter, r *h
 		h.problem(w, authentication.ErrCallback)
 		return
 	}
-	result, err := h.Service.Complete(ctx, q.Get("state"), binding, q.Get("iss"), q.Get("code"), q.Get("error"))
+	var sessionCookie string
+	sessionCount := 0
+	for _, c := range r.Cookies() {
+		if c.Name == h.Service.Policy.CookieName {
+			sessionCookie = c.Value
+			sessionCount++
+		}
+	}
+	if sessionCount > 1 {
+		h.problem(w, authentication.ErrCallback)
+		return
+	}
+	result, err := h.Service.CompleteWithSession(ctx, q.Get("state"), binding, q.Get("iss"), q.Get("code"), q.Get("error"), sessionCookie)
 	// A matching request that reached consumption cannot reuse its browser binding.
 	if err != nil && !errors.Is(err, authentication.ErrCallback) {
 		h.clearTransaction(w)
@@ -174,6 +186,8 @@ func (h *LoginHandler) problem(w http.ResponseWriter, err error) {
 		h.writeProblem(w, 400, "authentication_failed", "Autenticación fallida")
 	case errors.Is(err, authentication.ErrMFA):
 		h.writeProblem(w, 403, "mfa_required", "Se requiere MFA")
+	case errors.Is(err, authentication.ErrSession), errors.Is(err, authentication.ErrCredential):
+		h.writeProblem(w, 401, "invalid_session", "Autenticación requerida")
 	default:
 		h.writeProblem(w, 503, "dependency_unavailable", "Dependencia no disponible")
 	}

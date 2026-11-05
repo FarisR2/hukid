@@ -143,6 +143,8 @@ func Problem(w http.ResponseWriter, err error, bearer bool) {
 		writeProblem(w, 401, code, "Autenticación requerida")
 	case errors.Is(err, authentication.ErrMFA):
 		writeProblem(w, 403, "mfa_required", "Se requiere MFA")
+	case errors.Is(err, authentication.ErrStepUp):
+		writeProblem(w, 403, "step_up_required", "Se requiere reautenticación reciente")
 	case errors.Is(err, authentication.ErrTenant):
 		writeProblem(w, 404, "tenant_not_found", "Recurso no encontrado")
 	default:

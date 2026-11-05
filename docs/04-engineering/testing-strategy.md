@@ -1,6 +1,6 @@
 # Estrategia de pruebas
 
-Estado al 2026-11-05: AUTH-T01–T08 tienen comprobaciones ejecutables de autenticación en laboratorio; el alcance y la evidencia por incremento están en [tareas FEAT-001](../features/FEAT-001-authentication/tasks.md). AUTH-T09 conserva auditoría/redacción integrada y AUTH-T10 el gate operativo. Las pruebas de credenciales, wallet, status y verifier que se describen más abajo son requisitos pendientes, no suites ya construidas.
+Estado al 2026-11-05: AUTH-T01–T09 tienen comprobaciones ejecutables de autenticación en laboratorio; el alcance y la evidencia por incremento están en [tareas FEAT-001](../features/FEAT-001-authentication/tasks.md). AUTH-T09 prueba [auditoría/redacción integrada](../03-design/console-auth-audit.md); AUTH-T10 conserva el gate operativo. Las pruebas de credenciales, wallet, status y verifier que se describen más abajo son requisitos pendientes, no suites ya construidas.
 
 La autenticación tiene pruebas de contratos/ejemplos y matriz, JWT y políticas, PostgreSQL/RLS/migraciones, login/callback HTTP, middleware operator, sesión/refresh/logout, step-up/contexto y navegador React. La evidencia MFA sigue siendo sintética y no selecciona proveedor ni demuestra factores reales. Alcance y matriz en el [contrato de consola](../03-design/console-auth-contract.md#pruebas-y-cobertura-actual).
 

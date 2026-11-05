@@ -23,7 +23,7 @@ AUTH-T05 incorpora [middleware operator y /me](../../03-design/console-operator-
 | platform/internal/adapters/postgres | Migraciones, roles/RLS, contexto y descubrimiento mínimo, transacciones OIDC y creación inicial de identidad/sesión. Rotación/refresh/logout y purga desde AUTH-T06. |
 | console/src/authentication | AUTH-T08: login/retorno, selector, guards y recuperación de sesión. |
 
-Los componentes de autenticación indicados están implementados hasta AUTH-T08 en laboratorio, incluido el panel React. Auditoría integrada y operación/gate siguen en AUTH-T09/T10. Los módulos de miembros, dashboard y credenciales conservan sus tareas propias. El fixture IdP reside en tests y no forma parte de Platform. No crear módulos de emisión ni wallet para demostrar login.
+Los componentes de autenticación indicados están implementados hasta AUTH-T09 en laboratorio, incluido el panel React y la [auditoría integrada](../../03-design/console-auth-audit.md). Operación/gate siguen en AUTH-T10. Los módulos de miembros, dashboard y credenciales conservan sus tareas propias. El fixture IdP reside en tests y no forma parte de Platform. No crear módulos de emisión ni wallet para demostrar login.
 
 ## Contratos nuevos de consola
 
@@ -71,7 +71,7 @@ Habilitar inicialmente a tenant sintético en entorno aislado. Un rollback revoc
 
 Validar que el IdP pueda producir access tokens operator con audiencia/clase del perfil y evidencia MFA suficiente; no relajar el perfil para acomodar un proveedor. Si no puede, registrar alternativa del Authorization Server antes de conectar.
 
-El siguiente incremento es AUTH-T09 sobre AUTH-T01–T08 ya entregadas; después AUTH-T10 documenta operación y evidencia del gate. El despliegue productivo conserva requisitos de proveedor/factores reales, secretos, HTTPS, soporte, retención y DoD, sin asumirlos aprobados por cerrar tareas de laboratorio.
+AUTH-T09 ya integra auditoría sobre AUTH-T01–T08; el siguiente incremento AUTH-T10 documenta operación y evidencia del gate. El despliegue productivo conserva requisitos de proveedor/factores reales, secretos, HTTPS, soporte, retención y DoD, sin asumirlos aprobados por cerrar tareas de laboratorio.
 
 ## Incremento AUTH-T06
 
@@ -86,3 +86,7 @@ Se implementa el [ciclo de sesión](../../03-design/console-session-lifecycle.md
 ## Incremento AUTH-T08
 
 La [interfaz de autenticación](../../03-design/console-auth-interface.md), según [ADR-0009](../../decisions/ADR-0009.md), conecta React al BFF same-origin. Login y step-up ofrecen navegación JSON opcional, conservando 303; callback ofrece error HTML fijo al navegador. El origen de proxy local debe configurarse explícitamente y no se toma de headers. UI en español, teclado/foco, selección/acceso pendiente, refresh/logout/step-up, retiro de contexto y descarte de respuestas obsoletas. Web Locks coordina las peticiones entre pestañas sin transmitir secretos; BroadcastChannel invalida el contexto visual. No hay polling ni tokens/CSRF persistidos. La suite Chromium usa API, IdP y PostgreSQL propios. AUTH-T09/T10 conservan auditoría integrada y gate A4.
+
+## Incremento AUTH-T09
+
+La [auditoría integrada](../../03-design/console-auth-audit.md), según [ADR-0010](../../decisions/ADR-0010.md), confirma cambios y eventos/outbox atómicamente, conserva correlación HTTP generada en servidor y registra denegaciones sin identidad inferida. La migración 0006 amplía las tablas mínimas existentes, sus FK y grants bajo RLS. Auditoría/telemetría no reciben secretos ni payload libre; la caída del registro de denegaciones tiene alerta fija y límite documentado. AUTH-T10 conserva operación/gate.

@@ -1,6 +1,6 @@
 # Desarrollo local de HukID
 
-Estado: AUTH-T01–T05 entregan bootstrap, contratos, PostgreSQL, [login/callback OIDC](../03-design/console-oidc-login.md) y [middleware operator y /me](../03-design/console-operator-context.md) de laboratorio. AUTH-T06/T07 añaden [ciclo de sesión](../03-design/console-session-lifecycle.md) y [MFA/step-up/contexto](../03-design/console-reauthentication.md). AUTH-T08 conecta [interfaz y navegador](../03-design/console-auth-interface.md) al BFF.
+Estado: AUTH-T01–T05 entregan bootstrap, contratos, PostgreSQL, [login/callback OIDC](../03-design/console-oidc-login.md) y [middleware operator y /me](../03-design/console-operator-context.md) de laboratorio. AUTH-T06/T07 añaden [ciclo de sesión](../03-design/console-session-lifecycle.md) y [MFA/step-up/contexto](../03-design/console-reauthentication.md). AUTH-T08 conecta [interfaz y navegador](../03-design/console-auth-interface.md) al BFF. AUTH-T09 integra [auditoría y exclusión de secretos](../03-design/console-auth-audit.md).
 
 Existe [contrato y laboratorio OIDC](../03-design/console-auth-contract.md), con política test, matriz y reglas Go. El IdP sólo se inicia desde tests y simula MFA; no arranca con Platform. AUTH-T04 conecta HTTP con la [persistencia de consola](../03-design/console-persistence.md) cuando se proporciona configuración test completa.
 
@@ -186,3 +186,7 @@ Consola de autenticación en español con UI conectada y pruebas Chromium headle
 El proxy usa HUKID_CONSOLE_API_TARGET (default http://127.0.0.1:8080). En el API configurar HUKID_CONSOLE_PROXY_ORIGIN igual a consoleOrigin de la política (por ejemplo http://127.0.0.1:5173), y registrar redirectUri bajo ese origen. La igualdad directa origen/listener sigue siendo el default sin proxy explícito. No se toman forwarded headers ni se habilita producción.
 
 Checks generales, PostgreSQL, builds, smoke y navegador forman la evidencia del incremento. MFA real, auditoría/redacción integrada, carga/restore y gate operativo siguen pendientes.
+
+## Evidencia AUTH-T09 — 2026-11-05
+
+Migración 0006 y auditoría/outbox de autenticación integradas y probadas. npm run check, npm run test:postgres, npm run build, npm run smoke y npm run test:browser aprobados en Windows con herramientas fijadas. La suite DB incorpora catorce pruebas superiores con subcasos; agrega historia/permisos, rollback por fallo de auditoría y logout concurrente idempotente. El binario HTTP y Chromium verifican presencia de eventos y ausencia de secretos en sus canales observados. No cambia la configuración runtime ni se añade una dependencia; aplicar migraciones con el CLI restringido antes de arrancar el binario nuevo. No se migró una base existente. [Referencia](../03-design/console-auth-audit.md) mantiene garantías y límites. AUTH-T10 es el siguiente incremento.

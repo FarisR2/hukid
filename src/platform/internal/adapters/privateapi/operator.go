@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"hukid.local/platform/internal/audit"
 	"hukid.local/platform/internal/authentication"
 	"hukid.local/platform/internal/tenancy"
 	"net/http"
@@ -60,7 +61,11 @@ func PrepareMethod(w http.ResponseWriter, r *http.Request, method string) bool {
 		Problem(w, authentication.ErrDependency, false)
 		return false
 	}
-	w.Header().Set("X-Correlation-Id", hex.EncodeToString(b))
+	id := audit.Correlation(r.Context())
+	if id == "" {
+		id = hex.EncodeToString(b)
+	}
+	w.Header().Set("X-Correlation-Id", id)
 	if r.Method != method {
 		w.Header().Set("Allow", method)
 		writeProblem(w, 405, "invalid_request", "Método no permitido")

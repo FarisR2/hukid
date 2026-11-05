@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"hukid.local/platform/internal/audit"
 	"net"
 	"net/http"
 	"net/url"
@@ -73,7 +74,11 @@ func (h *LoginHandler) serve(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusServiceUnavailable)
 		return
 	}
-	w.Header().Set("X-Correlation-Id", hex.EncodeToString(correlation))
+	id := audit.Correlation(r.Context())
+	if id == "" {
+		id = hex.EncodeToString(correlation)
+	}
+	w.Header().Set("X-Correlation-Id", id)
 	if r.Method != http.MethodGet {
 		w.Header().Set("Allow", "GET")
 		h.writeProblem(w, http.StatusMethodNotAllowed, "invalid_request", "Método no permitido")

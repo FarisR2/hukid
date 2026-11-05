@@ -146,4 +146,14 @@ func TestConsoleBrowser(t *testing.T) {
 	if err := cmd.Wait(); err != nil {
 		t.Fatal("browser acceptance failed")
 	}
+	assertAuthEvents(t, db)
+	var stored string
+	if err := db.admin.QueryRow(testContext, `SELECT COALESCE(string_agg(row_to_json(a)::text,''),'') FROM platform.audit_events a`).Scan(&stored); err != nil {
+		t.Fatal(err)
+	}
+	for _, secret := range []string{secrets["clientSecret"], secrets["interactionKey"], base64.StdEncoding.EncodeToString(key)} {
+		if secret != "" && (strings.Contains(apiLogs.String(), secret) || strings.Contains(stored, secret)) {
+			t.Fatal("browser secret leaked to audit/logs")
+		}
+	}
 }

@@ -223,6 +223,12 @@ func TestLoginHTTPWithRealOIDCAndPostgres(t *testing.T) {
 		if response.StatusCode != status || response.Header.Get("Location") != "" {
 			t.Fatalf("expected safe error %d, received %d", status, response.StatusCode)
 		}
+
+		var events int
+		if err := db.admin.QueryRow(testContext, `SELECT count(*) FROM platform.audit_events WHERE correlation_id=$1 AND action IN ('auth.request.denied','auth.request.failed') AND actor_operator_identity_id IS NULL AND tenant_id IS NULL`, response.Header.Get("X-Correlation-Id")).Scan(&events); err != nil || events != 1 {
+			t.Fatal("HTTP denial missing matching audit correlation")
+		}
+
 		for _, cookie := range response.Cookies() {
 			if cookie.Name == p.CookieName && cookie.Value != "" {
 				t.Fatal("failed callback emitted session")
@@ -734,6 +740,12 @@ func TestLoginHTTPWithRealOIDCAndPostgres(t *testing.T) {
 	})
 	t.Run("runtime_logs_exclude_secrets", func(t *testing.T) {
 		output := logs.String()
+		var stored string
+		if err := db.admin.QueryRow(testContext, `SELECT COALESCE(string_agg(row_to_json(a)::text,''),'') FROM platform.audit_events a`).Scan(&stored); err != nil {
+			t.Fatal(err)
+		}
+		output += stored
+		assertAuthEvents(t, db)
 		for _, secret := range secretValues {
 			if secret != "" && strings.Contains(output, secret) {
 				t.Fatal("authentication secret leaked into runtime logs")

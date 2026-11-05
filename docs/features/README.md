@@ -1,6 +1,6 @@
 # Features de la consola HukID
 
-Ámbito confirmado: consola administrativa del Team 5. AUTH-T01–T08 están implementadas y probadas para laboratorio; el resto conserva su backlog pendiente. No cambian el login de Events ni el bloqueo local de la wallet.
+Ámbito confirmado: consola administrativa del Team 5. AUTH-T01–T09 están implementadas y probadas para laboratorio; el resto conserva su backlog pendiente. No cambian el login de Events ni el bloqueo local de la wallet.
 
 Consola significa **panel web de administración**, con pantallas en el navegador. No significa ejecutar la operación del usuario final en una terminal. La [ruta global vigente](../05-delivery/implementation-plan.md) distingue estas features del [roadmap de emisión/verificación HukID](../05-delivery/hukid-roadmap.md). AUTH-T10 cierra autenticación; no entrega por sí sola miembros, dashboard ni verificación de documentos.
 
@@ -12,13 +12,13 @@ Consola significa **panel web de administración**, con pantallas en el navegado
 
 ## Secuencia y primer incremento
 
-1. AUTH-T01–T05 entregan entorno, contratos, [PostgreSQL](../03-design/console-persistence.md), [login/callback](../03-design/console-oidc-login.md) y [middleware operator y /me](../03-design/console-operator-context.md) de laboratorio. AUTH-T06 añade [ciclo de sesión, refresh/logout y purga](../03-design/console-session-lifecycle.md). AUTH-T07 añade [MFA/step-up y cambio de tenant](../03-design/console-reauthentication.md). AUTH-T08 conecta [interfaz y navegador](../03-design/console-auth-interface.md). El siguiente trabajo es AUTH-T09: auditoría/redacción integrada.
+1. AUTH-T01–T05 entregan entorno, contratos, [PostgreSQL](../03-design/console-persistence.md), [login/callback](../03-design/console-oidc-login.md) y [middleware operator y /me](../03-design/console-operator-context.md) de laboratorio. AUTH-T06 añade [ciclo de sesión, refresh/logout y purga](../03-design/console-session-lifecycle.md). AUTH-T07 añade [MFA/step-up y cambio de tenant](../03-design/console-reauthentication.md). AUTH-T08 conecta [interfaz y navegador](../03-design/console-auth-interface.md). AUTH-T09 añade [auditoría/redacción integrada](../03-design/console-auth-audit.md). El siguiente trabajo es AUTH-T10.
 2. AUTH-T03–T08 permiten iniciar sesión con un operador/tenant sintéticos provisionados para desarrollo.
 3. USR-T01–T08 reemplazan el fixture por administración real de miembros; no habilitar autoalta de tenants.
 4. DASH-T01–T04 entregan el shell y resumen del tenant. DASH-T05 conecta métricas de otros módulos cuando existan.
 5. Ejecutar los gates de cada paquete antes de declarar entrega.
 
-El siguiente incremento es AUTH-T09; después corresponde AUTH-T10 para cerrar FEAT-001. La ruta de entrega del panel conserva AUTH→USR→DASH y las dependencias específicas de cada tasks.md. El posible adelanto de un flujo de negocio HK es una propuesta de priorización que requiere alcance acordado; esta actualización no modifica el orden vigente.
+El siguiente incremento es AUTH-T10 para cerrar el gate de FEAT-001. La ruta de entrega del panel conserva AUTH→USR→DASH y las dependencias específicas de cada tasks.md. El posible adelanto de un flujo de negocio HK es una propuesta de priorización que requiere alcance acordado; esta actualización no modifica el orden vigente.
 
 La autenticación usa un registro mínimo de identidad/membership desde FEAT-001. FEAT-002 amplía ese registro; no existe una dependencia circular que obligue a construir un CRUD de usuarios antes del login.
 

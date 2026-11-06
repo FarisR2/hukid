@@ -508,7 +508,11 @@ func TestLoginHTTPWithRealOIDCAndPostgres(t *testing.T) {
 		// safe replay and live authorization all hit the same database commands.
 		mutate := func(path, body, key, etag, origin, csrf, token string, cookie *http.Cookie, status int) map[string]any {
 			t.Helper()
-			req, _ := http.NewRequest("POST", p.ConsoleOrigin+path, strings.NewReader(body))
+			method := "POST"
+			if strings.Contains(path, "/memberships/") {
+				method = "PATCH"
+			}
+			req, _ := http.NewRequest(method, p.ConsoleOrigin+path, strings.NewReader(body))
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("Idempotency-Key", key)
 			if etag != "" {
@@ -620,6 +624,39 @@ func TestLoginHTTPWithRealOIDCAndPostgres(t *testing.T) {
 		mustExec(t, db.admin, `UPDATE tenancy.membership_roles SET role='security_admin' WHERE membership_id=$1`, TestMemberA)
 		mutate(invites, body, "http_invite_create_001", "", "", "", secrets.AccessToken, nil, 403)
 		mustExec(t, db.admin, `UPDATE tenancy.membership_roles SET role='tenant_admin' WHERE membership_id=$1`, TestMemberA)
+		mustExec(t, db.admin, `INSERT INTO tenancy.operator_identities(operator_identity_id,oidc_issuer,subject) VALUES($1,$2,'synthetic-second-admin')`, TestActorPending, p.Issuer)
+		seedSecondAdmin(t, db)
+		memberPath := directory + "/" + testSecondAdmin
+		browserMember := browserDirectory + "/" + testSecondAdmin
+		patch := `{"state":"suspended","reasonCode":"security_response"}`
+		call(memberPath, secrets.AccessToken, nil, 405)
+		call(browserMember, "", sessionCookie, 405)
+		mutate(memberPath, patch, "http_member_patch_001", `"1"`, "", "", "", nil, 401)
+		mutate(browserMember, patch, "http_member_patch_001", `"1"`, "null", secrets.CSRF, "", sessionCookie, 403)
+		mutate(browserMember, patch, "http_member_patch_001", `"1"`, p.ConsoleOrigin, "bad", "", sessionCookie, 403)
+		mutate(memberPath, patch, "http_member_patch_001", "", "", "", secrets.AccessToken, nil, 428)
+		for _, etag := range []string{`W/"1"`, `*`, `"1","2"`, `"9007199254740992"`} {
+			mutate(memberPath, patch, "http_member_patch_001", etag, "", "", secrets.AccessToken, nil, 400)
+		}
+		mutate(memberPath, patch, "http_member_patch_001", `"2"`, "", "", secrets.AccessToken, nil, 412)
+		for _, input := range []string{`{}`, `{"reasonCode":"access_change"}`, `{"roles":["tenant_admin"],"reasonCode":"access_change"}`, `{"state":null,"reasonCode":"access_change"}`, `{"state":"","roles":["security_admin"],"issuerIds":[],"reasonCode":"access_change"}`, `{"state":"suspended","extra":true,"reasonCode":"access_change"}`} {
+			mutate(memberPath, input, "http_member_invalid_001", `"1"`, "", "", secrets.AccessToken, nil, 422)
+		}
+		mutate(memberPath, `{"state":"active","state":"suspended","reasonCode":"access_change"}`, "http_member_invalid_001", `"1"`, "", "", secrets.AccessToken, nil, 400)
+		mutate(memberPath, `{"roles":["issuer_operator"],"issuerIds":["70000000-0000-4000-8000-000000000001"],"reasonCode":"access_change"}`, "http_member_issuer_001", `"1"`, "", "", secrets.AccessToken, nil, 503)
+		changed := mutate(memberPath, patch, "http_member_patch_001", `"1"`, "", "", secrets.AccessToken, nil, 200)
+		replayedMember := mutate(browserMember, patch, "http_member_patch_001", `"1"`, p.ConsoleOrigin, secrets.CSRF, "", sessionCookie, 200)
+		if changed["revision"] != float64(2) || replayedMember["membershipId"] != changed["membershipId"] {
+			t.Fatal("PATCH transport/replay mismatch")
+		}
+		mutate(memberPath, `{"state":"active","reasonCode":"access_change"}`, "http_member_patch_001", `"1"`, "", "", secrets.AccessToken, nil, 409)
+		mutate(directory+"/"+TestMemberA, patch, "http_member_last_001", `"1"`, "", "", secrets.AccessToken, nil, 409)
+		mustExec(t, db.admin, `UPDATE tenancy.membership_roles SET role='security_admin' WHERE membership_id=$1`, TestMemberA)
+		mutate(memberPath, patch, "http_member_patch_001", `"1"`, "", "", secrets.AccessToken, nil, 403)
+		mustExec(t, db.admin, `UPDATE tenancy.membership_roles SET role='tenant_admin' WHERE membership_id=$1`, TestMemberA)
+		mutate(browserMember, `{"state":"active","reasonCode":"access_change"}`, "http_member_active_001", `"2"`, p.ConsoleOrigin, secrets.CSRF, "", sessionCookie, 200)
+		mutate(memberPath, `{"state":"revoked","reasonCode":"operator_request"}`, "http_member_revoke_001", `"3"`, "", "", secrets.AccessToken, nil, 200)
+		mutate(memberPath, `{"state":"active","reasonCode":"access_change"}`, "http_member_terminal_001", `"4"`, "", "", secrets.AccessToken, nil, 409)
 		secretValues = append(secretValues, "recipient@example.invalid", base64.StdEncoding.EncodeToString(invitationKey), base64.StdEncoding.EncodeToString(invitationMAC))
 		for _, role := range []string{"issuer_operator", "support_readonly"} {
 			mustExec(t, db.admin, `UPDATE tenancy.membership_roles SET role=$1 WHERE membership_id=$2`, role, TestMemberA)

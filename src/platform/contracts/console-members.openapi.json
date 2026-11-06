@@ -3,7 +3,7 @@
   "info": {
     "title": "HukID member management — USR-T01 contract baseline",
     "version": "0.1.0-draft",
-    "description": "Own contract for FEAT-002. USR-T03 implements four GET operations; USR-T04 implements four invitation create/revoke operations; USR-T05 implements two acceptance operations with server-side nonce-bound verified ID-token recipient evidence. Two membership PATCH operations remain contract-only. Test laboratory only: synthetic IdP/MFA/delivery, no production email provider. operator:read remains the token eligibility gate; local capabilities plus fresh verified MFA authorize admin writes."
+    "description": "Own contract for FEAT-002. USR-T03 implements four GET operations; USR-T04 implements four invitation create/revoke operations; USR-T05 implements two acceptance operations with server-side nonce-bound verified ID-token recipient evidence. USR-T06 implements both membership PATCH operations with live authorization, tenant locking, strong ETag and atomic audit/outbox. Nonempty issuer grants fail closed without an authoritative ownership source. Test laboratory only: synthetic IdP/MFA/delivery, no production email provider. operator:read remains the token eligibility gate; local capabilities plus fresh verified MFA authorize admin writes."
   },
   "servers": [
     {
@@ -648,7 +648,7 @@
             "$ref": "#/components/responses/Error503_dependency_unavailable"
           }
         },
-        "x-implementation-status": "contract-only",
+        "x-implementation-status": "implemented-test",
         "x-required-scopes": [
           "operator:read"
         ],
@@ -1362,7 +1362,7 @@
             "$ref": "#/components/responses/Error503_dependency_unavailable"
           }
         },
-        "x-implementation-status": "contract-only",
+        "x-implementation-status": "implemented-test",
         "x-required-scopes": [
           "operator:read"
         ],

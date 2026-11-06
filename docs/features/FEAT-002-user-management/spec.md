@@ -1,7 +1,7 @@
 # FEAT-002 — Gestión de miembros de tenant
 
 - Producto: HukID Console / Team 5.
-- Estado: USR-T01 materializa contrato/reglas y USR-T02 la [persistencia ampliada](../../03-design/console-members-persistence.md) de laboratorio; USR-T03 añade [lecturas autorizadas](../../03-design/console-members-directory.md); USR-T04 añade [creación/revocación y entrega cifrada sintética](../../03-design/console-invitation-delivery.md); USR-T05 añade [aceptación/reingreso con evidencia OIDC](../../03-design/console-invitation-acceptance.md); cambios de miembros y UI pendientes.
+- Estado: USR-T01 materializa contrato/reglas y USR-T02 la [persistencia ampliada](../../03-design/console-members-persistence.md) de laboratorio; USR-T03 añade [lecturas autorizadas](../../03-design/console-members-directory.md); USR-T04 añade [creación/revocación y entrega cifrada sintética](../../03-design/console-invitation-delivery.md); USR-T05 añade [aceptación/reingreso con evidencia OIDC](../../03-design/console-invitation-acceptance.md); USR-T06 añade [cambios de membresías con ETag](../../03-design/console-members-lifecycle.md); invalidación completa y UI pendientes.
 - Depende de: [FEAT-001](../FEAT-001-authentication/spec.md).
 - Salidas: [plan](plan.md), [tareas](tasks.md).
 

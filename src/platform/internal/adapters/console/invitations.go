@@ -16,16 +16,20 @@ type InvitationHandler struct {
 }
 
 func (h *InvitationHandler) Register(mux *http.ServeMux) {
-	for _, path := range []string{"/console/api/invitation-acceptances", "/console/api/tenants/{tenantId}/invitations", "/console/api/tenants/{tenantId}/invitations/{invitationId}/revocations"} {
+	for _, path := range []string{"/console/api/tenants/{tenantId}/memberships/{membershipId}", "/console/api/invitation-acceptances", "/console/api/tenants/{tenantId}/invitations", "/console/api/tenants/{tenantId}/invitations/{invitationId}/revocations"} {
 		pattern := path
-		if !strings.HasSuffix(path, "/revocations") && !strings.HasSuffix(path, "/invitation-acceptances") {
+		if !strings.Contains(path, "/memberships/") && !strings.HasSuffix(path, "/revocations") && !strings.HasSuffix(path, "/invitation-acceptances") {
 			pattern = "POST " + path
 		}
 		mux.HandleFunc(pattern, h.serve)
 	}
 }
 func (h *InvitationHandler) serve(w http.ResponseWriter, r *http.Request) {
-	if !privateapi.PrepareMethod(w, r, http.MethodPost) {
+	method := http.MethodPost
+	if r.PathValue("membershipId") != "" {
+		method = http.MethodPatch
+	}
+	if !privateapi.PrepareMethod(w, r, method) {
 		return
 	}
 	fail := func(err error) { privateapi.InvitationProblem(w, err, false) }

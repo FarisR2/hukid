@@ -19,6 +19,7 @@ var (
 const RefreshLease = 10 * time.Second
 
 type SessionRotation struct {
+	AccessHash                          []byte
 	SessionID                           string
 	CookieHash, CSRFHash, RefreshDigest []byte
 	Secrets                             Envelope
@@ -131,7 +132,7 @@ func (s *SessionLifecycle) Refresh(ctx context.Context, cookie, csrf string) (Re
 	if v.AbsoluteExpiresAt.Before(idle) {
 		idle = v.AbsoluteExpiresAt
 	}
-	next := SessionRotation{SessionID: id, CookieHash: Digest(nextCookie), CSRFHash: Digest(nextCSRF), RefreshDigest: Digest(identity.RefreshToken), Secrets: envelope, IdleExpiresAt: idle}
+	next := SessionRotation{AccessHash: Digest(identity.AccessToken), SessionID: id, CookieHash: Digest(nextCookie), CSRFHash: Digest(nextCSRF), RefreshDigest: Digest(identity.RefreshToken), Secrets: envelope, IdleExpiresAt: idle}
 	if err := s.Store.FinishRefresh(ctx, v, lease, next, now); err != nil {
 		return RefreshedSession{}, err
 	}

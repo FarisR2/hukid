@@ -75,7 +75,7 @@ func (s *LoginService) completeStepUp(ctx context.Context, tx LoginTransaction, 
 	if s.Policy.CheckMFA(identity.AuthTime, now, identity.AMR, identity.ACR, true) != nil {
 		return LoginComplete{}, ErrMFA
 	}
-	rotation, cookie, err := s.rotation(old, identity.AccessToken, identity.RefreshToken, identity.NonceHash, now)
+	rotation, cookie, err := s.rotation(old, identity.AccessToken, identity.RefreshToken, identity.NonceHash, now, identity.Recipient)
 	if err != nil {
 		return LoginComplete{}, err
 	}
@@ -86,7 +86,7 @@ func (s *LoginService) completeStepUp(ctx context.Context, tx LoginTransaction, 
 }
 
 // rotation also changes CSRF and the authenticated encryption AAD on context switches.
-func (s *LoginService) rotation(old ReadSession, access, refresh string, nonce []byte, now time.Time) (SessionRotation, string, error) {
+func (s *LoginService) rotation(old ReadSession, access, refresh string, nonce []byte, now time.Time, recipient *RecipientEvidence) (SessionRotation, string, error) {
 	if access == "" || refresh == "" {
 		return SessionRotation{}, "", ErrCallback
 	}
@@ -102,7 +102,7 @@ func (s *LoginService) rotation(old ReadSession, access, refresh string, nonce [
 	if err != nil {
 		return SessionRotation{}, "", err
 	}
-	plain, err := encodeSecrets(access, refresh, csrf, nonce)
+	plain, err := encodeRecipientSecrets(access, refresh, csrf, nonce, recipient)
 	if err != nil {
 		return SessionRotation{}, "", ErrDependency
 	}
@@ -115,7 +115,7 @@ func (s *LoginService) rotation(old ReadSession, access, refresh string, nonce [
 	if old.AbsoluteExpiresAt.Before(idle) {
 		idle = old.AbsoluteExpiresAt
 	}
-	return SessionRotation{SessionID: id, CookieHash: Digest(cookie), CSRFHash: Digest(csrf), RefreshDigest: Digest(refresh), Secrets: envelope, IdleExpiresAt: idle}, cookie, nil
+	return SessionRotation{AccessHash: Digest(access), SessionID: id, CookieHash: Digest(cookie), CSRFHash: Digest(csrf), RefreshDigest: Digest(refresh), Secrets: envelope, IdleExpiresAt: idle}, cookie, nil
 }
 
 // SelectContext accepts an already resolved server-side membership. The next
@@ -129,7 +129,7 @@ func (s *LoginService) SelectContext(ctx context.Context, cookie, csrf string, s
 	if err != nil {
 		return RefreshedSession{}, err
 	}
-	next, nextCookie, err := s.rotation(old, secrets.AccessToken, secrets.RefreshToken, secrets.OIDCNonceHash, s.Now())
+	next, nextCookie, err := s.rotation(old, secrets.AccessToken, secrets.RefreshToken, secrets.OIDCNonceHash, s.Now(), secrets.Recipient)
 	if err != nil {
 		return RefreshedSession{}, err
 	}

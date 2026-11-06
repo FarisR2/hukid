@@ -97,7 +97,8 @@ func configureDirectory(ctx context.Context, operators *privateapi.Handler, me *
 	}
 	store := &postgres.InvitationStore{Pool: pool, Now: time.Now, Policy: config.Policy}
 	service := &tenancy.InvitationService{Store: store, Cipher: box, HMACKey: append([]byte(nil), secrets.HMAC...), Random: rand.Reader, Policy: config.Policy}
-	writes := &privateapi.InvitationHandler{Operators: operators, Verifier: verifier, Service: service}
+	acceptance := &tenancy.AcceptanceService{Store: store, Policy: config.Policy, HMACKey: service.HMACKey, Now: time.Now}
+	writes := &privateapi.InvitationHandler{Operators: operators, Verifier: verifier, Service: service, Acceptance: acceptance, Recipients: me.Sessions}
 	bff := &consolehttp.InvitationHandler{Auth: me, Management: writes}
 	return func(mux *http.ServeMux) {
 		management.Register(mux)

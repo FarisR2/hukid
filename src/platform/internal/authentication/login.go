@@ -43,8 +43,15 @@ type LoginTransaction struct {
 	CreatedAt, ExpiresAt                        time.Time
 }
 
+// RecipientEvidence comes only from a nonce-bound ID token in Code/PKCE.
+type RecipientEvidence struct {
+	Issuer, Subject, Email        string
+	IssuedAt, AuthTime, ExpiresAt time.Time
+}
+
 // VerifiedLogin contains evidence verified by the OIDC adapter, never HTTP DTOs.
 type VerifiedLogin struct {
+	Recipient                                       *RecipientEvidence
 	Issuer, Subject, AccessToken, RefreshToken, ACR string
 	AMR                                             []string
 	AuthTime                                        time.Time
@@ -57,6 +64,7 @@ type OIDC interface {
 }
 
 type InitialSession struct {
+	AccessHash                                  []byte
 	FamilyID, SessionID, PolicyVersion          string
 	CookieHash, CSRFHash, RefreshDigest         []byte
 	Secrets                                     Envelope
@@ -241,7 +249,7 @@ func (s *LoginService) createSession(ctx context.Context, returnTo string, ident
 	if err != nil {
 		return LoginComplete{}, err
 	}
-	secrets, err := encodeSecrets(identity.AccessToken, identity.RefreshToken, csrf, identity.NonceHash)
+	secrets, err := encodeRecipientSecrets(identity.AccessToken, identity.RefreshToken, csrf, identity.NonceHash, identity.Recipient)
 	if err != nil {
 		return LoginComplete{}, ErrDependency
 	}
@@ -258,7 +266,7 @@ func (s *LoginService) createSession(ctx context.Context, returnTo string, ident
 	if absolute.Before(idle) {
 		idle = absolute
 	}
-	session := InitialSession{FamilyID: family, SessionID: id, PolicyVersion: "auth-test-v1", CookieHash: Digest(cookie), CSRFHash: Digest(csrf), RefreshDigest: Digest(identity.RefreshToken), Secrets: envelope, CreatedAt: now, IdleExpiresAt: idle, AbsoluteExpiresAt: absolute, Identity: identity}
+	session := InitialSession{AccessHash: Digest(identity.AccessToken), FamilyID: family, SessionID: id, PolicyVersion: "auth-test-v1", CookieHash: Digest(cookie), CSRFHash: Digest(csrf), RefreshDigest: Digest(identity.RefreshToken), Secrets: envelope, CreatedAt: now, IdleExpiresAt: idle, AbsoluteExpiresAt: absolute, Identity: identity}
 	if err := s.Store.CreateInitialSession(ctx, session); err != nil {
 		return LoginComplete{}, ErrDependency
 	}

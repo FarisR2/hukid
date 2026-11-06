@@ -25,6 +25,7 @@ import (
 
 	"hukid.local/platform/internal/adapters/secretbox"
 	a "hukid.local/platform/internal/authentication"
+	"hukid.local/platform/internal/tenancy"
 )
 
 type capturedLogs struct {
@@ -550,6 +551,51 @@ func TestLoginHTTPWithRealOIDCAndPostgres(t *testing.T) {
 			return result
 		}
 		body := `{"email":"recipient@example.invalid","roles":["support_readonly"],"issuerIds":[]}`
+		// Acceptance requires no prior membership or selected tenant. The email
+		// evidence comes from the real nonce-bound ID token held by this server.
+		const acceptanceTenant = "10000000-0000-4000-8000-000000000099"
+		const invitationAdmin = "20000000-0000-4000-8000-000000000099"
+		mustExec(t, db.admin, `INSERT INTO tenancy.tenants(tenant_id,display_name) VALUES($1,'Acceptance lab')`, acceptanceTenant)
+		mustExec(t, db.admin, `INSERT INTO tenancy.operator_identities(operator_identity_id,oidc_issuer,subject) VALUES($1,$2,'synthetic-inviter')`, invitationAdmin, p.Issuer)
+		mustExec(t, db.admin, `INSERT INTO tenancy.memberships(tenant_id,operator_identity_id) VALUES($1,$2)`, acceptanceTenant, invitationAdmin)
+		mustExec(t, db.admin, `INSERT INTO tenancy.membership_roles(tenant_id,membership_id,role) SELECT tenant_id,membership_id,'tenant_admin' FROM tenancy.memberships WHERE tenant_id=$1`, acceptanceTenant)
+		policyFile, e := os.Open(membersPolicy)
+		if e != nil {
+			t.Fatal(e)
+		}
+		acceptancePolicy, e := tenancy.LoadMembershipPolicy(policyFile, "test")
+		policyFile.Close()
+		if e != nil {
+			t.Fatal(e)
+		}
+		invitationBox, e := secretbox.New(invitationKey, "http-invitation-test", rand.Reader)
+		if e != nil {
+			t.Fatal(e)
+		}
+		invitationService := &tenancy.InvitationService{Store: &InvitationStore{Pool: membersPool, Now: time.Now, Policy: acceptancePolicy}, Cipher: invitationBox, HMACKey: invitationMAC, Random: rand.Reader, Policy: acceptancePolicy}
+		command := inviteCommand(time.Now(), "http_accept_invite_001")
+		command.Actor = invitationAdmin
+		command.Tenant = acceptanceTenant
+		invitation := mustInvite(t, invitationService, command)
+		acceptanceSecret := acceptanceToken(t, db, invitationService, invitation)
+		secretValues = append(secretValues, acceptanceSecret, "Lab+recipient@example.invalid")
+		acceptBody := `{"token":"` + acceptanceSecret + `"}`
+		acceptPath := "/v1/operator/invitation-acceptances"
+		browserAccept := "/console/api/invitation-acceptances"
+		call(acceptPath, secrets.AccessToken, nil, 405)
+		call(browserAccept, "", sessionCookie, 405)
+		mutate(acceptPath, acceptBody, "http_accept_key_001", "", "", "", "", sessionCookie, 401)
+		mutate(browserAccept, acceptBody, "http_accept_key_001", "", "null", secrets.CSRF, "", sessionCookie, 403)
+		mutate(browserAccept, acceptBody, "http_accept_key_001", "", p.ConsoleOrigin, "bad", "", sessionCookie, 403)
+		mutate(acceptPath, `{"token":"`+acceptanceSecret+`","email":"injected@example.invalid"}`, "http_accept_key_001", "", "", "", secrets.AccessToken, nil, 422)
+		accepted := mutate(acceptPath, acceptBody, "http_accept_key_001", "", "", "", secrets.AccessToken, nil, 200)
+		mustExec(t, db.admin, `UPDATE console_auth.sessions SET active_tenant_id=NULL,authorization_revision=NULL WHERE cookie_hash=$1`, a.Digest(sessionCookie.Value))
+		acceptedReplay := mutate(browserAccept, acceptBody, "http_accept_key_001", "", p.ConsoleOrigin, secrets.CSRF, "", sessionCookie, 200)
+		if accepted["tenantId"] != acceptanceTenant || acceptedReplay["membership"].(map[string]any)["membershipId"] != accepted["membership"].(map[string]any)["membershipId"] {
+			t.Fatal("acceptance transport mismatch")
+		}
+		mutate(acceptPath, acceptBody, "http_accept_key_002", "", "", "", secrets.AccessToken, nil, 409)
+		mustExec(t, db.admin, `UPDATE console_auth.sessions SET active_tenant_id=$1,authorization_revision=1 WHERE cookie_hash=$2`, TestTenantA, a.Digest(sessionCookie.Value))
 		browserInvites := strings.Replace(browserDirectory, "memberships", "invitations", 1)
 		mutate(invites, body, "http_invite_missing_001", "", "", "", "", sessionCookie, 401)
 		mutate(browserInvites, body, "http_invite_origin_001", "", "null", secrets.CSRF, "", sessionCookie, 403)
@@ -828,6 +874,26 @@ func TestLoginHTTPWithRealOIDCAndPostgres(t *testing.T) {
 		}
 		if me.StatusCode != 200 || json.NewDecoder(me.Body).Decode(&body) != nil || body.CSRF == csrf || body.CSRF == "" {
 			t.Fatal("rotated session not usable")
+		}
+		// Refresh does not turn its optional ID token into a new Code/PKCE
+		// recipient proof. Missing evidence fails before token lookup/decoding.
+		proofRequest, _ := http.NewRequest("POST", p.ConsoleOrigin+"/console/api/invitation-acceptances", strings.NewReader(`{"token":"invalid"}`))
+		proofRequest.AddCookie(next)
+		proofRequest.Header.Set("Origin", p.ConsoleOrigin)
+		proofRequest.Header.Set("X-CSRF-Token", body.CSRF)
+		proofRequest.Header.Set("Content-Type", "application/json")
+		proofRequest.Header.Set("Idempotency-Key", "refresh_recipient_proof_001")
+		proofResponse, proofErr := client.Do(proofRequest)
+		if proofErr != nil {
+			t.Fatal(proofErr)
+		}
+		var proofProblem struct {
+			Code string `json:"code"`
+		}
+		decodeErr := json.NewDecoder(proofResponse.Body).Decode(&proofProblem)
+		proofResponse.Body.Close()
+		if decodeErr != nil || proofResponse.StatusCode != 403 || proofProblem.Code != "recipient_unverified" {
+			t.Fatal("refresh renewed recipient evidence")
 		}
 		for range 2 {
 			secretValues = append(secretValues, next.Value, body.CSRF)

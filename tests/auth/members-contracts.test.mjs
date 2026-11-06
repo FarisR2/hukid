@@ -17,14 +17,14 @@ ajv.addSchema(schema);
 const check=name=>ajv.compile({$ref:schema.$id+'#/$defs/'+name});
 const operations=Object.entries(contract.paths).flatMap(([route,methods])=>Object.entries(methods).map(([method,op])=>({route,method,op})));
 
-test('USR contract resolves 12 operations: eight implemented test operations and four contract-only mutations',async()=>{
+test('USR contract resolves 12 operations: ten implemented test operations and two contract-only mutations',async()=>{
   await SwaggerParser.validate(fileURLToPath(new URL('src/platform/contracts/console-members.openapi.json',root)));
   assert.equal(operations.length,12);
   assert.equal(new Set(operations.map(({op})=>op.operationId)).size,12);
   const matrix=read('src/platform/contracts/capabilities.json');
   assert.deepEqual(schema.$defs.Role.enum,Object.keys(matrix.roles).sort());
   for(const {route,method,op} of operations){
-    assert.equal(op['x-implementation-status'],(method==='get'||route.endsWith('/invitations')||route.endsWith('/revocations'))?'implemented-test':'contract-only');
+    assert.equal(op['x-implementation-status'],(method==='get'||route.endsWith('/invitations')||route.endsWith('/revocations')||route.endsWith('/invitation-acceptances'))?'implemented-test':'contract-only');
     if(method==='get')assert.ok(op.responses['422']);
     assert.deepEqual(op['x-required-scopes'],['operator:read']);
     const browser=route.startsWith('/console/'),mutation=method!=='get';

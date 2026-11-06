@@ -119,6 +119,8 @@ func (c *Client) Exchange(ctx context.Context, code, verifier string, nonceHash 
 }
 
 type evidence struct {
+	Email           string          `json:"email"`
+	EmailVerified   json.RawMessage `json:"email_verified"`
 	Issuer          string          `json:"iss"`
 	Subject         string          `json:"sub"`
 	Audience        json.RawMessage `json:"aud"`
@@ -202,7 +204,11 @@ func (c *Client) Validate(ctx context.Context, rawID, access string, nonceHash [
 	if c.policy.CheckMFA(time.Unix(ae.AuthTime, 0), c.now(), ae.AMR, ae.ACR, false) != nil {
 		return authentication.VerifiedLogin{}, authentication.ErrMFA
 	}
-	return authentication.VerifiedLogin{Issuer: ae.Issuer, Subject: ae.Subject, AuthTime: time.Unix(ae.AuthTime, 0), AMR: ae.AMR, ACR: ae.ACR}, nil
+	var recipient *authentication.RecipientEvidence
+	if string(ie.EmailVerified) == "true" && ie.Email != "" {
+		recipient = &authentication.RecipientEvidence{Issuer: ie.Issuer, Subject: ie.Subject, Email: ie.Email, IssuedAt: time.Unix(ie.Issued, 0), AuthTime: time.Unix(ie.AuthTime, 0), ExpiresAt: time.Unix(ie.Expires, 0)}
+	}
+	return authentication.VerifiedLogin{Recipient: recipient, Issuer: ae.Issuer, Subject: ae.Subject, AuthTime: time.Unix(ae.AuthTime, 0), AMR: ae.AMR, ACR: ae.ACR}, nil
 }
 
 // VerifyOperator accepts access authority alone; an ID token can never substitute it.

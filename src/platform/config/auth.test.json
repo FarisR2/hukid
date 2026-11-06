@@ -19,5 +19,5 @@
   "requiredAmr": ["pwd", "otp"],
   "acceptedAcr": ["urn:hukid:test:mfa"],
   "allowedReturnTo": ["/"],
-  "scopes": ["openid", "offline_access", "operator:read"]
+  "scopes": ["openid", "email", "offline_access", "operator:read"]
 }

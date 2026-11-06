@@ -129,6 +129,9 @@ func (s *LoginStore) FinishRefresh(ctx context.Context, old a.ReadSession, lease
 		return a.ErrSession
 	}
 	_, err = tx.Exec(ctx, `INSERT INTO console_auth.sessions(session_id,family_id,operator_identity_id,generation,cookie_hash,csrf_hash,created_at,last_seen_at,idle_expires_at,absolute_expires_at,active_tenant_id,authorization_revision,secret_ciphertext,secret_nonce,secret_key_version,refresh_digest) SELECT $3,family_id,operator_identity_id,generation+1,$4,$5,$6,$6,$7,absolute_expires_at,active_tenant_id,authorization_revision,$8,$9,$10,$11 FROM console_auth.sessions WHERE family_id=$1 AND generation=$2`, old.FamilyID, old.Generation, next.SessionID, next.CookieHash, next.CSRFHash, now, next.IdleExpiresAt, next.Secrets.Ciphertext, next.Secrets.Nonce, next.Secrets.KeyVersion, next.RefreshDigest)
+	if err == nil {
+		_, err = tx.Exec(ctx, `UPDATE console_auth.sessions SET access_hash=$2 WHERE session_id=$1`, next.SessionID, next.AccessHash)
+	}
 	if err != nil {
 		return a.ErrDependency
 	}

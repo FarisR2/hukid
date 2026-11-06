@@ -79,7 +79,7 @@ func (p Policy) Validate(environment string) error {
 	if p.ClockSkewSeconds > 60 || p.ClockSkewSeconds >= p.AccessTokenSeconds || p.AccessTokenSeconds > p.SessionIdleSeconds || p.SessionIdleSeconds > p.SessionAbsoluteSeconds || p.RefreshTokenSeconds > p.SessionAbsoluteSeconds || p.StepUpSeconds > p.SessionIdleSeconds || p.TransactionSeconds > p.SessionIdleSeconds || p.LoginRateLimit.MaxAttempts < 1 || p.LoginRateLimit.MaxAttempts > 100 {
 		return invalid
 	}
-	if !slices.Equal(p.RequiredAMR, []string{"pwd", "otp"}) || !slices.Equal(p.AcceptedACR, []string{"urn:hukid:test:mfa"}) || !slices.Equal(p.AllowedReturnTo, []string{"/"}) || !slices.Equal(p.Scopes, []string{"openid", "offline_access", "operator:read"}) {
+	if !slices.Equal(p.RequiredAMR, []string{"pwd", "otp"}) || !slices.Equal(p.AcceptedACR, []string{"urn:hukid:test:mfa"}) || !slices.Equal(p.AllowedReturnTo, []string{"/"}) || !slices.Equal(p.Scopes, []string{"openid", "email", "offline_access", "operator:read"}) {
 		return invalid
 	}
 	return nil

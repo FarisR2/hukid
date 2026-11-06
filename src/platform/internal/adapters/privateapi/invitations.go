@@ -20,6 +20,7 @@ type InvitationVerifier interface {
 	VerifyInvitationOperator(context.Context, string) (a.Operator, time.Time, error)
 }
 type InvitationHandler struct {
+	Members    *tenancy.MembershipService
 	Acceptance *tenancy.AcceptanceService
 	Recipients *a.SessionService
 	Operators  *Handler
@@ -28,13 +29,17 @@ type InvitationHandler struct {
 }
 
 func (h *InvitationHandler) Register(mux *http.ServeMux) {
-	for _, path := range []string{"/v1/operator/invitation-acceptances", "/v1/operator/tenants/{tenantId}/invitations", "/v1/operator/tenants/{tenantId}/invitations/{invitationId}/revocations"} {
+	for _, path := range []string{"/v1/operator/tenants/{tenantId}/memberships/{membershipId}", "/v1/operator/invitation-acceptances", "/v1/operator/tenants/{tenantId}/invitations", "/v1/operator/tenants/{tenantId}/invitations/{invitationId}/revocations"} {
 		pattern := path
-		if !strings.HasSuffix(path, "/revocations") && !strings.HasSuffix(path, "/invitation-acceptances") {
+		if !strings.Contains(path, "/memberships/") && !strings.HasSuffix(path, "/revocations") && !strings.HasSuffix(path, "/invitation-acceptances") {
 			pattern = "POST " + path
 		}
 		mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
-			if !PrepareMethod(w, r, http.MethodPost) {
+			method := http.MethodPost
+			if r.PathValue("membershipId") != "" {
+				method = http.MethodPatch
+			}
+			if !PrepareMethod(w, r, method) {
 				return
 			}
 			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
@@ -68,6 +73,10 @@ func (h *InvitationHandler) Authenticate(w http.ResponseWriter, r *http.Request,
 	}
 	if sessionActor != "" && identity.ActorID != sessionActor {
 		InvitationProblem(w, a.ErrSession, bearer)
+		return
+	}
+	if r.PathValue("membershipId") != "" {
+		h.changeMembership(w, r, identity.ActorID, deadline, bearer)
 		return
 	}
 	c := tenancy.InvitationCommand{Actor: identity.ActorID, Tenant: r.PathValue("tenantId"), InvitationID: r.PathValue("invitationId"), PrivilegeDeadline: deadline, Operation: "invitation.create"}
@@ -166,7 +175,9 @@ func decodeInvitation(w http.ResponseWriter, r *http.Request, dest any, fields [
 		writeProblem(w, 400, "invalid_request", "JSON inválido")
 		return false
 	}
-	if len(seen) != len(fields) {
+	_, patch := dest.(*tenancy.ChangeMembershipInput)
+	_, hasReason := seen["reasonCode"]
+	if !patch && len(seen) != len(fields) || patch && !hasReason {
 		writeProblem(w, 422, "invalid_input", "Campos inválidos")
 		return false
 	}
@@ -181,10 +192,18 @@ func decodeInvitation(w http.ResponseWriter, r *http.Request, dest any, fields [
 		writeProblem(w, 422, "invalid_input", "Campos inválidos")
 		return false
 	}
+	if patch {
+		if _, present := seen["state"]; present && dest.(*tenancy.ChangeMembershipInput).State == "" {
+			writeProblem(w, 422, "invalid_input", "Estado inválido")
+			return false
+		}
+	}
 	return true
 }
 func InvitationProblem(w http.ResponseWriter, err error, bearer bool) {
 	switch {
+	case errors.Is(err, tenancy.ErrLastAdmin):
+		writeProblem(w, 409, "last_admin_required", "Se requiere administrador activo")
 	case errors.Is(err, a.ErrRecipient):
 		writeProblem(w, 403, "recipient_unverified", "Se requiere identidad verificada")
 	case errors.Is(err, tenancy.ErrInvitationInvalid):
@@ -200,7 +219,7 @@ func InvitationProblem(w http.ResponseWriter, err error, bearer bool) {
 		writeProblem(w, 409, "idempotency_conflict", "Clave reutilizada")
 	case errors.Is(err, tenancy.ErrInvitationState):
 		writeProblem(w, 409, "invitation_not_pending", "Invitación no pendiente")
-	case errors.Is(err, tenancy.ErrInvitationRevision):
+	case errors.Is(err, tenancy.ErrInvitationRevision), errors.Is(err, tenancy.ErrMemberRevision):
 		writeProblem(w, 412, "revision_mismatch", "Revisión obsoleta")
 	case errors.Is(err, a.ErrStepUp), errors.Is(err, a.ErrMFA):
 		writeProblem(w, 403, "mfa_required", "Se requiere MFA reciente")

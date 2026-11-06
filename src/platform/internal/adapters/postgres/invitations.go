@@ -29,7 +29,7 @@ func authorizeInvitation(ctx context.Context, tx pgx.Tx, actor, tenant, capabili
 	if err != nil {
 		return err
 	}
-	// Both write capabilities are exclusive to tenant_admin in the single matrix.
+	// Administrative write capabilities are exclusive to tenant_admin in the single matrix.
 	if !tenancy.MemberCapabilityAllowed(roles, capability) {
 		return tenancy.ErrDirectoryForbidden
 	}

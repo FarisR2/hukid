@@ -1,4 +1,4 @@
-// Package dashboard defines contract rules only; no operational sources are connected.
+// Package dashboard defines authorized read use cases and dashboard contract rules.
 package dashboard
 
 import (

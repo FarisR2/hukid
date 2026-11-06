@@ -163,3 +163,9 @@ USR-T01–T09 quedan completas en laboratorio; siguiente DASH-T01. Permanecen pe
 [Contrato de dashboard](../03-design/console-dashboard-contract.md), OpenAPI de cuatro lecturas contract-only, schemas estrictos, catálogo de métricas/capacidades reservadas, política test, fixtures sintéticos y reglas Go de filtros UTC. No amplía grants AUTH/USR ni añade tablas, handlers, credenciales SQL, fuentes conectadas o UI. DASH-T02/03 deben implementar autorización viva, consultas, cursor autenticado y perímetro HTTP; DASH-T04 interfaz.
 
 La auditoría actual no atribuye issuer y los eventos globales no son actividad tenant. No se inventa esa atribución. status:read queda reservada sin asignación a roles; los dominios futuros requieren ownership y política propios. Las pruebas de contrato no acreditan aislamiento DB/HTTP ni datos operativos. Perfil draft, roadmap HK y bloqueos productivos sin cambios.
+
+## Incremento DASH-T02
+
+[Lectura base autorizada](../03-design/console-dashboard-reads.md) y [ADR-0020](../decisions/ADR-0020.md): caso de uso, conteo tenancy, actividad audit mínima y migración aditiva 0011 con credencial separada/RLS. Revalida contexto y consulta en snapshot de sólo lectura; no usa fixtures operativos, no lee secretos ni genera audit/outbox al consultar.
+
+DASH-T03 conserva handlers/BFF, configuración del pool, cursor autenticado, no-store/correlación y observación HTTP; DASH-T04 UI; DASH-T05 fuentes futuras. Ownership/atribución issuer ausentes: no se inventan y los selectores/conjuntos que requieren ownership fallan cerrados. La evidencia PostgreSQL no acredita HTTP dashboard, navegador nuevo, carga/SLO, CI remoto, producción ni cierre del roadmap HK.

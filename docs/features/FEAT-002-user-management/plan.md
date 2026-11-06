@@ -52,7 +52,7 @@ Invite token se genera con CSPRNG, se guarda hasheado para canje y se transporta
 | U1 — Lectura/aislamiento | U0 | Lecturas API/BFF con filtros/cursor y roles negativos probados en USR-T03; tabla visual pendiente USR-T08. |
 | U2 — Invitación vertical | U1 + worker/IdP test | Admin invita, entrega sintética, identidad correcta acepta una vez. |
 | U3 — Ciclo de acceso | U2 | Roles/suspensión/revocación y último admin bajo concurrencia. |
-| U4 — UI y entrega | U3 | Journey con 412/403/expiración, auditoría y revalidación de sesión. |
+| U4 — UI y entrega | U3 | [UI USR-T08](../../03-design/console-members-interface.md) con journey, 412/403/expiración y revalidación; gate integral/auditoría USR-T09 pendiente. |
 
 ## Pruebas y reversión
 

@@ -2,7 +2,7 @@
 
 Los backlogs originales se conservan completos con sus IDs y criterios de aceptación. El índice informa 163 historias; el conteo no mide esfuerzo ni confirma implementación.
 
-La [consola HukID](../features/README.md) dispone de paquetes FEAT-001/002/003 con requisitos, planes y tareas. Detallan y amplían la foundation HK; no modifican los IDs ni el conteo de historias originales. AUTH-T01–T05 implementan bootstrap, contratos, persistencia, [login/callback](../03-design/console-oidc-login.md) y [autorización operator con /me](../03-design/console-operator-context.md) de laboratorio. AUTH-T06/T07 añaden ciclo de sesión y [step-up/contexto](../03-design/console-reauthentication.md) de laboratorio. AUTH-T08 conecta [interfaz y navegador](../03-design/console-auth-interface.md); miembros y dashboard siguen pendientes.
+La [consola HukID](../features/README.md) dispone de paquetes FEAT-001/002/003 con requisitos, planes y tareas. Detallan y amplían la foundation HK; no modifican los IDs ni el conteo de historias originales. AUTH-T01–T05 implementan bootstrap, contratos, persistencia, [login/callback](../03-design/console-oidc-login.md) y [autorización operator con /me](../03-design/console-operator-context.md) de laboratorio. AUTH-T06/T07 añaden ciclo de sesión y [step-up/contexto](../03-design/console-reauthentication.md) de laboratorio. AUTH-T08 conecta [interfaz y navegador](../03-design/console-auth-interface.md); USR-T01–T08 conectan [gestión de miembros e invitaciones](../03-design/console-members-interface.md); gate USR-T09 y dashboard siguen pendientes.
 
 | Equipo | Responsabilidad | Backlog | Historias declaradas |
 | --- | --- | --- | ---: |

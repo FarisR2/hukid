@@ -4,6 +4,7 @@ package postgres
 
 import (
 	"bufio"
+	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
@@ -15,7 +16,9 @@ import (
 	"testing"
 	"time"
 
+	"hukid.local/platform/internal/adapters/secretbox"
 	a "hukid.local/platform/internal/authentication"
+	"hukid.local/platform/internal/tenancy"
 )
 
 // The browser suite owns every service and database. No existing app is used.
@@ -25,6 +28,7 @@ func TestConsoleBrowser(t *testing.T) {
 	pool := db.pool(t, "hukid_session_runtime")
 	discovery := db.pool(t, "hukid_context_runtime")
 	tenantPool := db.pool(t, "hukid_tenant_runtime")
+	membersPool := db.pool(t, "hukid_members_runtime")
 	f, err := os.Open("../../../config/auth.test.json")
 	if err != nil {
 		t.Fatal(err)
@@ -52,6 +56,27 @@ func TestConsoleBrowser(t *testing.T) {
 	if _, err := rand.Read(key); err != nil {
 		t.Fatal(err)
 	}
+	invitationKey, cursorKey, macKey := make([]byte, 32), make([]byte, 32), make([]byte, 32)
+	for _, material := range [][]byte{invitationKey, cursorKey, macKey} {
+		if _, err := rand.Read(material); err != nil {
+			t.Fatal(err)
+		}
+	}
+	membersPolicyPath := filepath.Join(root, "src", "platform", "config", "user-management.test.json")
+	membersFile, err := os.Open(membersPolicyPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	membersPolicy, err := tenancy.LoadMembershipPolicy(membersFile, "test")
+	membersFile.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	invitationBox, err := secretbox.New(invitationKey, "browser-invitation", rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	invitationStore := &InvitationStore{Pool: membersPool, Now: time.Now, Policy: membersPolicy}
 	binary := filepath.Join(root, ".cache", "build", "hukid-api")
 	if os.PathSeparator == '\\' {
 		binary += ".exe"
@@ -61,7 +86,11 @@ func TestConsoleBrowser(t *testing.T) {
 		"HUKID_CONSOLE_PROXY_ORIGIN="+p.ConsoleOrigin,
 		"HUKID_SESSION_DATABASE_URL="+pool.Config().ConnString(), "HUKID_CONTEXT_DATABASE_URL="+discovery.Config().ConnString(),
 		"HUKID_TENANT_DATABASE_URL="+tenantPool.Config().ConnString(), "HUKID_OIDC_CLIENT_SECRET="+secrets["clientSecret"],
-		"HUKID_AUTH_KEY="+base64.StdEncoding.EncodeToString(key), "HUKID_AUTH_KEY_VERSION=browser-test")
+		"HUKID_AUTH_KEY="+base64.StdEncoding.EncodeToString(key), "HUKID_AUTH_KEY_VERSION=browser-test",
+		"HUKID_MEMBERS_DATABASE_URL="+membersPool.Config().ConnString(), "HUKID_MEMBERS_POLICY="+membersPolicyPath,
+		"HUKID_MEMBERS_CURSOR_KEY="+base64.StdEncoding.EncodeToString(cursorKey),
+		"HUKID_INVITATION_KEY="+base64.StdEncoding.EncodeToString(invitationKey), "HUKID_INVITATION_KEY_VERSION=browser-invitation",
+		"HUKID_INVITATION_HMAC_KEY="+base64.StdEncoding.EncodeToString(macKey))
 	apiLogs := &capturedLogs{}
 	api.Stdout, api.Stderr = apiLogs, apiLogs
 	for _, proxyOrigin := range []string{"", "http://127.0.0.1:1"} {
@@ -110,6 +139,7 @@ func TestConsoleBrowser(t *testing.T) {
 	}
 	cmd := exec.Command(python, filepath.Join(root, "tests", "browser", "authentication.py"))
 	cmd.Dir = root
+	cmd.Env = append(os.Environ(), "PYTHONDONTWRITEBYTECODE=1")
 	input, _ := cmd.StdinPipe()
 	output, _ := cmd.StdoutPipe()
 	cmd.Stderr = os.Stderr
@@ -119,9 +149,31 @@ func TestConsoleBrowser(t *testing.T) {
 	t.Cleanup(func() { cmd.Process.Kill() })
 	json.NewEncoder(input).Encode(map[string]string{"origin": p.ConsoleOrigin, "issuer": p.Issuer, "interactionKey": secrets["interactionKey"]})
 	var actor string
+	privateValues := []string{"Browser+recipient@example.invalid"}
 	scanner := bufio.NewScanner(output)
 	for scanner.Scan() {
 		switch scanner.Text() {
+		case "deliver-invitation":
+			token := ""
+			provider := &SyntheticNotifications{Store: invitationStore, Actor: actor}
+			worker := &tenancy.InvitationWorker{Store: invitationStore, Cipher: invitationBox, Now: time.Now}
+			worker.Provider = notificationFunc(func(ctx context.Context, tenant, id string, generation int64, payload tenancy.DeliveryPayload) error {
+				if err := provider.Send(ctx, tenant, id, generation, payload); err != nil {
+					return err
+				}
+				token = payload.Token
+				return nil
+			})
+			if err := worker.Run(testContext, actor, TestTenantA); err != nil || token == "" {
+				t.Fatal("synthetic invitation delivery failed")
+			}
+			privateValues = append(privateValues, token)
+			json.NewEncoder(input).Encode(map[string]any{"ok": true, "token": token})
+			continue
+		case "expire-invitation":
+			mustExec(t, db.admin, `UPDATE tenancy.invitations SET expires_at=created_at+interval '1 microsecond' WHERE tenant_id=$1 AND state='pending'`, TestTenantA)
+		case "stale-member":
+			mustExec(t, db.admin, `UPDATE tenancy.memberships SET authorization_revision=authorization_revision+1 WHERE tenant_id=$1 AND operator_identity_id<>$2`, TestTenantA, actor)
 		case "seed":
 			mustBootstrap(t, db)
 			if err := db.admin.QueryRow(testContext, `SELECT operator_identity_id::text FROM tenancy.operator_identities WHERE oidc_issuer=$1 AND subject='operator-test-a'`, p.Issuer).Scan(&actor); err != nil {
@@ -151,7 +203,8 @@ func TestConsoleBrowser(t *testing.T) {
 	if err := db.admin.QueryRow(testContext, `SELECT COALESCE(string_agg(row_to_json(a)::text,''),'') FROM platform.audit_events a`).Scan(&stored); err != nil {
 		t.Fatal(err)
 	}
-	for _, secret := range []string{secrets["clientSecret"], secrets["interactionKey"], base64.StdEncoding.EncodeToString(key)} {
+	privateValues = append(privateValues, secrets["clientSecret"], secrets["interactionKey"], base64.StdEncoding.EncodeToString(key), base64.StdEncoding.EncodeToString(invitationKey), base64.StdEncoding.EncodeToString(macKey))
+	for _, secret := range privateValues {
 		if secret != "" && (strings.Contains(apiLogs.String(), secret) || strings.Contains(stored, secret)) {
 			t.Fatal("browser secret leaked to audit/logs")
 		}

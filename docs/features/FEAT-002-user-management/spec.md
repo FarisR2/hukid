@@ -1,7 +1,7 @@
 # FEAT-002 — Gestión de miembros de tenant
 
 - Producto: HukID Console / Team 5.
-- Estado: USR-T01 materializa contrato/reglas y USR-T02 la [persistencia ampliada](../../03-design/console-members-persistence.md) de laboratorio; USR-T03 añade [lecturas autorizadas](../../03-design/console-members-directory.md); USR-T04 añade [creación/revocación y entrega cifrada sintética](../../03-design/console-invitation-delivery.md); USR-T05 añade [aceptación/reingreso con evidencia OIDC](../../03-design/console-invitation-acceptance.md); USR-T06 añade [cambios de membresías con ETag](../../03-design/console-members-lifecycle.md); USR-T07 añade [revalidación/reconciliación de contexto](../../03-design/console-authorization-revalidation.md); UI pendiente.
+- Estado: USR-T01 materializa contrato/reglas y USR-T02 la [persistencia ampliada](../../03-design/console-members-persistence.md) de laboratorio; USR-T03 añade [lecturas autorizadas](../../03-design/console-members-directory.md); USR-T04 añade [creación/revocación y entrega cifrada sintética](../../03-design/console-invitation-delivery.md); USR-T05 añade [aceptación/reingreso con evidencia OIDC](../../03-design/console-invitation-acceptance.md); USR-T06 añade [cambios de membresías con ETag](../../03-design/console-members-lifecycle.md); USR-T07 añade [revalidación/reconciliación de contexto](../../03-design/console-authorization-revalidation.md); USR-T08 añade [UI administrativa y aceptación](../../03-design/console-members-interface.md); gate USR-T09 pendiente.
 - Depende de: [FEAT-001](../FEAT-001-authentication/spec.md).
 - Salidas: [plan](plan.md), [tareas](tasks.md).
 

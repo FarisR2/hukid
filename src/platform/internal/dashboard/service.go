@@ -38,6 +38,9 @@ type Event struct {
 type Snapshot interface {
 	Access() Access
 	ActiveMembers(context.Context) (int64, time.Time, error)
+	// GeneratedAt uses the source clock so freshness never compares two hosts'
+	// wall clocks. Called after reading sources, inside the authorized snapshot.
+	GeneratedAt(context.Context) (time.Time, error)
 	Activity(context.Context, Filter, Position, time.Time) ([]Event, error)
 }
 
@@ -151,7 +154,11 @@ func (s *Service) Overview(ctx context.Context, actor, tenant, raw string) (Over
 		if allowed {
 			count, asOf, sourceErr = reader.ActiveMembers(ctx)
 		}
-		result.GeneratedAt = s.now().UTC()
+		generatedAt, err := reader.GeneratedAt(ctx)
+		if err != nil || generatedAt.IsZero() {
+			return authentication.ErrDependency
+		}
+		result.GeneratedAt = generatedAt.UTC()
 		result.Sections["activeMembers"] = SourceSection(allowed, true, count, asOf, result.GeneratedAt, sourceErr, time.Duration(s.policy.StaleAfterSeconds)*time.Second)
 		if result.Sections["activeMembers"].State == "error" {
 			return authentication.ErrDependency

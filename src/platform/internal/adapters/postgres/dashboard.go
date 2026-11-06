@@ -64,6 +64,14 @@ func (s *DashboardStore) Read(ctx context.Context, actor, tenant string, fn func
 	return nil
 }
 
+func (r *dashboardSnapshot) GeneratedAt(ctx context.Context) (time.Time, error) {
+	var at time.Time
+	if err := r.tx.QueryRow(ctx, `SELECT clock_timestamp()`).Scan(&at); err != nil {
+		return time.Time{}, authentication.ErrDependency
+	}
+	return at.UTC(), nil
+}
+
 func (r *dashboardSnapshot) ActiveMembers(ctx context.Context) (int64, time.Time, error) {
 	var count int64
 	var asOf time.Time

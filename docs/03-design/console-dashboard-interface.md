@@ -26,6 +26,8 @@ El componente se identifica por actor, tenant, revisión, capacidades y scopes i
 
 ## Accesibilidad y verificación
 
+La corrección de vigencia [ADR-0023](../decisions/ADR-0023.md) mantiene las marcas asOf/generatedAt del overview base en el mismo reloj PostgreSQL. Evita 503 intermitentes por diferencias entre el reloj de Go y el de la fuente; no cambia el cliente ni los estados mostrados.
+
 Un único h1 de organización, navegación con aria-current, etiquetas visibles, foco de teclado, estado busy y mensajes status/alert. Los conteos usan lista de definiciones; la actividad es una lista ordenada. Reutiliza tokens, controles y colores claro/oscuro de AUTH/USR; los estados tienen texto y no dependen del color. El rango inválido conserva el borrador y enfoca el inicio. La grilla pasa a una columna en móvil.
 
 El harness Chromium se amplía con la credencial/clave dashboard efímeras propias. Los conteos, revalidación de roles y errores de permisos usan API/DB reales; las degradaciones y respuestas tardías se inyectan de forma explícita sólo en pruebas. Comandos y evidencia ejecutada: [tareas](../features/FEAT-003-dashboard/tasks.md). Las capturas se guardan bajo .cache/browser-auth, fuera del código distribuido.

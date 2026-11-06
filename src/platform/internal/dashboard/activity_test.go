@@ -21,6 +21,9 @@ type activitySnapshot struct {
 }
 
 func (r *activitySnapshot) Access() Access { return r.access }
+func (r *activitySnapshot) GeneratedAt(context.Context) (time.Time, error) {
+	panic("activity must keep the application clock for cursor expiry")
+}
 func (r *activitySnapshot) ActiveMembers(context.Context) (int64, time.Time, error) {
 	panic("unexpected members read")
 }

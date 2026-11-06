@@ -78,3 +78,13 @@ Chromium añade conteos reales A=1/B=2, rango inválido con foco, periodo vacío
 Las pasadas iniciales detectaron normalización de segundos cero por datetime-local: el cliente ahora serializa UTC canónico antes de consultar. La suite ajustó el conteo B al dataset real y espera el fin de la respuesta antes de retirar interceptores. No se ocultaron fallos del runtime mediante fixtures operativos.
 
 DASH-T04 queda completa en laboratorio. DASH-T05 permanece pendiente por módulos/ownership futuros; siguiente DASH-T06 para la matriz base, después DASH-T07/T08. No acredita certificación WCAG, lector físico, carga/SLO, CI remoto, IdP/MFA reales, interoperabilidad VC, preparación productiva ni cierre de la feature completa o del roadmap HK.
+
+## Corrección posterior DASH-T04 — reloj de fuente, 2026-11-06
+
+El pipeline Windows reportó fallos PostgreSQL en el conteo tras suspensión y en overview BFF (503). Una prueba diagnóstica local reprodujo asOf de PostgreSQL 161,6 microsegundos por delante del generatedAt de Go: la comparación entre relojes distintos activaba el rechazo de datos futuros. Los checks/build previos podían pasar sin observar la diferencia intermitente.
+
+Según [ADR-0023](../../decisions/ADR-0023.md), el overview obtiene generatedAt del reloj PostgreSQL mediante clock_timestamp() después de leer las fuentes, dentro de su snapshot autorizado. Conserva asOf de transaction_timestamp(), rechazo de datos futuros, error de fuente/reloj y frescura. No amplía permisos, no añade tolerancia/sleeps/reintentos, ni cambia JSON, ventana, sesión o TTL del cursor de actividad.
+
+Regresión determinista: unitarias con relojes distintos, dato disponible/stale, observación futura de un microsegundo y fallo del reloj; integración PostgreSQL con reloj de aplicación fijado en 2020 y cien lecturas actuales coherentes. Las pruebas existentes de aislamiento, suspensión y HTTP permanecen activas.
+
+Validación local: check:platform y test:postgres (37.635 s) aprobados; después npm run test:members:gate completo aprobado con check, build, PostgreSQL (31.856 s), smoke y Chromium (31.817 s). La evidencia corresponde al código corregido antes del añadido documental de este resultado; CI remoto debe ejecutarse de nuevo tras publicar la corrección. No se acredita todavía ese nuevo resultado remoto.

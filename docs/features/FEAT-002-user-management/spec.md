@@ -1,7 +1,7 @@
 # FEAT-002 — Gestión de miembros de tenant
 
 - Producto: HukID Console / Team 5.
-- Estado: USR-T01 materializa contrato/reglas y USR-T02 la [persistencia ampliada](../../03-design/console-members-persistence.md) de laboratorio; USR-T03 añade [lecturas autorizadas](../../03-design/console-members-directory.md); mutaciones, entrega y UI pendientes.
+- Estado: USR-T01 materializa contrato/reglas y USR-T02 la [persistencia ampliada](../../03-design/console-members-persistence.md) de laboratorio; USR-T03 añade [lecturas autorizadas](../../03-design/console-members-directory.md); USR-T04 añade [creación/revocación y entrega cifrada sintética](../../03-design/console-invitation-delivery.md); aceptación, cambios de miembros y UI pendientes.
 - Depende de: [FEAT-001](../FEAT-001-authentication/spec.md).
 - Salidas: [plan](plan.md), [tareas](tasks.md).
 
@@ -64,4 +64,4 @@ El token de aceptación viaja sólo por canal seguro al destinatario. Si hace fa
 
 Fundamentos: [arquitectura tenant/membership](../../03-design/hukid-architecture.md), [roles y seguridad](../../04-engineering/hukid-security-and-operations.md), [modelo](../../03-design/hukid-data-model.md), [HK-001/005](../../02-requirements/backlogs/team-5-hukid.md).
 
-El detalle de invitaciones/matriz/último admin es propio de consola; no se importa de Events. USR-T01 concreta unicidad/reinvitación, políticas email, TTL, permisos y OpenAPI en la referencia enlazada. USR-T04 implementará el canal sintético y USR-T05 la evidencia email verificada del IdP. Estas decisiones técnicas no justifican ampliar permisos globales ni afirman que esas integraciones existan.
+El detalle de invitaciones/matriz/último admin es propio de consola; no se importa de Events. USR-T01 concreta unicidad/reinvitación, políticas email, TTL, permisos y OpenAPI en la referencia enlazada. USR-T04 implementa el canal sintético; USR-T05 debe integrar la evidencia email verificada del IdP. Estas decisiones técnicas no justifican ampliar permisos globales ni afirman que esas integraciones existan.

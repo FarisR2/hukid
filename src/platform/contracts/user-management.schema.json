@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://hukid.example.invalid/schemas/user-management-v0.1",
-  "title": "USR-T01 transport schemas — test baseline, no handlers",
+  "title": "Member management transport schemas — laboratory baseline",
   "$ref": "#/$defs/Membership",
   "$defs": {
     "Role": {

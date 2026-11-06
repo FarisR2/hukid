@@ -2,7 +2,7 @@
 
 Fecha: 2026-11-03. Inventario del paquete recibido; no significa que los artefactos no existan en otro repositorio. Los diez Markdown HukID incorporados sustituyen referencias personales para arquitectura, perfil y modelo conceptual, pero no adjuntan los archivos ejecutables citados.
 
-Estado de ejecución actualizado al 2026-11-05: AUTH-T01–T10 implementadas en laboratorio; USR-T01 materializa [contrato/política de miembros](../03-design/console-members-contract.md) y reglas puras; USR-T02 añade [persistencia ampliada/RLS/locks/evidencia](../03-design/console-members-persistence.md), sin endpoints ni entrega. La [ruta vigente](implementation-plan.md) continúa con USR-T03 y distingue el panel web del negocio de credenciales. Este inventario conserva procedencia y evidencia histórica; un artefacto nuevo de consola no sustituye al artefacto histórico ausente de emisión/wallet/verificación.
+Estado de ejecución actualizado al 2026-11-05: AUTH-T01–T10 implementadas en laboratorio; USR-T01 materializa [contrato/política de miembros](../03-design/console-members-contract.md) y reglas puras; USR-T02 añade [persistencia ampliada/RLS/locks/evidencia](../03-design/console-members-persistence.md), USR-T03 añade lecturas autorizadas y USR-T04 [invitaciones con entrega sintética](../03-design/console-invitation-delivery.md). La [ruta vigente](implementation-plan.md) continúa con USR-T05 y distingue el panel web del negocio de credenciales. Este inventario conserva procedencia y evidencia histórica; un artefacto nuevo de consola no sustituye al artefacto histórico ausente de emisión/wallet/verificación.
 
 ## Archivos referenciados que no se adjuntaron
 
@@ -24,7 +24,9 @@ La cabecera de procedencia del Architecture Spine conserva rutas a architecture/
 
 ## Detalles ahora disponibles
 
-USR-T03 añade [lecturas autorizadas de miembros e invitaciones](../03-design/console-members-directory.md), con cuatro GET Management/BFF, filtros/cursor y credencial separada. Ocho mutaciones, entrega, evidencia email/aceptación y UI siguen pendientes. La máscara fija del destinatario no distingue correos y no se descifra PII; deben mantenerse explícitos ese límite y la falta de rate limiting propio, carga/restore y operación productiva. Ver [ADR-0013](../decisions/ADR-0013.md) y tareas FEAT-002.
+USR-T04 conecta [invitaciones y entrega cifrada/idempotente](../03-design/console-invitation-delivery.md) según [ADR-0014](../decisions/ADR-0014.md). El worker explícito por tenant usa un proveedor falso con recibos duraderos sin payload (migración 0008), separación de claves, replay reautorizado y purga bajo lock. No envía correo real ni implementa aceptación/email verificado, scheduler/SLA, rotación multiversión, rate limiting específico, carga/restore o UI. La retención institucional de evidencia/recibos y operación productiva siguen pendientes; siguiente USR-T05.
+
+USR-T03 añade [lecturas autorizadas de miembros e invitaciones](../03-design/console-members-directory.md), con cuatro GET Management/BFF, filtros/cursor y credencial separada. USR-T04 añade cuatro mutaciones de invitación y entrega sintética; cuatro mutaciones de aceptación/memberships, evidencia email y UI siguen pendientes. La máscara fija del destinatario no distingue correos y no se descifra PII; deben mantenerse explícitos ese límite y la falta de rate limiting propio, carga/restore y operación productiva. Ver [ADR-0013](../decisions/ADR-0013.md) y tareas FEAT-002.
 
 - [Perfil](../03-design/hukid-profile.md): VC/VP-JWT, ES256, cnf.jkt, token classes, low-risk offer TTL ≤5 min, local-only/issuer-reauth y presentación directa.
 - [APIs](../03-design/hukid-api-contracts.md): request/response ilustrativos, errores, status operations y candidatos webhook.

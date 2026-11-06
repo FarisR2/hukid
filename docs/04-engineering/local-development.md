@@ -11,6 +11,7 @@ El owner confirmó esta distribución el 2026-11-03:
 | Ruta | Contenido actual |
 | --- | --- |
 | `src/platform/cmd/api` | Proceso HTTP local y cierre ordenado. |
+| `src/platform/cmd/worker` | Lote explícito de invitaciones con proveedor sintético y purga USR-T04. |
 | `src/platform/internal/bootstrap` | Configuración loopback, liveness y pruebas del perímetro inicial. |
 | `src/platform/internal/adapters/postgres` | Migraciones, roles/RLS, pools y contexto transaccional, descubrimiento mínimo y bootstrap test-only. |
 | `src/platform/cmd/testdb` | CLI restringido para migrar/provisionar una base de pruebas explícita. |
@@ -86,7 +87,7 @@ Exigen `HUKID_ENV=test`, `HUKID_TEST_DATABASE=1` y `HUKID_DATABASE_URL` explíci
 
 USR-T01 añade el [contrato de miembros y política test](../03-design/console-members-contract.md). Sus pruebas se incluyen en `npm run test:auth` y `npm run check:platform`, ambos dentro de `npm run check`. No agrega variables runtime, rutas habilitadas ni migraciones. No se habilitan escrituras por colocar el nuevo archivo de política junto a auth.test.json.
 
-USR-T02 añade [persistencia de miembros](../03-design/console-members-persistence.md) y migración 0007, aplicada por el mismo CLI/harness. El rol hukid_members_runtime requiere credencial backend independiente; este incremento no añade variable de configuración ni lo conecta a la API. El runtime de AUTH conserva sus tres credenciales y permisos. `npm run test:postgres` incluye seis escenarios USR nuevos de upgrade, aislamiento/constraints/pooling, audit/outbox atómicos, archivo/idempotencia/retención y locks/carreras/cancelación. El expand por sí solo no habilita rutas. USR-T03 conecta [lecturas autorizadas](../03-design/console-members-directory.md) mediante HUKID_MEMBERS_DATABASE_URL, HUKID_MEMBERS_POLICY y HUKID_MEMBERS_CURSOR_KEY: las tres ausentes mantienen sólo AUTH; configuración parcial/ajena/productiva se rechaza. Usar login separado hukid_members_runtime y clave externa propia de 32 bytes base64. No hay mutaciones/entrega ni UI de miembros; siguiente USR-T04.
+USR-T02 añade [persistencia de miembros](../03-design/console-members-persistence.md) y migración 0007, aplicada por el mismo CLI/harness. El rol hukid_members_runtime requiere credencial backend independiente. El runtime de AUTH conserva sus tres credenciales y permisos. USR-T03 conecta [lecturas autorizadas](../03-design/console-members-directory.md) mediante HUKID_MEMBERS_DATABASE_URL, HUKID_MEMBERS_POLICY y HUKID_MEMBERS_CURSOR_KEY: las tres ausentes mantienen sólo AUTH; configuración parcial/ajena/productiva se rechaza. Usar login separado hukid_members_runtime y clave externa propia de 32 bytes base64. USR-T04 añade las escrituras y el worker descritos abajo; aceptación y UI siguen pendientes.
 
 En dos terminales desde la raíz:
 
@@ -103,6 +104,30 @@ npm run dev:console
 - Cerrar Platform con Ctrl+C inicia shutdown ordenado, con límite de cinco segundos.
 - `HUKID_LISTEN_ADDR` permite otro IP loopback/puerto (por ejemplo `127.0.0.1:8081` o `[::1]:8081`). Un host abierto, nombre DNS o puerto inválido impide arrancar.
 - Vite usa loopback y puerto estricto. AUTH-T08 configura proxy same-origin para /console/ sin reescribir Origin; no habilita CORS. Sus servidores dev/preview son locales.
+
+## Worker de invitaciones USR-T04
+
+Aplicar migraciones con el CLI test existente; 0008 añade únicamente los recibos sin payload del proveedor sintético. La API requiere la configuración AUTH completa y las tres variables members de las lecturas. Para habilitar creación/revocación, añadir las tres variables siguientes juntas; si están ausentes se conservan sólo las lecturas:
+
+| Variable | Valor requerido |
+| --- | --- |
+| HUKID_INVITATION_KEY | Clave AES de 32 bytes base64, distinta de AUTH, cursor y HMAC. |
+| HUKID_INVITATION_HMAC_KEY | Clave HMAC de 32 bytes base64, estable para deduplicar destinatarios. |
+| HUKID_INVITATION_KEY_VERSION | Identificador externo no vacío de hasta 128 bytes. |
+
+No guardar claves/DSN en el repositorio ni sustituirlas en cada arranque: las invitaciones pendientes requieren las claves originales. No hay rotación multiversión implementada. Política: src/platform/config/user-management.test.json; ambiente exclusivamente HUKID_ENV=test, PostgreSQL loopback y base hukid_test_* con credencial members separada.
+
+Con esas variables ya proporcionadas por el operador, ejecutar desde la raíz:
+
+```sh
+node scripts/platform.mjs worker:test 20000000-0000-4000-8000-000000000001 10000000-0000-4000-8000-000000000001
+```
+
+Los UUID del ejemplo son actor/tenant A del bootstrap sintético; usar los IDs confiables de la base explícita. El worker requiere HUKID_MEMBERS_DATABASE_URL, HUKID_MEMBERS_POLICY y los tres secretos de invitación. No usa sesión de navegador ni selecciona una DB automáticamente. Procesa un lote de hasta cien entregas y purga el tenant indicado, con límite de proceso de treinta segundos. Repetir el comando para más lotes o reintentos. No hay scheduler ni SLA de purga; incluso sin nuevas entregas hay que ejecutar el lote para aplicar retención. Un tenant inactivo no entrega mensajes, pero permite mantenimiento.
+
+El proveedor falso sólo registra un recibo persistente y no envía email. Revisar las invitaciones mediante los GET autorizados existentes: queued/sent/failed son independientes de pending/revoked/expired. Tras un error de proveedor se conserva el mismo secreto vigente para reintentar; una vez agotado requiere POST nuevo con otra key. El CLI sólo muestra un error fijo y sale con código 1 ante un fallo del lote, sin DSN, email, token ni errores internos. Los errores de entrega quedan reflejados como failed; no se interpretan como aceptación fallida del usuario.
+
+build genera también .cache/build/hukid-worker(.exe). Para retirar el incremento, detener el worker y quitar las tres variables de invitación del API; mantener la migración y los recibos. [Referencia completa, límites y pruebas](../03-design/console-invitation-delivery.md).
 
 ## Configuración e IdP
 

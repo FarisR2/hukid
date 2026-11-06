@@ -22,12 +22,19 @@ func TestReauthenticationRequestsAndVerifiedFreshness(t *testing.T) {
 		e["auth_time"] = s.now.Unix() - age
 		raw := s.sign(t, e, "at+jwt")
 		_, err := s.client.VerifyPrivilegedOperator(context.Background(), raw)
+		_, deadline, invitationErr := s.client.VerifyInvitationOperator(context.Background(), raw)
 		if age < int64(s.policy.StepUpSeconds) {
+			if invitationErr != nil || !deadline.After(s.now) || deadline.Unix() > e["exp"].(int64) {
+				t.Fatal("invalid invitation deadline", invitationErr)
+			}
 			if err != nil {
 				t.Fatal(err)
 			}
 		} else if !errors.Is(err, a.ErrStepUp) {
 			t.Fatal("stale signed MFA authorized privileged operation")
+		}
+		if age >= int64(s.policy.StepUpSeconds) && !errors.Is(invitationErr, a.ErrStepUp) {
+			t.Fatal("stale invitation proof accepted")
 		}
 	}
 	_, e := s.claims()

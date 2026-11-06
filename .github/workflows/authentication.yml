@@ -1,4 +1,4 @@
-name: Authentication laboratory
+name: Authentication and members laboratory
 on:
   pull_request:
   push:
@@ -52,5 +52,5 @@ jobs:
           .cache/browser-venv/Scripts/python.exe -m pip install -r tests/browser/requirements.txt
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           .cache/browser-venv/Scripts/python.exe -m playwright install chromium
-      - name: Run authentication laboratory gate
-        run: npm run test:auth:gate
+      - name: Run authentication and members laboratory gate
+        run: npm run test:members:gate

@@ -241,3 +241,7 @@ No hay migración ni variables nuevas: usar el esquema hasta 0009 y la configura
 ## Revalidación de contexto USR-T07
 
 Aplicar la secuencia de migraciones hasta 0010 mediante el CLI/harness existente antes de arrancar el binario nuevo. No hay variables ni credenciales nuevas. La migración añade sólo SELECT/RLS de scopes propios a hukid_tenant_runtime; session/members mantienen su separación. Tras retirar acceso, /console/api/me devuelve selección/contexto null con la misma sesión y los tenants restantes. Detalle en [USR-T07](../03-design/console-authorization-revalidation.md) y [ADR-0017](../decisions/ADR-0017.md). Validar con check, test:postgres, build, smoke y test:browser.
+
+## Gate y operación USR-T09
+
+`npm run test:members:gate` ejecuta check/build/PostgreSQL/smoke/Chromium con regresión AUTH y USR completas. Reutiliza el runner AUTH y genera `.cache/members-gate/latest.json`, con digest estable y metadatos sin logs ni entorno. El workflow Windows ejecuta este comando; su éxito remoto se acredita por separado. Mantiene `npm run test:auth:gate` y su informe propio. Alcance/matriz en el [gate U4](../05-delivery/members-gate.md); preparación, entrega/purga por tenant, diagnóstico y retirada en el [runbook de miembros](console-members-runbook.md). No cambia DDL, API ni permisos. Siguiente DASH-T01; producción NO-GO.

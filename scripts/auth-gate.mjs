@@ -6,8 +6,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
+const members = process.argv[2] === '--members';
+if (process.argv.slice(2).some(arg => arg !== '--members')) throw new Error('Unknown laboratory gate option');
+const gate = members ? 'members' : 'auth';
 const npm = process.env.npm_execpath;
-if (!npm) throw new Error('Run npm run test:auth:gate');
+if (!npm) throw new Error(`Run npm run test:${gate}:gate`);
 function git(args) {
   const result = spawnSync('git', args, { cwd: root, encoding: 'utf8', windowsHide: true });
   if (result.error || result.status !== 0) throw new Error('Cannot identify gate source');
@@ -24,11 +27,11 @@ function sourceDigest() {
   return hash.digest('hex');
 }
 const report = {
-  scope: 'laboratory', startedAt: new Date().toISOString(), head: git(['rev-parse', 'HEAD']).trim(),
+  scope: 'laboratory', gate, startedAt: new Date().toISOString(), head: git(['rev-parse', 'HEAD']).trim(),
   dirty: git(['status', '--porcelain']).trim() !== '', sourceDigest: sourceDigest(), node: process.version,
   status: 'running', steps: ['check', 'build', 'test:postgres', 'smoke', 'test:browser'].map(command => ({ command, status: 'pending' })),
 };
-const directory = path.join(root, '.cache', 'auth-gate');
+const directory = path.join(root, '.cache', `${gate}-gate`);
 mkdirSync(directory, { recursive: true });
 const output = path.join(directory, 'latest.json');
 function save() { writeFileSync(output, JSON.stringify(report, null, 2) + '\n'); }
@@ -48,4 +51,4 @@ if (report.status === 'running') report.status = 'passed';
 if (sourceDigest() !== report.sourceDigest) { report.status = 'source_changed'; process.exitCode = 1; }
 report.finishedAt = new Date().toISOString();
 save();
-console.log('Authentication laboratory gate: ' + report.status + '; report .cache/auth-gate/latest.json');
+console.log(`${gate} laboratory gate: ${report.status}; report .cache/${gate}-gate/latest.json`);

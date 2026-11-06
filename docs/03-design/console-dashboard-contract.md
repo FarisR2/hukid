@@ -1,6 +1,6 @@
 # Contrato de lectura del dashboard
 
-Estado: baseline DASH-T01, 2026-11-06, sólo contrato y reglas puras de laboratorio. [ADR-0019](../decisions/ADR-0019.md). No hay handlers, consultas SQL, credencial de lectura, UI ni fuentes conectadas por este incremento. Las cuatro rutas aún no están disponibles en runtime.
+Estado: baseline DASH-T01, 2026-11-06, contrato y reglas de laboratorio según [ADR-0019](../decisions/ADR-0019.md). DASH-T02 añade [caso de uso/lectura SQL autorizada](console-dashboard-reads.md) y credencial separada según [ADR-0020](../decisions/ADR-0020.md). Las cuatro rutas continúan contract-only, sin handlers ni UI hasta DASH-T03/T04.
 
 ## Artefactos y consumidores
 

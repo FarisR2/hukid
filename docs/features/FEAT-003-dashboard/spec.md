@@ -1,7 +1,7 @@
 # FEAT-003 — Dashboard operativo del tenant
 
 - Producto: HukID Console / Team 5.
-- Estado: baseline contractual DASH-T01; lectura agregada y endpoints aún sin handlers.
+- Estado: DASH-T01 contractual y DASH-T02 lectura base autorizada implementadas en laboratorio; endpoints e interfaz pendientes.
 - Depende de: identidad/contexto [FEAT-001](../FEAT-001-authentication/spec.md) y matriz [FEAT-002](../FEAT-002-user-management/spec.md).
 - Salidas: [plan](plan.md), [tareas](tasks.md).
 
@@ -58,3 +58,5 @@ No se fija nuevo p95 de dashboard hasta medir un perfil de carga. Los objetivos 
 [Arquitectura HukID](../../03-design/hukid-architecture.md) define consola, entidades y autoridad; [seguridad/operación](../../04-engineering/hukid-security-and-operations.md) y HK-005/054 fundamentan auditoría/observabilidad. El dashboard y sus métricas son diseño nuevo de esta feature, no un panel ya descrito endpoint por endpoint.
 
 Las fuentes de lectura, límites y capacidad reservada status:read se concretan en el [contrato DASH-T01](../../03-design/console-dashboard-contract.md) y [ADR-0019](../../decisions/ADR-0019.md), sin ampliar la matriz vigente. El incremento base no depende de implementar HK-010–025/050: las secciones sin permiso devuelven notAuthorized; con permiso y sin fuente real devuelven unavailable.
+
+La [lectura base DASH-T02](../../03-design/console-dashboard-reads.md) conecta tenancy/audit mediante credencial separada y snapshot autorizado según [ADR-0020](../../decisions/ADR-0020.md). No cambia requisitos, grants o semántica contractual; HTTP/BFF y cursor público siguen en DASH-T03.

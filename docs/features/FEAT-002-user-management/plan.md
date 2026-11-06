@@ -2,7 +2,7 @@
 
 Referencias: [spec](spec.md), [tareas](tasks.md), [FEAT-001](../FEAT-001-authentication/plan.md).
 
-USR-T01 materializa U0: [contrato y políticas](../../03-design/console-members-contract.md), [OpenAPI](../../../src/platform/contracts/console-members.openapi.json), schemas y reglas puras según [ADR-0011](../../decisions/ADR-0011.md). USR-T02 añade [persistencia/RLS y protocolo transaccional](../../03-design/console-members-persistence.md) según [ADR-0012](../../decisions/ADR-0012.md). USR-T03 conecta [cuatro lecturas autorizadas con filtros/cursor](../../03-design/console-members-directory.md) según [ADR-0013](../../decisions/ADR-0013.md); USR-T04 conecta [creación/revocación y entrega sintética](../../03-design/console-invitation-delivery.md) según ADR-0014. USR-T05 conecta [aceptación/reingreso y evidencia OIDC](../../03-design/console-invitation-acceptance.md) según [ADR-0015](../../decisions/ADR-0015.md). USR-T06 conecta [ambos PATCH con ETag y lock tenant](../../03-design/console-members-lifecycle.md), según [ADR-0016](../../decisions/ADR-0016.md). USR-T07 conecta [revalidación y reconciliación de contexto](../../03-design/console-authorization-revalidation.md), según [ADR-0017](../../decisions/ADR-0017.md). El siguiente incremento es USR-T08: UI de miembros/invitaciones.
+USR-T01 materializa U0: [contrato y políticas](../../03-design/console-members-contract.md), [OpenAPI](../../../src/platform/contracts/console-members.openapi.json), schemas y reglas puras según [ADR-0011](../../decisions/ADR-0011.md). USR-T02 añade [persistencia/RLS y protocolo transaccional](../../03-design/console-members-persistence.md) según [ADR-0012](../../decisions/ADR-0012.md). USR-T03 conecta [cuatro lecturas autorizadas con filtros/cursor](../../03-design/console-members-directory.md) según [ADR-0013](../../decisions/ADR-0013.md); USR-T04 conecta [creación/revocación y entrega sintética](../../03-design/console-invitation-delivery.md) según ADR-0014. USR-T05 conecta [aceptación/reingreso y evidencia OIDC](../../03-design/console-invitation-acceptance.md) según [ADR-0015](../../decisions/ADR-0015.md). USR-T06 conecta [ambos PATCH con ETag y lock tenant](../../03-design/console-members-lifecycle.md), según [ADR-0016](../../decisions/ADR-0016.md). USR-T07 conecta [revalidación y reconciliación de contexto](../../03-design/console-authorization-revalidation.md), según [ADR-0017](../../decisions/ADR-0017.md). USR-T08 conecta la [UI de miembros](../../03-design/console-members-interface.md); USR-T09 cierra el [gate U4 de laboratorio](../../05-delivery/members-gate.md). Siguiente: DASH-T01.
 
 ## Estado inicial y módulos
 
@@ -49,10 +49,10 @@ Invite token se genera con CSPRNG, se guarda hasheado para canje y se transporta
 | Hito | Dependencias | Gate |
 | --- | --- | --- |
 | U0 — Contrato y matriz | AUTH-T02/T03/T05/T07 | Materializado en USR-T01; OpenAPI/schemas/ejemplos y reglas puras, sin handlers. |
-| U1 — Lectura/aislamiento | U0 | Lecturas API/BFF con filtros/cursor y roles negativos probados en USR-T03; tabla visual pendiente USR-T08. |
+| U1 — Lectura/aislamiento | U0 | Lecturas API/BFF con filtros/cursor y roles negativos probados en USR-T03; tabla visual conectada en USR-T08. |
 | U2 — Invitación vertical | U1 + worker/IdP test | Admin invita, entrega sintética, identidad correcta acepta una vez. |
 | U3 — Ciclo de acceso | U2 | Roles/suspensión/revocación y último admin bajo concurrencia. |
-| U4 — UI y entrega | U3 | [UI USR-T08](../../03-design/console-members-interface.md) con journey, 412/403/expiración y revalidación; gate integral/auditoría USR-T09 pendiente. |
+| U4 — UI y entrega | U3 | [UI USR-T08](../../03-design/console-members-interface.md) con journey, 412/403/expiración y revalidación; [gate integral/auditoría USR-T09](../../05-delivery/members-gate.md) completado en laboratorio. |
 
 ## Pruebas y reversión
 

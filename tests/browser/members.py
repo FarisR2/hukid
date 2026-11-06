@@ -158,7 +158,12 @@ def run_members(page, context, browser, config, authorize, database, heading, lo
     page.get_by_label('Estado del acceso').select_option('revoked')
     page.get_by_role('button', name='Revisar cambio').press('Enter')
     expect(dialog).to_contain_text('La revocación es definitiva')
-    dialog.get_by_role('button', name='Confirmar cambio').press('Enter')
+    # A missing row also has zero buttons. Wait for the committed state and
+    # context revalidation/focus before sending the next keyboard action.
+    with page.expect_response(lambda response: response.url == origin + '/console/api/me' and response.request.method == 'GET'):
+        dialog.get_by_role('button', name='Confirmar cambio').press('Enter')
+    expect(page.locator('h1')).to_be_focused()
+    expect(management.get_by_role('listitem').filter(has_text=target_id)).to_contain_text('Revocado')
     expect(management.get_by_role('listitem').filter(has_text=target_id).get_by_role('button')).to_have_count(0)
 
     # A new recipient can receive another invitation, then the admin revokes it.

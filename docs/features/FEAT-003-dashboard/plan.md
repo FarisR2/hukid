@@ -2,6 +2,8 @@
 
 Referencia: [spec](spec.md), [tareas](tasks.md), [autenticación](../FEAT-001-authentication/plan.md), [miembros](../FEAT-002-user-management/plan.md).
 
+DASH-T01 materializa el [contrato y reglas de lectura](../../03-design/console-dashboard-contract.md), con [ADR-0019](../../decisions/ADR-0019.md). Las rutas de la tabla ya tienen OpenAPI contract-only; los componentes de runtime siguientes permanecen propuestos.
+
 ## Arquitectura de lectura
 
 Añadir un caso de uso GetTenantOverview y puertos de lectura por dominio dentro del backend modular. No crear un microservicio de analytics ni leer la base Events.
@@ -43,7 +45,7 @@ No se requieren tablas de credenciales para el incremento base. Fuentes ausentes
 
 | Hito | Requisitos previos | Gate |
 | --- | --- | --- |
-| D0 — Contrato y fixtures | AUTH-T02/T05; USR-T01 | Métricas, permisos, límites y estados acordados. |
+| D0 — Contrato y fixtures | AUTH-T02/T05; USR-T01 | DASH-T01 completada: contrato, reglas puras y fixtures; sin handlers ni fuentes conectadas. |
 | D1 — Shell con contexto | AUTH-T08 | Tenant, capacidades y navegación reales; sin métricas simuladas en runtime. |
 | D2 — Overview base | USR-T03/T07 y auditoría mínima | Miembros/actividad autorizada y estados de fuentes futuras. |
 | D3 — Fuentes por dominio | Módulo propietario implementado | Cada tarjeta cumple AC02/03/04/06 con dataset conocido. |

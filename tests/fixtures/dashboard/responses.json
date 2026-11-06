@@ -1,0 +1,458 @@
+{
+  "synthetic": true,
+  "contractOnly": true,
+  "note": "partial/future/scoped assume future domain authorization and ownership for contract testing only.",
+  "cases": [
+    {
+      "name": "base",
+      "schema": "Overview",
+      "value": {
+        "tenantId": "10000000-0000-4000-8000-000000000001",
+        "issuerId": null,
+        "generatedAt": "2026-11-06T12:00:00Z",
+        "window": {
+          "from": "2026-11-05T12:00:00Z",
+          "to": "2026-11-06T12:00:00Z",
+          "timeZone": "UTC",
+          "bounds": "[from,to)"
+        },
+        "sections": {
+          "activeMembers": {
+            "state": "available",
+            "value": 2,
+            "asOf": "2026-11-06T12:00:00Z",
+            "reasonCode": null
+          },
+          "activeIssuers": {
+            "state": "notAuthorized",
+            "value": null,
+            "asOf": null,
+            "reasonCode": "capability_required"
+          },
+          "publishedDefinitionVersions": {
+            "state": "notAuthorized",
+            "value": null,
+            "asOf": null,
+            "reasonCode": "capability_required"
+          },
+          "createdRequests": {
+            "state": "notAuthorized",
+            "value": null,
+            "asOf": null,
+            "reasonCode": "capability_required"
+          },
+          "issuedCredentials": {
+            "state": "notAuthorized",
+            "value": null,
+            "asOf": null,
+            "reasonCode": "capability_required"
+          },
+          "pendingStatusChanges": {
+            "state": "notAuthorized",
+            "value": null,
+            "asOf": null,
+            "reasonCode": "capability_required"
+          }
+        }
+      }
+    },
+    {
+      "name": "zero",
+      "schema": "Overview",
+      "value": {
+        "tenantId": "10000000-0000-4000-8000-000000000001",
+        "issuerId": null,
+        "generatedAt": "2026-11-06T12:00:00Z",
+        "window": {
+          "from": "2026-11-05T12:00:00Z",
+          "to": "2026-11-06T12:00:00Z",
+          "timeZone": "UTC",
+          "bounds": "[from,to)"
+        },
+        "sections": {
+          "activeMembers": {
+            "state": "available",
+            "value": 0,
+            "asOf": "2026-11-06T12:00:00Z",
+            "reasonCode": null
+          },
+          "activeIssuers": {
+            "state": "notAuthorized",
+            "value": null,
+            "asOf": null,
+            "reasonCode": "capability_required"
+          },
+          "publishedDefinitionVersions": {
+            "state": "notAuthorized",
+            "value": null,
+            "asOf": null,
+            "reasonCode": "capability_required"
+          },
+          "createdRequests": {
+            "state": "notAuthorized",
+            "value": null,
+            "asOf": null,
+            "reasonCode": "capability_required"
+          },
+          "issuedCredentials": {
+            "state": "notAuthorized",
+            "value": null,
+            "asOf": null,
+            "reasonCode": "capability_required"
+          },
+          "pendingStatusChanges": {
+            "state": "notAuthorized",
+            "value": null,
+            "asOf": null,
+            "reasonCode": "capability_required"
+          }
+        }
+      }
+    },
+    {
+      "name": "partial",
+      "schema": "Overview",
+      "value": {
+        "tenantId": "10000000-0000-4000-8000-000000000001",
+        "issuerId": null,
+        "generatedAt": "2026-11-06T12:00:00Z",
+        "window": {
+          "from": "2026-11-05T12:00:00Z",
+          "to": "2026-11-06T12:00:00Z",
+          "timeZone": "UTC",
+          "bounds": "[from,to)"
+        },
+        "sections": {
+          "activeMembers": {
+            "state": "available",
+            "value": 2,
+            "asOf": "2026-11-06T12:00:00Z",
+            "reasonCode": null
+          },
+          "activeIssuers": {
+            "state": "error",
+            "value": null,
+            "asOf": null,
+            "reasonCode": "source_failed"
+          },
+          "publishedDefinitionVersions": {
+            "state": "notAuthorized",
+            "value": null,
+            "asOf": null,
+            "reasonCode": "capability_required"
+          },
+          "createdRequests": {
+            "state": "notAuthorized",
+            "value": null,
+            "asOf": null,
+            "reasonCode": "capability_required"
+          },
+          "issuedCredentials": {
+            "state": "notAuthorized",
+            "value": null,
+            "asOf": null,
+            "reasonCode": "capability_required"
+          },
+          "pendingStatusChanges": {
+            "state": "notAuthorized",
+            "value": null,
+            "asOf": null,
+            "reasonCode": "capability_required"
+          }
+        }
+      }
+    },
+    {
+      "name": "stale",
+      "schema": "Overview",
+      "value": {
+        "tenantId": "10000000-0000-4000-8000-000000000001",
+        "issuerId": null,
+        "generatedAt": "2026-11-06T12:00:00Z",
+        "window": {
+          "from": "2026-11-05T12:00:00Z",
+          "to": "2026-11-06T12:00:00Z",
+          "timeZone": "UTC",
+          "bounds": "[from,to)"
+        },
+        "sections": {
+          "activeMembers": {
+            "state": "stale",
+            "value": 2,
+            "asOf": "2026-11-06T11:50:00Z",
+            "reasonCode": "source_stale"
+          },
+          "activeIssuers": {
+            "state": "notAuthorized",
+            "value": null,
+            "asOf": null,
+            "reasonCode": "capability_required"
+          },
+          "publishedDefinitionVersions": {
+            "state": "notAuthorized",
+            "value": null,
+            "asOf": null,
+            "reasonCode": "capability_required"
+          },
+          "createdRequests": {
+            "state": "notAuthorized",
+            "value": null,
+            "asOf": null,
+            "reasonCode": "capability_required"
+          },
+          "issuedCredentials": {
+            "state": "notAuthorized",
+            "value": null,
+            "asOf": null,
+            "reasonCode": "capability_required"
+          },
+          "pendingStatusChanges": {
+            "state": "notAuthorized",
+            "value": null,
+            "asOf": null,
+            "reasonCode": "capability_required"
+          }
+        }
+      }
+    },
+    {
+      "name": "future",
+      "schema": "Overview",
+      "value": {
+        "tenantId": "10000000-0000-4000-8000-000000000001",
+        "issuerId": null,
+        "generatedAt": "2026-11-06T12:00:00Z",
+        "window": {
+          "from": "2026-11-05T12:00:00Z",
+          "to": "2026-11-06T12:00:00Z",
+          "timeZone": "UTC",
+          "bounds": "[from,to)"
+        },
+        "sections": {
+          "activeMembers": {
+            "state": "unavailable",
+            "value": null,
+            "asOf": null,
+            "reasonCode": "source_not_connected"
+          },
+          "activeIssuers": {
+            "state": "unavailable",
+            "value": null,
+            "asOf": null,
+            "reasonCode": "source_not_connected"
+          },
+          "publishedDefinitionVersions": {
+            "state": "unavailable",
+            "value": null,
+            "asOf": null,
+            "reasonCode": "source_not_connected"
+          },
+          "createdRequests": {
+            "state": "unavailable",
+            "value": null,
+            "asOf": null,
+            "reasonCode": "source_not_connected"
+          },
+          "issuedCredentials": {
+            "state": "unavailable",
+            "value": null,
+            "asOf": null,
+            "reasonCode": "source_not_connected"
+          },
+          "pendingStatusChanges": {
+            "state": "unavailable",
+            "value": null,
+            "asOf": null,
+            "reasonCode": "source_not_connected"
+          }
+        }
+      }
+    },
+    {
+      "name": "scoped",
+      "schema": "Overview",
+      "value": {
+        "tenantId": "10000000-0000-4000-8000-000000000001",
+        "issuerId": "60000000-0000-4000-8000-000000000001",
+        "generatedAt": "2026-11-06T12:00:00Z",
+        "window": {
+          "from": "2026-11-05T12:00:00Z",
+          "to": "2026-11-06T12:00:00Z",
+          "timeZone": "UTC",
+          "bounds": "[from,to)"
+        },
+        "sections": {
+          "activeMembers": {
+            "state": "unavailable",
+            "value": null,
+            "asOf": null,
+            "reasonCode": "scope_not_applicable"
+          },
+          "activeIssuers": {
+            "state": "notAuthorized",
+            "value": null,
+            "asOf": null,
+            "reasonCode": "capability_required"
+          },
+          "publishedDefinitionVersions": {
+            "state": "notAuthorized",
+            "value": null,
+            "asOf": null,
+            "reasonCode": "capability_required"
+          },
+          "createdRequests": {
+            "state": "notAuthorized",
+            "value": null,
+            "asOf": null,
+            "reasonCode": "capability_required"
+          },
+          "issuedCredentials": {
+            "state": "notAuthorized",
+            "value": null,
+            "asOf": null,
+            "reasonCode": "capability_required"
+          },
+          "pendingStatusChanges": {
+            "state": "notAuthorized",
+            "value": null,
+            "asOf": null,
+            "reasonCode": "capability_required"
+          }
+        }
+      }
+    },
+    {
+      "name": "activity",
+      "schema": "Activity",
+      "value": {
+        "tenantId": "10000000-0000-4000-8000-000000000001",
+        "issuerId": null,
+        "generatedAt": "2026-11-06T12:00:00Z",
+        "window": {
+          "from": "2026-11-05T12:00:00Z",
+          "to": "2026-11-06T12:00:00Z",
+          "timeZone": "UTC",
+          "bounds": "[from,to)"
+        },
+        "asOf": "2026-11-06T12:00:00Z",
+        "items": [
+          {
+            "eventId": "70000000-0000-4000-8000-000000000001",
+            "action": "members.invitation.created",
+            "outcome": "success",
+            "occurredAt": "2026-11-05T12:00:00Z",
+            "actorId": "20000000-0000-4000-8000-000000000001",
+            "targetId": "30000000-0000-4000-8000-000000000001"
+          }
+        ],
+        "nextCursor": null
+      }
+    },
+    {
+      "name": "empty",
+      "schema": "Activity",
+      "value": {
+        "tenantId": "10000000-0000-4000-8000-000000000001",
+        "issuerId": null,
+        "generatedAt": "2026-11-06T12:00:00Z",
+        "window": {
+          "from": "2026-11-05T12:00:00Z",
+          "to": "2026-11-06T12:00:00Z",
+          "timeZone": "UTC",
+          "bounds": "[from,to)"
+        },
+        "asOf": "2026-11-06T12:00:00Z",
+        "items": [],
+        "nextCursor": null
+      }
+    },
+    {
+      "name": "invalid_request",
+      "schema": "Problem",
+      "value": {
+        "type": "about:blank",
+        "title": "invalid_request",
+        "status": 400,
+        "code": "invalid_request",
+        "correlationId": "80000000-0000-4000-8000-000000000001"
+      }
+    },
+    {
+      "name": "invalid_credential",
+      "schema": "Problem",
+      "value": {
+        "type": "about:blank",
+        "title": "invalid_credential",
+        "status": 401,
+        "code": "invalid_credential",
+        "correlationId": "80000000-0000-4000-8000-000000000001"
+      }
+    },
+    {
+      "name": "forbidden",
+      "schema": "Problem",
+      "value": {
+        "type": "about:blank",
+        "title": "forbidden",
+        "status": 403,
+        "code": "forbidden",
+        "correlationId": "80000000-0000-4000-8000-000000000001"
+      }
+    },
+    {
+      "name": "resource_not_found",
+      "schema": "Problem",
+      "value": {
+        "type": "about:blank",
+        "title": "resource_not_found",
+        "status": 404,
+        "code": "resource_not_found",
+        "correlationId": "80000000-0000-4000-8000-000000000001"
+      }
+    },
+    {
+      "name": "invalid_input",
+      "schema": "Problem",
+      "value": {
+        "type": "about:blank",
+        "title": "invalid_input",
+        "status": 422,
+        "code": "invalid_input",
+        "correlationId": "80000000-0000-4000-8000-000000000001"
+      }
+    },
+    {
+      "name": "invalid_cursor",
+      "schema": "Problem",
+      "value": {
+        "type": "about:blank",
+        "title": "invalid_cursor",
+        "status": 422,
+        "code": "invalid_cursor",
+        "correlationId": "80000000-0000-4000-8000-000000000001"
+      }
+    },
+    {
+      "name": "rate_limited",
+      "schema": "Problem",
+      "value": {
+        "type": "about:blank",
+        "title": "rate_limited",
+        "status": 429,
+        "code": "rate_limited",
+        "correlationId": "80000000-0000-4000-8000-000000000001"
+      }
+    },
+    {
+      "name": "dependency_unavailable",
+      "schema": "Problem",
+      "value": {
+        "type": "about:blank",
+        "title": "dependency_unavailable",
+        "status": 503,
+        "code": "dependency_unavailable",
+        "correlationId": "80000000-0000-4000-8000-000000000001"
+      }
+    }
+  ]
+}

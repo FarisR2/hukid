@@ -1,0 +1,79 @@
+{
+  "version": "0.1.0-draft",
+  "implementationStatus": "contract-only",
+  "metrics": {
+    "activeMembers": {
+      "source": "tenancy",
+      "capability": "members:read",
+      "period": "snapshot",
+      "issuerFilter": "notApplicable",
+      "definition": "Active current membership lifecycles at asOf, counted once per membershipId; no historical window."
+    },
+    "activeIssuers": {
+      "source": "issuers",
+      "capability": "issuer:read",
+      "period": "snapshot",
+      "issuerFilter": "authorized",
+      "definition": "Active issuer IDs visible at asOf."
+    },
+    "publishedDefinitionVersions": {
+      "source": "definitions",
+      "capability": "definition:read",
+      "period": "snapshot",
+      "issuerFilter": "authorized",
+      "definition": "Published immutable definition versions at asOf; drafts excluded."
+    },
+    "createdRequests": {
+      "source": "issuance",
+      "capability": "issuance:read",
+      "period": "window",
+      "issuerFilter": "authorized",
+      "definition": "Distinct issuance request IDs created in [from,to), across all states at asOf; excludes offers and credentials."
+    },
+    "issuedCredentials": {
+      "source": "credentials",
+      "capability": "issuance:read",
+      "period": "window",
+      "issuerFilter": "authorized",
+      "definition": "Confirmed credential artifacts with issuedAt in [from,to), regardless of subsequent status; excludes offers, unconfirmed artifacts and wallet inventory."
+    },
+    "pendingStatusChanges": {
+      "source": "status",
+      "capability": "status:read",
+      "period": "snapshot",
+      "issuerFilter": "authorized",
+      "definition": "Distinct credentials with desired status different from published status at asOf. Pending changes are not effective public revocations."
+    }
+  },
+  "reservedCapabilities": [
+    "issuer:read",
+    "definition:read",
+    "issuance:read",
+    "status:read"
+  ],
+  "activity": {
+    "source": "platform.audit_events",
+    "capability": "audit:read",
+    "actions": [
+      "auth.step_up.completed",
+      "auth.context.changed",
+      "auth.refresh.completed",
+      "auth.logout.completed",
+      "auth.family.revoked",
+      "members.invitation.created",
+      "members.invitation.revoked",
+      "members.invitation.accepted",
+      "members.invitation.expired",
+      "members.delivery.sent",
+      "members.delivery.failed",
+      "members.membership.changed",
+      "members.membership.revoked",
+      "members.membership.reentered",
+      "members.retention.purged"
+    ],
+    "period": "window",
+    "occurredAt": "recorded_at",
+    "issuerFilter": "exclude-unattributed",
+    "outcome": "success"
+  }
+}

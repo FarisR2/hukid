@@ -1,7 +1,7 @@
 # FEAT-003 — Dashboard operativo del tenant
 
 - Producto: HukID Console / Team 5.
-- Estado: especificación inicial; lectura agregada y endpoints propuestos.
+- Estado: baseline contractual DASH-T01; lectura agregada y endpoints aún sin handlers.
 - Depende de: identidad/contexto [FEAT-001](../FEAT-001-authentication/spec.md) y matriz [FEAT-002](../FEAT-002-user-management/spec.md).
 - Salidas: [plan](plan.md), [tareas](tasks.md).
 
@@ -35,7 +35,7 @@ Fuera: dashboard de asistencia Events, inventario de wallet, historial de presen
 | Miembros | Memberships activas al asOf; tenancy. Snapshot actual, no filtrado por periodo. | Sólo members:read, desde FEAT-002. |
 | Issuers | Issuers activos visibles al asOf. Snapshot actual. | Cuando exista módulo y issuer:read. |
 | Definitions | Versiones publicadas visibles al asOf; distintas de definitions draft. | Cuando exista módulo y definition:read. |
-| Solicitudes | Requests creados en [from,to), por estado de emisión al asOf; oferta tiene su estado separado. | Cuando exista módulo y issuance:read. |
+| Solicitudes | DASH-T01 fija createdRequests como total de requests creados en [from,to), todos los estados al asOf; oferta tiene su estado separado. El desglose por estado se difiere al contrato del módulo propietario en DASH-T05. | Cuando exista módulo y issuance:read. |
 | Credenciales emitidas | Artefactos confirmados con issuedAt en [from,to), no offers escaneadas. | Cuando exista módulo y lectura autorizada issuance:read. |
 | Publicación status | Pendientes desired≠published y último asOf disponible, sin afirmar revocación efectiva prematura. | Cuando exista módulo y capacidad de lectura de status definida en contrato. |
 | Actividad | Eventos permitidos ocurridos en [from,to), paginados. | audit:read y restricciones por issuer. |
@@ -57,4 +57,4 @@ No se fija nuevo p95 de dashboard hasta medir un perfil de carga. Los objetivos 
 
 [Arquitectura HukID](../../03-design/hukid-architecture.md) define consola, entidades y autoridad; [seguridad/operación](../../04-engineering/hukid-security-and-operations.md) y HK-005/054 fundamentan auditoría/observabilidad. El dashboard y sus métricas son diseño nuevo de esta feature, no un panel ya descrito endpoint por endpoint.
 
-Las fuentes de lectura, límites y capacidad de status se concretan en DASH-T01. El incremento base no depende de implementar HK-010–025/050: las tarjetas futuras muestran no disponible hasta disponer de fuente real.
+Las fuentes de lectura, límites y capacidad reservada status:read se concretan en el [contrato DASH-T01](../../03-design/console-dashboard-contract.md) y [ADR-0019](../../decisions/ADR-0019.md), sin ampliar la matriz vigente. El incremento base no depende de implementar HK-010–025/050: las secciones sin permiso devuelven notAuthorized; con permiso y sin fuente real devuelven unavailable.

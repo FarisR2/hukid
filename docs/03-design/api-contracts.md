@@ -13,7 +13,7 @@
 | HukID consola — autenticación ejecutable de laboratorio | [Contrato y política](console-auth-contract.md), [OpenAPI propio](../../src/platform/contracts/console-auth.openapi.json); sus nueve operaciones están implementadas, con [interfaz AUTH-T08](console-auth-interface.md). |
 | HukID consola — miembros USR-T01 y lecturas USR-T03 | [Contrato/políticas](console-members-contract.md), [OpenAPI propio](../../src/platform/contracts/console-members.openapi.json); [cuatro lecturas](console-members-directory.md) y [cuatro mutaciones de invitación](console-invitation-delivery.md) implementadas; USR-T05 conecta [dos aceptaciones](console-invitation-acceptance.md); USR-T06 conecta [dos PATCH de membresías](console-members-lifecycle.md); USR-T08 conecta la [UI administrativa y aceptación](console-members-interface.md). |
 | HukID consola — persistencia USR-T02 | [Modelo, RLS y protocolo transaccional](console-members-persistence.md); no habilita rutas HTTP. |
-| HukID consola — contratos futuros | [Dashboard](../features/FEAT-003-dashboard/plan.md) |
+| HukID consola — dashboard de laboratorio | [Contrato](console-dashboard-contract.md), [API/BFF DASH-T03](console-dashboard-http.md) y [OpenAPI](../../src/platform/contracts/console-dashboard.openapi.json); cuatro GET implemented-test, interfaz pendiente. |
 
 ## Frontera Events→HukID
 

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://hukid.example.invalid/schemas/dashboard-v0.1",
-  "title": "DASH-T01 contract-only transport",
+  "title": "DASH-T03 laboratory transport",
   "$ref": "#/$defs/Overview",
   "$defs": {
     "UUID": {

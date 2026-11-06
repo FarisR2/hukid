@@ -29,6 +29,13 @@ type authConfig struct {
 }
 
 func loadAuthConfiguration() (*authConfig, error) {
+	dashboardConfig, dashboardErr := loadDashboardConfiguration()
+	if dashboardConfig != nil {
+		clear(dashboardConfig.Key)
+	}
+	if dashboardErr != nil {
+		return nil, dashboardErr
+	}
 	memberConfig, memberErr := loadDirectoryConfiguration()
 	if memberConfig != nil {
 		clear(memberConfig.Key)
@@ -140,7 +147,13 @@ func configureHandler(ctx context.Context, address string) (http.Handler, func()
 		closePools()
 		return nil, nil, err
 	}
+	registerDashboard, closeDashboard, err := configureDashboard(ctx, management, me)
+	if err != nil {
+		closeDirectory()
+		closePools()
+		return nil, nil, err
+	}
 	commands := consolehttp.NewSessions(&authentication.SessionLifecycle{Sessions: sessions, Store: store, OIDC: provider, Random: rand.Reader})
 	stopCleanup := store.StartSessionCleanup(context.Background())
-	return audithttp.Wrap(bootstrap.Handler(consolehttp.New(service).Register, management.Register, me.Register, commands.Register, protectedCommands.Register, registerDirectory), store, slog.Default()), func() { stopCleanup(); closeDirectory(); closePools() }, nil
+	return audithttp.Wrap(bootstrap.Handler(consolehttp.New(service).Register, management.Register, me.Register, commands.Register, protectedCommands.Register, registerDirectory, registerDashboard), store, slog.Default()), func() { stopCleanup(); closeDashboard(); closeDirectory(); closePools() }, nil
 }

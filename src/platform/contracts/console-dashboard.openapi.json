@@ -1,9 +1,9 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "HukID dashboard — DASH-T01 contract baseline",
+    "title": "HukID dashboard — DASH-T03 laboratory API",
     "version": "0.1.0-draft",
-    "description": "Four proposed Management/BFF reads. No handlers, SQL grants, UI or sources connected by DASH-T01. Future domain capabilities are reserved, absent from the effective role matrix."
+    "description": "Four implemented-test Management/BFF reads over authorized tenancy/audit sources. Future domain capabilities remain reserved; no UI or production support."
   },
   "servers": [
     {
@@ -17,7 +17,7 @@
       "get": {
         "operationId": "operatorGetTenantOverview",
         "summary": "Resumen del tenant autorizado",
-        "description": "Contract-only. Live authorization precedes source reads and cursor use. Unknown/duplicate/empty query parameters are rejected. No shared cache; see console-dashboard-contract.md for scope, interval and cursor invariants.",
+        "description": "Implemented for the isolated test profile. Live authorization precedes source reads and cursor use. Unknown/duplicate/empty query parameters are rejected. No shared cache; see console-dashboard-contract.md for scope, interval and cursor invariants.",
         "security": [
           {
             "operatorBearer": []
@@ -438,7 +438,7 @@
             }
           }
         },
-        "x-implementation-status": "contract-only",
+        "x-implementation-status": "implemented-test",
         "x-required-scopes": [
           "operator:read"
         ],
@@ -454,7 +454,7 @@
       "get": {
         "operationId": "operatorListTenantActivity",
         "summary": "Actividad mínima autorizada",
-        "description": "Contract-only. Live authorization precedes source reads and cursor use. Unknown/duplicate/empty query parameters are rejected. No shared cache; see console-dashboard-contract.md for scope, interval and cursor invariants.",
+        "description": "Implemented for the isolated test profile. Live authorization precedes source reads and cursor use. Unknown/duplicate/empty query parameters are rejected. No shared cache; see console-dashboard-contract.md for scope, interval and cursor invariants.",
         "security": [
           {
             "operatorBearer": []
@@ -873,7 +873,7 @@
             }
           }
         },
-        "x-implementation-status": "contract-only",
+        "x-implementation-status": "implemented-test",
         "x-required-scopes": [
           "operator:read"
         ],
@@ -890,7 +890,7 @@
       "get": {
         "operationId": "consoleGetTenantOverview",
         "summary": "Resumen del tenant autorizado",
-        "description": "Contract-only. Live authorization precedes source reads and cursor use. Unknown/duplicate/empty query parameters are rejected. No shared cache; see console-dashboard-contract.md for scope, interval and cursor invariants.",
+        "description": "Implemented for the isolated test profile. Live authorization precedes source reads and cursor use. Unknown/duplicate/empty query parameters are rejected. No shared cache; see console-dashboard-contract.md for scope, interval and cursor invariants.",
         "security": [
           {
             "consoleSession": []
@@ -1305,7 +1305,7 @@
             }
           }
         },
-        "x-implementation-status": "contract-only",
+        "x-implementation-status": "implemented-test",
         "x-required-scopes": [
           "operator:read"
         ],
@@ -1321,7 +1321,7 @@
       "get": {
         "operationId": "consoleListTenantActivity",
         "summary": "Actividad mínima autorizada",
-        "description": "Contract-only. Live authorization precedes source reads and cursor use. Unknown/duplicate/empty query parameters are rejected. No shared cache; see console-dashboard-contract.md for scope, interval and cursor invariants.",
+        "description": "Implemented for the isolated test profile. Live authorization precedes source reads and cursor use. Unknown/duplicate/empty query parameters are rejected. No shared cache; see console-dashboard-contract.md for scope, interval and cursor invariants.",
         "security": [
           {
             "consoleSession": []
@@ -1734,7 +1734,7 @@
             }
           }
         },
-        "x-implementation-status": "contract-only",
+        "x-implementation-status": "implemented-test",
         "x-required-scopes": [
           "operator:read"
         ],

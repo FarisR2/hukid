@@ -1,12 +1,12 @@
 # FEAT-003 — Tareas
 
-Estado: DASH-T01 y DASH-T02 completadas en laboratorio (contrato/reglas/fixtures y lectura base autorizada); DASH-T03 siguiente. Owner: Team 5, backend/lecturas y consola; cada dominio mantiene sus datos.
+Estado: DASH-T01–T03 completadas en laboratorio (contrato/reglas/fixtures, lectura base autorizada y API/BFF/cursor); DASH-T04 siguiente. Owner: Team 5, backend/lecturas y consola; cada dominio mantiene sus datos.
 
 | Estado / ID | Objetivo y artefacto | Depende de | Componentes | Aceptación / verificación | Riesgo |
 | --- | --- | --- | --- | --- | --- |
 | [x] DASH-T01 | Materializar contrato overview/activity, métricas, límites, capacidad status y fixtures. | AUTH-T02, AUTH-T05, USR-T01 | OpenAPI, dashboard, dataset | Cada sección declara fuente/permisos/periodo/asOf; errores y null/0 tienen ejemplos que validan. | Semántica engañosa. |
 | [x] DASH-T02 | Implementar caso de uso y lectura base autorizada de tenancy/audit. | DASH-T01, USR-T03, USR-T07, AUTH-T09 | Dashboard, Postgres, authorization | AC02/03/05/09: conteos/feed exactos y tenant/issuer scopes antes de agrupar; fuentes no implementadas unavailable. | Filtración por agregación. |
-| [ ] DASH-T03 | Implementar API/BFF con filtros, paginación y estados parciales. | DASH-T02 | Private API/console adapters | AC04/06/07: intervalo [from,to), límites, 401/403/404, parciales y no-store probados por contrato. | Falsos éxitos/consultas ilimitadas. |
+| [x] DASH-T03 | Implementar API/BFF con filtros, paginación y estados parciales. | DASH-T02 | Private API/console adapters | AC04/06/07: intervalo [from,to), límites, 401/403/404, parciales y no-store probados por contrato. | Falsos éxitos/consultas ilimitadas. |
 | [ ] DASH-T04 | Implementar shell, contexto, navegación y vista base accesible. | DASH-T01, DASH-T03, AUTH-T08 | Console dashboard | AC01/07/08: rol/contexto reales, teclado/móvil, reintento y descarte de respuestas de tenant anterior. | Caché/respuestas tardías. |
 | [ ] DASH-T05 | Conectar por separado adaptadores issuer/definition/issuance/status cuando existan sus módulos. | DASH-T01, DASH-T03; módulos propietarios disponibles | Puertos de lectura y repositorios | Cada fuente incorporada cumple AC02/03/04/06 con fixtures. Registrar fuentes habilitadas; no fingir emisión o status con datos mock. | Dependencia futura. |
 | [ ] DASH-T06 | Ejecutar matriz negativa, cambios de permisos, ventanas y degradación. | DASH-T02–DASH-T04; DASH-T05 para cada fuente conectada | Unit/integration/contract tests | Actor sólo-A nunca observa B; data no disponible no aparece como 0; stale/desired/published, límites UTC y cursors manipulados correctos. | Exposición/consistencia. |
@@ -33,7 +33,7 @@ Estado: DASH-T01 y DASH-T02 completadas en laboratorio (contrato/reglas/fixtures
 
 ## Orden y trabajo diferido
 
-DASH-T01 materializa la matriz USR-T01 sin ampliar sus grants. Continuar por DASH-T03. El shell puede prepararse con contrato y fixture de UI aislado, pero la feature se entrega sólo con APIs reales. Fixtures de pruebas deben estar identificados; no se usan como datos operativos.
+DASH-T01 materializa la matriz USR-T01 sin ampliar sus grants. Continuar por DASH-T04. El shell puede prepararse con contrato y fixture de UI aislado, pero la feature se entrega sólo con APIs reales. Fixtures de pruebas deben estar identificados; no se usan como datos operativos.
 
 DASH-T05 se subdivide por fuente cuando el dominio esté listo. No bloquea el incremento base y permanece pendiente para las fuentes ausentes. Las tareas que verifican D3 se ejecutan para cada adaptador incorporado, sin dar por completa la tarea global.
 
@@ -56,3 +56,13 @@ Las fuentes futuras respetan permiso primero: roles actuales reciben notAuthoriz
 Validación local aprobada: `npm run check` (formato/vet/unitarias Go, TypeScript, 18 pruebas Node de contratos/IdP y documentación), `npm run test:postgres` (40.000 s), `npm run build`, `npm run smoke` y `git diff --check`. El validador documental comprobó 106 Markdown y 964 enlaces/anclas locales, bloques y estructura. Las pruebas añaden disponibilidad/frescura/null/0 y cuatro escenarios PostgreSQL de conteos/aislamiento, feed/ventana/allowlist/keyset, upgrade/privilegios/fallos y snapshot/revisión viva. No se ejecuta Chromium nuevo porque no cambia UI.
 
 No hay handlers, configuración de pool API ni cursor público autenticado por este incremento: siguen en DASH-T03. DASH-T04 conserva interfaz; DASH-T05 módulos futuros; DASH-T06–T08 gate y operación. No acredita carga, CI remoto, interoperabilidad VC ni producción. Siguiente DASH-T03.
+
+## Evidencia DASH-T03 — 2026-11-06
+
+[API/BFF del dashboard](../../03-design/console-dashboard-http.md) según [ADR-0021](../../decisions/ADR-0021.md): cuatro GET implemented-test, configuración opcional completa con pool/clave exclusivos, Bearer/sesión y autorización viva antes de consultar. Filtros UTC [from,to), límites, errores propios, no-store y correlación UUID. Cursor AES-256-GCM ligado a operación/actor/tenant/revisión/roles/scopes/filtros/límite, asOf y deadline fijos durante 900 segundos; no renueva TTL. Se autentica dentro del snapshot tras reautorizar.
+
+Validación local aprobada: `npm run check` (formato/vet/unitarias Go, TypeScript, 18 pruebas Node de contratos/IdP y documentación), `npm run test:postgres` (57.239 s en la ejecución final), `npm run build`, `npm run smoke` y `git diff --check`. La suite HTTP real añade ambos transportes, tres páginas con timestamps iguales, bordes/tenant, cambio de revisión/rol, errores, selección ausente, suspensión y schema estricto de respuestas serializadas. Unitarias añaden binding/manipulación/expiración/rotación de clave y configuración incompleta, insegura o mal formada. Los fixtures nuevos conservan pares audit/outbox para no alterar la regresión AUTH.
+
+La primera pasada detectó precedencia de selección retirada por AUTH; BFF ahora devuelve 404 para selector inaccesible antes del 403 de selección accesible distinta/ausente. Las correcciones de fixtures de pruebas no cambian el runtime AUTH/USR. Con una única fuente de conteo autorizada conectada, su fallo sigue siendo 503 global; parciales/unavailable/stale futuros conservan cobertura contractual/pura y se aplicarán al conectar dominios. No se fingen fuentes ni ownership issuer.
+
+Sin migración nueva, UI o Chromium nuevo. No acredita carga/SLO, CI remoto, interoperabilidad VC, producción ni cierre de la feature completa. DASH-T04 es la siguiente tarea; DASH-T05 conserva fuentes futuras y DASH-T06–T08 la matriz ampliada, navegador y operación.

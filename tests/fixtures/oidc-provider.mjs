@@ -50,12 +50,12 @@ export async function startTestIdp(policy) {
     },
     rotateRefreshToken: true,
     findAccount(_ctx, id) {
-      if (id !== 'operator-test-a') return undefined;
-      return { accountId: id, claims: async () => ({ sub: id, email: 'Lab+recipient@example.invalid', email_verified: true }) };
+      if (!['operator-test-a', 'operator-test-b'].includes(id)) return undefined;
+      return { accountId: id, claims: async () => ({ sub: id, email: id === 'operator-test-a' ? 'Lab+recipient@example.invalid' : 'Browser+recipient@example.invalid', email_verified: true }) };
     },
     extraTokenClaims(ctx, token) {
       const source = ctx.oidc.entities.AuthorizationCode || ctx.oidc.entities.RefreshToken;
-      if (!source || token.accountId !== 'operator-test-a') throw new Error('No verified synthetic human grant');
+      if (!source || !['operator-test-a', 'operator-test-b'].includes(token.accountId)) throw new Error('No verified synthetic human grant');
       return { hukid_token_class: 'operator', hukid_grant: 'authorization_code', auth_time: source.authTime, amr: source.amr, acr: source.acr };
     },
     interactions: { url: (_ctx, interaction) => `/interaction/${interaction.uid}` },
@@ -67,10 +67,12 @@ export async function startTestIdp(policy) {
     const expected = Buffer.from(interactionKey);
     if (ctx.method !== 'GET' || supplied.length !== expected.length || !timingSafeEqual(supplied, expected)) { ctx.status = 404; return; }
     const details = await provider.interactionDetails(ctx.req, ctx.res);
+    const account = ctx.get('X-Hukid-Test-Account') || 'operator-test-a';
+    if (!['operator-test-a', 'operator-test-b'].includes(account)) { ctx.status = 400; return; }
     const result = {};
-    if (details.prompt.name === 'login') result.login = { accountId: 'operator-test-a', acr: policy.acceptedAcr[0], amr: policy.requiredAmr, remember: false };
+    if (details.prompt.name === 'login') result.login = { accountId: account, acr: policy.acceptedAcr[0], amr: policy.requiredAmr, remember: false };
     else if (details.prompt.name === 'consent') {
-      const grant = details.grantId ? await provider.Grant.find(details.grantId) : new provider.Grant({ accountId: 'operator-test-a', clientId: policy.clientId });
+      const grant = details.grantId ? await provider.Grant.find(details.grantId) : new provider.Grant({ accountId: details.session.accountId, clientId: policy.clientId });
       grant.addOIDCScope((details.prompt.details.missingOIDCScope || []).join(' '));
       grant.addResourceScope(policy.audience, 'operator:read');
       result.consent = { grantId: await grant.save() };

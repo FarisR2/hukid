@@ -1,0 +1,46 @@
+/* Extends the AUTH palette and spacing system; access records stay in one page flow. */
+input { font: inherit; min-height: var(--control); padding: var(--s3) var(--s4); color: var(--text); background: var(--surface); border: 1px solid var(--control-border); border-radius: var(--radius); max-width: 100%; width: 100%; }
+input:focus-visible { outline: 3px solid var(--focus); outline-offset: 4px; }
+input[type='checkbox'] { width: var(--s5); height: var(--s5); min-height: var(--s5); accent-color: var(--primary); flex-shrink: 0; }
+fieldset { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; gap: var(--s4); }
+legend { font-weight: 600; padding: 0; margin-bottom: var(--s3); }
+label { display: grid; gap: var(--s2); min-width: 0; }
+h2:focus, h3:focus { outline: none; }
+h3 { font-size: 1.125rem; margin: 0; }
+.workspace { --measure: 82rem; grid-template-columns: minmax(0, 1fr); gap: var(--s6); margin-top: 0; }
+.workspace .access-note { display: none; }
+.workspace .access-panel { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: var(--s6); align-content: start; min-height: 34rem; }
+.workspace .access-panel > h1, .workspace .access-panel > .eyebrow, .workspace .access-panel > .badge { grid-column: 1 / -1; justify-self: start; }
+.management, .acceptance { min-width: 0; grid-column: 1 / -1; background: var(--surface); padding: var(--s6); border: 1px solid var(--border); border-radius: var(--radius); }
+.section-heading { display: flex; justify-content: space-between; align-items: start; gap: var(--s4); }
+.section-heading h2 { font-size: 1.5rem; margin-top: var(--s2); }
+.filters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; align-items: start; gap: var(--s4); margin-block: var(--s5); }
+.filters > button { align-self: center; }
+.filters .muted { font-weight: 400; font-size: .875rem; }
+.directory { margin-top: var(--s5); min-height: 12rem; }
+.data-feedback { padding-block: var(--s5); }
+.record-list { list-style: none; margin: 0 0 var(--s5); padding: 0; }
+.record-list > li { border-top: 1px solid var(--border); padding-block: var(--s5); }
+.record-list p { margin-bottom: var(--s2); }
+.record-summary { display: flex; gap: var(--s3); align-items: center; flex-wrap: wrap; margin-bottom: var(--s3); }
+.record-summary .badge { margin: 0; }
+.record-id { overflow-wrap: anywhere; font-family: ui-monospace, Consolas, monospace; }
+.record-footer { display: flex; gap: var(--s4); justify-content: space-between; align-items: center; margin-top: var(--s3); }
+.danger { color: var(--danger); border-color: var(--danger); }
+[aria-pressed='true'] { background: var(--badge-bg); border-color: var(--primary); }
+.editor { margin-top: var(--s5); max-width: 48rem; }
+.editor > p { margin: 0; }
+.role-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s3); }
+.check { display: flex; align-items: center; gap: var(--s3); min-height: var(--control); font-weight: 400; }
+.acceptance form { max-width: 36rem; }
+.acceptance form > button { align-self: start; }
+.acceptance form > p { margin: 0; }
+dialog { background: var(--surface); color: var(--text); border: 1px solid var(--control-border); border-radius: var(--radius); padding: var(--s6); width: min(calc(100% - var(--s6)), 40rem); max-height: calc(100dvh - var(--s6)); }
+dialog::backdrop { background: #0009; }
+@media (max-width: 767px) {
+  .workspace .access-panel { display: block; }
+  .management, .acceptance { padding: var(--s4); }
+  .filters, .role-options { grid-template-columns: minmax(0, 1fr); }
+  .section-heading { flex-direction: column; }
+  .record-footer { flex-wrap: wrap; }
+}

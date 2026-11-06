@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { AuthError, navigate, readIdentity, request } from './client';
 import type { Identity } from './client';
+import { MemberManagement } from '../user-management/MemberManagement';
+import { Acceptance } from '../user-management/forms';
+import { discardInvitation, takeInvitation } from '../user-management/client';
 
 type View = { kind: 'loading' | 'anonymous' | 'error'; title: string; message: string } |
   { kind: 'authenticated'; identity: Identity };
@@ -26,6 +29,7 @@ export function AuthConsole() {
   const [busy, setBusy] = useState(false);
   const [selection, setSelection] = useState('');
   const [formError, setFormError] = useState('');
+  const [invitation, setInvitation] = useState('');
   const proof = useRef<string | undefined>(undefined);
   const current = useRef<AbortController | null>(null);
   const generation = useRef(0);
@@ -53,6 +57,7 @@ export function AuthConsole() {
     const valid = () => version === generation.current && !controller.signal.aborted;
     try {
       if (action === 'login') {
+        setInvitation(''); discardInvitation();
         await navigate(await request('/console/auth/login?returnTo=/', signal), signal);
         return;
       }
@@ -62,7 +67,7 @@ export function AuthConsole() {
         const path = action === 'tenant' ? 'tenant-context' : action;
         const response = await request(`/console/auth/${path}`, signal, proof.current, body);
         channel.current?.postMessage('session-changed');
-        if (action === 'step-up') { await navigate(response, signal); return; }
+        if (action === 'step-up') { setInvitation(''); discardInvitation(); await navigate(response, signal); return; }
         if (action === 'logout') {
           proof.current = undefined;
           if (valid()) setView({ kind: 'anonymous', title: 'Sesión cerrada', message: 'Has cerrado tu sesión de HukID. Puedes volver a acceder cuando lo necesites.' });
@@ -86,6 +91,8 @@ export function AuthConsole() {
   }
 
   useEffect(() => {
+    const incoming = takeInvitation();
+    if (incoming) setInvitation(incoming);
     void run('read');
     const clear = () => {
       reset();
@@ -93,12 +100,13 @@ export function AuthConsole() {
       setBusy(false);
     };
     const restore = () => { if (!document.hidden) { clear(); void run('read'); } };
-    const visibility = () => { if (document.hidden) clear(); else restore(); };
+    const hide = () => { setInvitation(''); discardInvitation(); clear(); };
+    const visibility = () => { if (document.hidden) hide(); else restore(); };
     const broadcast = new BroadcastChannel('hukid-session');
     channel.current = broadcast;
     broadcast.onmessage = () => { clear(); proof.current = undefined; if (!document.hidden) void run('read'); };
     document.addEventListener('visibilitychange', visibility);
-    window.addEventListener('pagehide', clear);
+    window.addEventListener('pagehide', hide);
     window.addEventListener('pageshow', restore);
     window.addEventListener('popstate', restore);
     return () => {
@@ -107,11 +115,32 @@ export function AuthConsole() {
       locked.current = false;
       broadcast.close();
       document.removeEventListener('visibilitychange', visibility);
-      window.removeEventListener('pagehide', clear);
+      window.removeEventListener('pagehide', hide);
       window.removeEventListener('pageshow', restore);
       window.removeEventListener('popstate', restore);
     };
   }, []);
+
+  useEffect(() => {
+    if (view.kind === 'anonymous' || view.kind === 'error') { setInvitation(''); discardInvitation(); }
+  }, [view.kind]);
+
+  async function updateContext() {
+    const controller = current.current;
+    const version = generation.current;
+    if (!controller) return;
+    try {
+      const identity = await readIdentity(AbortSignal.any([controller.signal, AbortSignal.timeout(12000)]));
+      if (version === generation.current && !controller.signal.aborted) {
+        proof.current = identity.csrfToken;
+        setView({ kind: 'authenticated', identity });
+        setSelection(identity.activeTenantId ?? '');
+        channel.current?.postMessage('session-changed');
+      }
+    } catch (error) {
+      if (version === generation.current && !controller.signal.aborted) setView(failure(error));
+    }
+  }
 
   useEffect(() => { if (view.kind !== 'loading') heading.current?.focus(); }, [view]);
 
@@ -128,7 +157,7 @@ export function AuthConsole() {
   return <div className="app">
     <a className="skip" href="#content">Ir al contenido</a>
     <header className="header"><a className="brand" href="/" aria-label="HukID, inicio"><span className="brand-mark" aria-hidden="true">h.</span>HukID</a><span className="header-label">Consola de operadores</span></header>
-    <main id="content" className="content" aria-busy={busy}>
+    <main id="content" className="content workspace" aria-busy={busy}>
       <section className="access-panel" aria-labelledby="title">
         <span className="eyebrow">{active ? 'Tu organización' : 'Acceso de operadores'}</span>
         <h1 id="title" ref={heading} tabIndex={-1}>{title}</h1>
@@ -156,17 +185,20 @@ export function AuthConsole() {
                 {identity!.tenants.map(tenant => <option key={tenant.tenantId} value={tenant.tenantId}>{tenant.displayName}</option>)}
               </select>
               {formError && <p id="tenant-error" className="field-error" role="alert">{formError}</p>}
-              <button className="primary" type="submit" disabled={busy}>{active ? 'Cambiar organización' : 'Continuar'}</button>
+              <button className={active ? '' : 'primary'} type="submit" disabled={busy}>{active ? 'Cambiar organización' : 'Continuar'}</button>
             </form>
             {active && <div className="session-details" key={`${identity!.actorId}:${active.tenantId}:${identity!.context!.authorizationRevision}`}>
-              <h2>Acceso confirmado</h2><p>La gestión de miembros y el resumen operativo estarán disponibles en próximos incrementos.</p>
-              <div className="actions"><button onClick={() => void run('step-up')} disabled={busy}>Verificar identidad</button><button onClick={() => void run('refresh')} disabled={busy}>Renovar sesión</button></div>
+              <h2>Tu sesión</h2><p>Verifica tu identidad para cambios de acceso que necesiten una confirmación reciente.</p>
+              <div className="actions"><button onClick={() => void run('step-up')} disabled={busy}>Verificar identidad</button><button onClick={() => void run('refresh')} disabled={busy}>Renovar sesión</button><button onClick={() => void run('read')} disabled={busy}>Comprobar acceso</button></div>
             </div>}
           </>}
         </>}
         {proof.current && view.kind !== 'loading' && <div className="logout"><button className="quiet" onClick={() => void run('logout')} disabled={busy}>Cerrar sesión</button></div>}
       </section>
       <aside className="access-note"><span className="note-rule" aria-hidden="true"/><p>Un acceso.<br/><strong>El contexto correcto.</strong></p><p className="muted">Cada organización conserva su propio espacio de trabajo. Tu acceso se comprueba al continuar.</p></aside>
+      {active && identity && <MemberManagement key={`${identity.actorId}:${active.tenantId}:${identity.context!.authorizationRevision}`}
+        identity={identity} onChanged={() => void updateContext()} />}
+      {identity && <Acceptance key={identity.actorId} identity={identity} initialToken={invitation} onDone={() => { setInvitation(''); void updateContext(); }} />}
     </main>
     <footer className="footer">HukID · Administración de identidad</footer>
   </div>;

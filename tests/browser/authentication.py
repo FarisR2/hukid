@@ -9,6 +9,7 @@ import sys
 from urllib.parse import urlsplit, urljoin
 
 from playwright.sync_api import sync_playwright, expect
+from members import run_members
 
 config = json.loads(sys.stdin.readline())
 origin = config['origin']
@@ -18,7 +19,9 @@ artifacts.mkdir(parents=True, exist_ok=True)
 
 def database(action):
     print(action, flush=True)
-    assert json.loads(sys.stdin.readline())['ok']
+    result = json.loads(sys.stdin.readline())
+    assert result['ok']
+    return result
 
 
 def heading(page, name):
@@ -63,7 +66,7 @@ with sync_playwright() as playwright:
     # Synthetic MFA is completed by the harness; the browser still navigates
     # to the real IdP and the real callback. No cookie/token is fabricated.
     # Playwright routing only handles the first request in a redirect chain.
-    def authorize(route):
+    def authorize(route, current_context=context, account='operator-test-a'):
         response = route.fetch(max_redirects=0)
         for _ in range(12):
             assert response.status in (302, 303)
@@ -72,10 +75,10 @@ with sync_playwright() as playwright:
                 assert target.startswith(origin + '/console/auth/callback?')
                 route.fulfill(response=response)
                 return
-            headers = {'X-Hukid-Test-Interaction': config['interactionKey']} if urlsplit(target).path.startswith('/interaction/') else {}
-            response = context.request.get(target, headers=headers, max_redirects=0)
+            headers = {'X-Hukid-Test-Interaction': config['interactionKey'], 'X-Hukid-Test-Account': account} if urlsplit(target).path.startswith('/interaction/') else {}
+            response = current_context.request.get(target, headers=headers, max_redirects=0)
         raise AssertionError('Synthetic authorization exceeded redirect bound')
-    context.route(config['issuer'] + '/auth?*', authorize)
+    context.route(config['issuer'] + '/auth?*', lambda route: authorize(route))
     page = context.new_page()
     context.new_cdp_session(page).send('Emulation.setCPUThrottlingRate', {'rate': 4})
     errors = []
@@ -245,6 +248,8 @@ with sync_playwright() as playwright:
     page.reload()
     heading(page, 'Elige una organización')
     expect(page.get_by_label('Organización', exact=True)).to_have_value('only-tenant')
+    page.unroute('**/console/api/me', one_tenant)
+    run_members(page, context, browser, config, authorize, database, heading, login, artifacts)
     context.close()
     browser.close()
     print('Browser: login/pending/tenant/me/refresh/step-up/logout, live suspension, expiry, failures, keyboard, history, cross-tab, storage and responsive screenshots passed.', flush=True)

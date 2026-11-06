@@ -35,3 +35,7 @@ Las respuestas controladas incluyen no-store, no-referrer y correlación nueva. 
 | AC09/QR04 | Binario Go + IdP + PostgreSQL: /me sin membresía, contexto null/seleccionado consistente, CSRF, no-store y ausencia de credenciales en respuestas. Pruebas con reloj controlado verifican deadlines, política/generación y corrupción del envelope/CSRF. |
 
 La evidencia específica de AUTH-T05 usó check, test:postgres, build y smoke; en ese incremento PostgreSQL alcanzó once pruebas superiores con subcasos. AUTH-T06/T07 amplían la suite HTTP/DB y AUTH-T08 agrega test:browser con [evidencia propia](console-auth-interface.md). No acredita factores reales, carga, restore ni producción. Auditoría integrada y gate operativo siguen en AUTH-T09/T10; las versiones y comandos actuales están en desarrollo local.
+
+## Ampliación DASH-T04
+
+El DTO de contexto BFF/Management añade roles desde la misma lectura de membresía viva que deriva capacidades, según [ADR-0022](../decisions/ADR-0022.md). El [OpenAPI](../../src/platform/contracts/console-auth.openapi.json) permite el campo aditivo opcional para compatibilidad; el servidor actual siempre lo emite. No cambia la matriz, no confía en roles del JWT y no permite enviarlos en tenant-context. La [interfaz del dashboard](console-dashboard-interface.md) los usa para describir el acceso propio.

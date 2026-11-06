@@ -175,3 +175,9 @@ DASH-T03 conserva handlers/BFF, configuración del pool, cursor autenticado, no-
 [API/BFF del dashboard](../03-design/console-dashboard-http.md) y [ADR-0021](../decisions/ADR-0021.md) conectan las cuatro lecturas con configuración opcional dedicada, autorización viva, cursor AES-GCM ligado a revisión/scopes, TTL fijo, errores contractuales y no-store. Las respuestas HTTP reales se contrastan con el schema. Sin migración nueva ni cambios de grants.
 
 DASH-T04 conserva UI; DASH-T05 fuentes futuras; DASH-T06–T08 matriz ampliada, navegador y operación. Con una sola fuente de conteo autorizada conectada, su fallo sigue siendo 503 global; parciales futuros se validan por fixtures y reglas, sin fingir adaptadores. No hay ownership/atribución issuer, rate limiter dashboard propio, carga/SLO, CI remoto, producción ni cierre del roadmap HK.
+
+## Incremento DASH-T04
+
+[Interfaz base](../03-design/console-dashboard-interface.md) y [ADR-0022](../decisions/ADR-0022.md): contexto, roles aditivos de membresía viva, navegación por capacidades, filtros UTC, métricas/actividad reales, recuperación y descarte de respuestas tardías. Sin migración, grants o fuente nueva. El campo roles amplía el schema estricto anterior; sus consumidores deben actualizarlo.
+
+DASH-T05 conserva módulos/ownership issuer futuros y DASH-T06–T08 matriz ampliada, mediciones y operación. Las degradaciones futuras/paginación de UI se inyectan sólo en pruebas; no son fuentes operativas. Sin lector de pantalla físico/certificación WCAG, carga/SLO, CI remoto, IdP/MFA reales, preparación productiva ni cierre del roadmap HK.

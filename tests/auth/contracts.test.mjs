@@ -43,7 +43,7 @@ test('all request/response examples validate; extra fields cannot carry tokens o
           assert.equal(check(media.example), true, JSON.stringify(check.errors));
           if (typeof media.example === 'object') {
             assert.equal(check({...media.example,accessToken:'synthetic-not-a-token'}), false);
-            assert.equal(check({...media.example,roles:['tenant_admin']}), false);
+            if (!media.schema?.$ref?.endsWith('/Context')) assert.equal(check({...media.example,roles:['tenant_admin']}), false);
           }
           count++;
         }
@@ -55,6 +55,10 @@ test('all request/response examples validate; extra fields cannot carry tokens o
   assert.equal(selection({tenantId:''}), false);
   const context = validate({$ref:'#/components/schemas/Context'});
   assert.equal(context({tenantId:'tenant-test-a',capabilities:['global:admin'],issuerIds:[],authorizationRevision:1}), false);
+  const base = {tenantId:'tenant-test-a',capabilities:['dashboard:read'],issuerIds:[],authorizationRevision:1};
+  assert.equal(context({...base,roles:['support_readonly']}), true);
+  assert.equal(context({...base,roles:['global_admin']}), false);
+  assert.equal(selection({tenantId:'tenant-test-a',roles:['tenant_admin']}), false);
 });
 
 test('test policy requires every field and cannot be promoted to production', () => {

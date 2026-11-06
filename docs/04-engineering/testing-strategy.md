@@ -60,3 +60,7 @@ En documentación, verificar enlaces/anclas locales, bloques y estructura con `n
 ## Gate acumulado de autenticación
 
 npm run test:auth:gate ejecuta secuencialmente los cinco comandos de la tabla, con build previo al smoke/navegador, y genera un informe de metadatos sin secretos. El ensayo AUTH-T10 dentro de test:postgres prueba retirada/invalidez/reactivación con recursos propios. [Matriz A4 y límites](../05-delivery/authentication-gate.md). El workflow versionado usa ese mismo comando; CI remoto no se declara aprobado por validación local.
+
+## Interfaz DASH-T04
+
+Chromium añade dashboard sobre BFF/DB reales: conteos, roles propios, teclado, reflujo 320–1440 px/200%, modo oscuro, rango UTC, cambio de tenant y permisos, 401/403, reintento y descarte de respuestas tardías. Degradación de secciones y paginación/cursor inválido de UI usan respuestas interceptadas explícitas; el cursor autenticado real conserva pruebas DASH-T03. La [interfaz](../03-design/console-dashboard-interface.md) y las [tareas](../features/FEAT-003-dashboard/tasks.md) distinguen esta evidencia de la matriz ampliada DASH-T06 y el gate DASH-T07/T08 pendientes.

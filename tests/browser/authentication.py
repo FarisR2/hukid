@@ -10,6 +10,7 @@ from urllib.parse import urlsplit, urljoin
 
 from playwright.sync_api import sync_playwright, expect
 from members import run_members
+from dashboard import run_dashboard
 
 config = json.loads(sys.stdin.readline())
 origin = config['origin']
@@ -249,6 +250,7 @@ with sync_playwright() as playwright:
     heading(page, 'Elige una organización')
     expect(page.get_by_label('Organización', exact=True)).to_have_value('only-tenant')
     page.unroute('**/console/api/me', one_tenant)
+    run_dashboard(page, context, config, database, heading, login, artifacts)
     run_members(page, context, browser, config, authorize, database, heading, login, artifacts)
     context.close()
     browser.close()

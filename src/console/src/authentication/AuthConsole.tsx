@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import { Dashboard } from '../dashboard/Dashboard';
+import { WorkspaceNavigation } from '../dashboard/WorkspaceNavigation';
 import type { FormEvent } from 'react';
 import { AuthError, navigate, readIdentity, request } from './client';
 import type { Identity } from './client';
@@ -196,7 +198,13 @@ export function AuthConsole() {
         {proof.current && view.kind !== 'loading' && <div className="logout"><button className="quiet" onClick={() => void run('logout')} disabled={busy}>Cerrar sesión</button></div>}
       </section>
       <aside className="access-note"><span className="note-rule" aria-hidden="true"/><p>Un acceso.<br/><strong>El contexto correcto.</strong></p><p className="muted">Cada organización conserva su propio espacio de trabajo. Tu acceso se comprueba al continuar.</p></aside>
-      {active && identity && <MemberManagement key={`${identity.actorId}:${active.tenantId}:${identity.context!.authorizationRevision}`}
+      {active && identity && <WorkspaceNavigation identity={identity} />}
+      {active && identity && <Dashboard key={`${identity.actorId}:${active.tenantId}:${identity.context!.authorizationRevision}:${identity.context!.capabilities.join(',')}:${identity.context!.issuerIds.join(',')}`}
+        identity={identity} onAccessError={status => {
+          if (status === 401) { reset(); proof.current = undefined; locked.current = false; setBusy(false); setView(anonymous); }
+          else void updateContext();
+        }} />}
+      {active && identity && identity.context!.capabilities.some(c => ['members:read', 'invitations:read'].includes(c)) && <MemberManagement key={`${identity.actorId}:${active.tenantId}:${identity.context!.authorizationRevision}`}
         identity={identity} onChanged={() => void updateContext()} />}
       {identity && <Acceptance key={identity.actorId} identity={identity} initialToken={invitation} onDone={() => { setInvitation(''); void updateContext(); }} />}
     </main>

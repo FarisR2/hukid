@@ -29,6 +29,7 @@ func TestConsoleBrowser(t *testing.T) {
 	discovery := db.pool(t, "hukid_context_runtime")
 	tenantPool := db.pool(t, "hukid_tenant_runtime")
 	membersPool := db.pool(t, "hukid_members_runtime")
+	dashboardPool := db.pool(t, "hukid_dashboard_runtime")
 	f, err := os.Open("../../../config/auth.test.json")
 	if err != nil {
 		t.Fatal(err)
@@ -63,6 +64,11 @@ func TestConsoleBrowser(t *testing.T) {
 		}
 	}
 	membersPolicyPath := filepath.Join(root, "src", "platform", "config", "user-management.test.json")
+	dashboardPolicyPath := filepath.Join(root, "src", "platform", "config", "dashboard.test.json")
+	dashboardKey := make([]byte, 32)
+	if _, err := rand.Read(dashboardKey); err != nil {
+		t.Fatal(err)
+	}
 	membersFile, err := os.Open(membersPolicyPath)
 	if err != nil {
 		t.Fatal(err)
@@ -92,6 +98,8 @@ func TestConsoleBrowser(t *testing.T) {
 		"HUKID_INVITATION_KEY="+base64.StdEncoding.EncodeToString(invitationKey), "HUKID_INVITATION_KEY_VERSION=browser-invitation",
 		"HUKID_INVITATION_HMAC_KEY="+base64.StdEncoding.EncodeToString(macKey))
 	apiLogs := &capturedLogs{}
+	api.Env = append(api.Env, "HUKID_DASHBOARD_DATABASE_URL="+dashboardPool.Config().ConnString(),
+		"HUKID_DASHBOARD_POLICY="+dashboardPolicyPath, "HUKID_DASHBOARD_CURSOR_KEY="+base64.StdEncoding.EncodeToString(dashboardKey))
 	api.Stdout, api.Stderr = apiLogs, apiLogs
 	for _, proxyOrigin := range []string{"", "http://127.0.0.1:1"} {
 		rejected := exec.Command(binary)
@@ -184,6 +192,13 @@ func TestConsoleBrowser(t *testing.T) {
 			mustExec(t, db.admin, `INSERT INTO tenancy.membership_roles(tenant_id,membership_id,role) VALUES ($1,'30000000-0000-4000-8000-000000000003','tenant_admin')`, TestTenantB)
 		case "expire":
 			mustExec(t, db.admin, `UPDATE console_auth.sessions SET created_at=created_at-interval '2 hours',last_seen_at=created_at-interval '2 hours',idle_expires_at=now()-interval '1 second'`)
+		case "dashboard-readonly", "dashboard-admin":
+			role := "support_readonly"
+			if scanner.Text() == "dashboard-admin" {
+				role = "tenant_admin"
+			}
+			mustExec(t, db.admin, `UPDATE tenancy.membership_roles SET role=$1 WHERE tenant_id=$2 AND membership_id=$3`, role, TestTenantA, TestMemberA)
+			mustExec(t, db.admin, `UPDATE tenancy.memberships SET authorization_revision=authorization_revision+1 WHERE membership_id=$1`, TestMemberA)
 		case "suspend":
 			mustExec(t, db.admin, `UPDATE tenancy.memberships SET state='suspended' WHERE operator_identity_id=$1`, actor)
 		case "resume":

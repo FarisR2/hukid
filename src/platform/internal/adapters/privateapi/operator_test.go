@@ -2,6 +2,7 @@ package privateapi
 
 import (
 	"context"
+	"encoding/json"
 	"hukid.local/platform/internal/authentication"
 	"hukid.local/platform/internal/tenancy"
 	"net/http"
@@ -11,6 +12,18 @@ import (
 )
 
 type verifierStub struct{ calls int }
+
+func TestContextRolesComeFromLiveMembership(t *testing.T) {
+	service, _ := tenancy.New(&storeStub{})
+	c, err := service.Context(context.Background(), "self", "own")
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := json.Marshal(ContextDTO(c))
+	if err != nil || !strings.Contains(string(data), `"roles":["support_readonly"]`) || strings.Contains(string(data), "tenant_admin") {
+		t.Fatalf("incorrect live context roles: %s %v", data, err)
+	}
+}
 
 func (v *verifierStub) VerifyOperator(_ context.Context, raw string) (authentication.Operator, error) {
 	v.calls++

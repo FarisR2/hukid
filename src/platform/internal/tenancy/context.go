@@ -18,9 +18,9 @@ type Identity struct {
 	Tenants []Tenant
 }
 type Context struct {
-	TenantID                string
-	Capabilities, IssuerIDs []string
-	AuthorizationRevision   int64
+	TenantID                       string
+	Capabilities, IssuerIDs, Roles []string
+	AuthorizationRevision          int64
 }
 type Membership struct {
 	Roles     []string
@@ -63,7 +63,7 @@ func (s *Service) Context(ctx context.Context, actorID, tenantID string) (Contex
 	if err != nil {
 		return Context{}, err
 	}
-	c := Context{TenantID: tenantID, Capabilities: []string{}, IssuerIDs: append([]string{}, m.IssuerIDs...), AuthorizationRevision: m.Revision}
+	c := Context{TenantID: tenantID, Capabilities: []string{}, IssuerIDs: append([]string{}, m.IssuerIDs...), Roles: append([]string{}, m.Roles...), AuthorizationRevision: m.Revision}
 	for _, role := range m.Roles {
 		permissions, ok := s.roles[role]
 		if !ok {

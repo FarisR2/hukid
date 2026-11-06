@@ -1,6 +1,6 @@
 # Contrato de lectura del dashboard
 
-Estado: baseline DASH-T01, 2026-11-06, contrato y reglas de laboratorio según [ADR-0019](../decisions/ADR-0019.md). DASH-T02 añade [caso de uso/lectura SQL autorizada](console-dashboard-reads.md) y credencial separada según [ADR-0020](../decisions/ADR-0020.md). DASH-T03 conecta las cuatro rutas [API/BFF y cursor autenticado](console-dashboard-http.md) según [ADR-0021](../decisions/ADR-0021.md); UI sigue en DASH-T04.
+Estado: baseline DASH-T01, 2026-11-06, contrato y reglas de laboratorio según [ADR-0019](../decisions/ADR-0019.md). DASH-T02 añade [caso de uso/lectura SQL autorizada](console-dashboard-reads.md) y credencial separada según [ADR-0020](../decisions/ADR-0020.md). DASH-T03 conecta las cuatro rutas [API/BFF y cursor autenticado](console-dashboard-http.md) según [ADR-0021](../decisions/ADR-0021.md); DASH-T04 conecta la [interfaz base](console-dashboard-interface.md) según [ADR-0022](../decisions/ADR-0022.md).
 
 ## Artefactos y consumidores
 

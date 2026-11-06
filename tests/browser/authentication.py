@@ -155,10 +155,13 @@ with sync_playwright() as playwright:
 
     database('suspend')
     page.reload()
-    heading(page, 'Organización no disponible')
+    heading(page, 'Acceso pendiente')
     expect(page.get_by_role('heading', name='Organización de prueba A', exact=True)).to_have_count(0)
     database('resume')
     page.get_by_role('button', name='Comprobar acceso', exact=True).click()
+    heading(page, 'Elige una organización')
+    page.get_by_label('Organización', exact=True).select_option(label='Organización de prueba A')
+    page.get_by_role('button', name='Continuar', exact=True).click()
     heading(page, 'Organización de prueba A')
 
     # Dependency errors remain inside the console with an explicit retry.

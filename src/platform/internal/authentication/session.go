@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"time"
 )
 
@@ -11,6 +12,7 @@ import (
 type ReadSession struct {
 	FamilyID, ActorID, ActiveTenantID, PolicyVersion                         string
 	Generation                                                               int64
+	AuthorizationRevision                                                    int64
 	CSRFHash                                                                 []byte
 	RefreshDigest                                                            []byte
 	Secrets                                                                  Envelope
@@ -19,13 +21,18 @@ type ReadSession struct {
 type SessionReader interface {
 	ReadSession(context.Context, []byte, time.Time) (ReadSession, error)
 	TouchSession(context.Context, []byte, time.Time, time.Duration) error
+	ReconcileSessionContext(context.Context, []byte, ReadSession, ContextSelection, time.Time) error
+}
+type SessionContextReader interface {
+	SessionContext(context.Context, string, string) (ContextSelection, error)
 }
 type SessionView struct{ ActorID, ActiveTenantID, AccessToken, CSRF string }
 type SessionService struct {
-	Store  SessionReader
-	Cipher Cipher
-	Policy Policy
-	Now    func() time.Time
+	Store    SessionReader
+	Contexts SessionContextReader
+	Cipher   Cipher
+	Policy   Policy
+	Now      func() time.Time
 }
 
 func (s *SessionService) Read(ctx context.Context, cookie string) (SessionView, error) {
@@ -44,6 +51,23 @@ func (s *SessionService) Read(ctx context.Context, cookie string) (SessionView, 
 	secrets, err := s.open(v)
 	if err != nil {
 		return SessionView{}, err
+	}
+	if v.ActiveTenantID != "" {
+		if s.Contexts == nil {
+			return SessionView{}, ErrDependency
+		}
+		current, err := s.Contexts.SessionContext(ctx, v.ActorID, v.ActiveTenantID)
+		if errors.Is(err, ErrTenant) {
+			current = ContextSelection{}
+		} else if err != nil {
+			return SessionView{}, err
+		}
+		if current.TenantID != v.ActiveTenantID || current.Revision != v.AuthorizationRevision {
+			if err := s.Store.ReconcileSessionContext(ctx, Digest(cookie), v, current, s.Now()); err != nil {
+				return SessionView{}, err
+			}
+			v.ActiveTenantID = current.TenantID
+		}
 	}
 	return SessionView{v.ActorID, v.ActiveTenantID, secrets.AccessToken, secrets.CSRF}, nil
 }

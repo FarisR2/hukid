@@ -1,7 +1,7 @@
 # FEAT-002 — Gestión de miembros de tenant
 
 - Producto: HukID Console / Team 5.
-- Estado: USR-T01 materializa contrato/reglas y USR-T02 la [persistencia ampliada](../../03-design/console-members-persistence.md) de laboratorio; USR-T03 añade [lecturas autorizadas](../../03-design/console-members-directory.md); USR-T04 añade [creación/revocación y entrega cifrada sintética](../../03-design/console-invitation-delivery.md); USR-T05 añade [aceptación/reingreso con evidencia OIDC](../../03-design/console-invitation-acceptance.md); USR-T06 añade [cambios de membresías con ETag](../../03-design/console-members-lifecycle.md); invalidación completa y UI pendientes.
+- Estado: USR-T01 materializa contrato/reglas y USR-T02 la [persistencia ampliada](../../03-design/console-members-persistence.md) de laboratorio; USR-T03 añade [lecturas autorizadas](../../03-design/console-members-directory.md); USR-T04 añade [creación/revocación y entrega cifrada sintética](../../03-design/console-invitation-delivery.md); USR-T05 añade [aceptación/reingreso con evidencia OIDC](../../03-design/console-invitation-acceptance.md); USR-T06 añade [cambios de membresías con ETag](../../03-design/console-members-lifecycle.md); USR-T07 añade [revalidación/reconciliación de contexto](../../03-design/console-authorization-revalidation.md); UI pendiente.
 - Depende de: [FEAT-001](../FEAT-001-authentication/spec.md).
 - Salidas: [plan](plan.md), [tareas](tasks.md).
 
@@ -37,7 +37,7 @@ Las capacidades de escritura son members:invite, members:update, members:revoke 
 | USR-FR05 | Modificar roles y alcance issuer con control de revisión. | AC05: PATCH autorizado cambia revisión y auditoría; If-Match obsoleto devuelve 412 sin cambio. El actor no puede conceder autoridad fuera del tenant/matriz. |
 | USR-FR06 | Suspender/reactivar/revocar membership. | AC06: active↔suspended; active/suspended→revoked. Revoked es terminal; reingreso requiere invitación nueva bajo policy sin restaurar permisos implícitos. No se elimina identidad global. |
 | USR-FR07 | Conservar un tenant_admin activo. | AC07: dos transacciones que intentan quitar/suspender a los últimos administradores no dejan el tenant sin ninguno. Auto-reducción permitida sólo si queda otro activo; solicitud imposible devuelve 409. |
-| USR-FR08 | Aplicar cambios de acceso en peticiones siguientes. | AC08: tras commit, /me y cada API revalidan membership/revisión. Sesión de contexto revocado se invalida o vuelve al selector sin afectar accesos independientes a otros tenants. |
+| USR-FR08 | Aplicar cambios de acceso en peticiones siguientes. | AC08: tras commit, /me y cada API revalidan membership/revisión. La sesión vuelve al selector (activeTenantId/context null en /console/api/me) si se retira el contexto; actualiza capacidades/revisión si sigue activo, sin afectar accesos independientes a otros tenants. |
 | USR-FR09 | Auditar mutación y publicación transaccionalmente. | AC09: audit/outbox registran actor, target opaco, acción, resultado y correlación; fallo de commit no deja membership sin evidencia. No se guardan enlaces/códigos en logs. |
 | USR-FR10 | Mostrar estados y errores accionables. | AC10: tablas vacías/cargando/error/forbidden, invitación pendiente/fallida/expirada y conflicto de revisión tienen salida clara; revocar exige confirmar objetivo y razón. |
 

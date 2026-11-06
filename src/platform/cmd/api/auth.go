@@ -130,7 +130,7 @@ func configureHandler(ctx context.Context, address string) (http.Handler, func()
 	}
 	management := &privateapi.Handler{Verifier: provider, Tenancy: contexts}
 	store := &postgres.LoginStore{Pool: pool}
-	sessions := &authentication.SessionService{Store: store, Cipher: box, Policy: config.policy, Now: time.Now}
+	sessions := &authentication.SessionService{Store: store, Contexts: contexts, Cipher: box, Policy: config.policy, Now: time.Now}
 	service.Sessions = sessions
 	service.Reauthentication = store
 	protectedCommands := consolehttp.NewCommands(service, provider, contexts)

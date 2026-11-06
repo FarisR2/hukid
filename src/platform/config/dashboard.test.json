@@ -1,0 +1,10 @@
+{
+  "environment": "test",
+  "defaultWindowSeconds": 86400,
+  "maxWindowSeconds": 2678400,
+  "defaultPageSize": 25,
+  "maxPageSize": 100,
+  "cursorSeconds": 900,
+  "staleAfterSeconds": 300,
+  "maxQueryBytes": 4096
+}

@@ -1,10 +1,10 @@
 # FEAT-003 — Tareas
 
-Estado: pendiente. Owner: Team 5, backend/lecturas y consola; cada dominio mantiene sus datos.
+Estado: DASH-T01 completada en laboratorio (sólo contrato/reglas/fixtures); DASH-T02 siguiente. Owner: Team 5, backend/lecturas y consola; cada dominio mantiene sus datos.
 
 | Estado / ID | Objetivo y artefacto | Depende de | Componentes | Aceptación / verificación | Riesgo |
 | --- | --- | --- | --- | --- | --- |
-| [ ] DASH-T01 | Materializar contrato overview/activity, métricas, límites, capacidad status y fixtures. | AUTH-T02, AUTH-T05, USR-T01 | OpenAPI, dashboard, dataset | Cada sección declara fuente/permisos/periodo/asOf; errores y null/0 tienen ejemplos que validan. | Semántica engañosa. |
+| [x] DASH-T01 | Materializar contrato overview/activity, métricas, límites, capacidad status y fixtures. | AUTH-T02, AUTH-T05, USR-T01 | OpenAPI, dashboard, dataset | Cada sección declara fuente/permisos/periodo/asOf; errores y null/0 tienen ejemplos que validan. | Semántica engañosa. |
 | [ ] DASH-T02 | Implementar caso de uso y lectura base autorizada de tenancy/audit. | DASH-T01, USR-T03, USR-T07, AUTH-T09 | Dashboard, Postgres, authorization | AC02/03/05/09: conteos/feed exactos y tenant/issuer scopes antes de agrupar; fuentes no implementadas unavailable. | Filtración por agregación. |
 | [ ] DASH-T03 | Implementar API/BFF con filtros, paginación y estados parciales. | DASH-T02 | Private API/console adapters | AC04/06/07: intervalo [from,to), límites, 401/403/404, parciales y no-store probados por contrato. | Falsos éxitos/consultas ilimitadas. |
 | [ ] DASH-T04 | Implementar shell, contexto, navegación y vista base accesible. | DASH-T01, DASH-T03, AUTH-T08 | Console dashboard | AC01/07/08: rol/contexto reales, teclado/móvil, reintento y descarte de respuestas de tenant anterior. | Caché/respuestas tardías. |
@@ -33,8 +33,16 @@ Estado: pendiente. Owner: Team 5, backend/lecturas y consola; cada dominio manti
 
 ## Orden y trabajo diferido
 
-Comenzar por DASH-T01 una vez fijada la matriz USR-T01. El shell puede prepararse con contrato y fixture de UI aislado, pero la feature se entrega sólo con APIs reales. Fixtures de pruebas deben estar identificados; no se usan como datos operativos.
+DASH-T01 materializa la matriz USR-T01 sin ampliar sus grants. Continuar por DASH-T02. El shell puede prepararse con contrato y fixture de UI aislado, pero la feature se entrega sólo con APIs reales. Fixtures de pruebas deben estar identificados; no se usan como datos operativos.
 
 DASH-T05 se subdivide por fuente cuando el dominio esté listo. No bloquea el incremento base y permanece pendiente para las fuentes ausentes. Las tareas que verifican D3 se ejecutan para cada adaptador incorporado, sin dar por completa la tarea global.
 
 La DoD exige [spec](spec.md), [plan](plan.md), fuentes activas documentadas y [criterios comunes](../../05-delivery/definition-of-done.md). Sin datos Events, inventario wallet ni exportaciones nuevas.
+
+## Evidencia DASH-T01 — 2026-11-06
+
+Baseline [contractual](../../03-design/console-dashboard-contract.md) según [ADR-0019](../../decisions/ADR-0019.md): OpenAPI 3.1 de cuatro GET Management/BFF contract-only, schemas estrictos, seis métricas con fuente/capacidad/periodo/issuer, perfil test cerrado y reglas Go de ventanas/filtros. status:read queda reservada sin ampliar la matriz de roles. Ejemplos de cero, no autorizado, unavailable, stale, parcial, actividad vacía y errores; dataset sintético de dos tenants y tres issuers, bordes [from,to) y desired distinto de published.
+
+Validación local: `npm run check` aprobó formato/vet/unitarias Go, TypeScript, 18 pruebas Node de contratos/IdP (cuatro nuevas DASH) y enlaces/anclas/bloques/estructura Markdown. `npm run build` aprobó ambos artefactos; `npm run smoke` comprobó configuración fail-closed, liveness, auth deshabilitada y bundle de consola. Las pruebas nuevas verifican paridad API/BFF, ausencia de grants futuros, ejemplos válidos, rechazo de PII/propiedades adicionales, null/0 y metadatos protegidos; Go cubre UTC, 31 días, límites, duplicados y cursores sin ventana explícita.
+
+No se cambian persistencia, rutas runtime ni UI: no se ejecutan PostgreSQL ni Chromium nuevos para este incremento contractual. Las comprobaciones de dataset son un oráculo de ejemplos, no una prueba de autorización de un repositorio real. DASH-T02/03 conservan lectura/RLS, autorización viva, autenticación de cursor y endpoints; DASH-T04 interfaz; DASH-T05 dominios futuros. No se acredita producción, interoperabilidad VC ni cierre de la feature completa. Siguiente: DASH-T02.

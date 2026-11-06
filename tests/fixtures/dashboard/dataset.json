@@ -1,0 +1,119 @@
+{
+  "synthetic": true,
+  "contractOnly": true,
+  "note": "Oracle dataset only. Non-null issuer attribution and status rows represent FUTURE modules, never current audit columns or runtime data.",
+  "query": {
+    "tenantId": "10000000-0000-4000-8000-000000000001",
+    "issuerId": "60000000-0000-4000-8000-000000000001",
+    "from": "2026-11-05T12:00:00Z",
+    "to": "2026-11-06T12:00:00Z"
+  },
+  "memberships": [
+    {
+      "tenantId": "10000000-0000-4000-8000-000000000001",
+      "state": "active"
+    },
+    {
+      "tenantId": "10000000-0000-4000-8000-000000000001",
+      "state": "active"
+    },
+    {
+      "tenantId": "10000000-0000-4000-8000-000000000001",
+      "state": "suspended"
+    },
+    {
+      "tenantId": "10000000-0000-4000-8000-000000000002",
+      "state": "active"
+    }
+  ],
+  "events": [
+    {
+      "eventId": "70000000-0000-4000-8000-000000000001",
+      "tenantId": "10000000-0000-4000-8000-000000000001",
+      "issuerId": null,
+      "occurredAt": "2026-11-05T12:00:00Z",
+      "action": "members.invitation.created"
+    },
+    {
+      "eventId": "70000000-0000-4000-8000-000000000002",
+      "tenantId": "10000000-0000-4000-8000-000000000001",
+      "issuerId": "60000000-0000-4000-8000-000000000001",
+      "occurredAt": "2026-11-06T11:00:00Z",
+      "action": "members.invitation.created"
+    },
+    {
+      "eventId": "70000000-0000-4000-8000-000000000003",
+      "tenantId": "10000000-0000-4000-8000-000000000001",
+      "issuerId": "60000000-0000-4000-8000-000000000002",
+      "occurredAt": "2026-11-06T11:30:00Z",
+      "action": "members.invitation.created"
+    },
+    {
+      "eventId": "70000000-0000-4000-8000-000000000004",
+      "tenantId": "10000000-0000-4000-8000-000000000002",
+      "issuerId": "60000000-0000-4000-8000-000000000003",
+      "occurredAt": "2026-11-06T11:40:00Z",
+      "action": "members.invitation.created"
+    },
+    {
+      "eventId": "70000000-0000-4000-8000-000000000005",
+      "tenantId": "10000000-0000-4000-8000-000000000001",
+      "issuerId": "60000000-0000-4000-8000-000000000001",
+      "occurredAt": "2026-11-06T12:00:00Z",
+      "action": "members.invitation.created"
+    },
+    {
+      "eventId": "70000000-0000-4000-8000-000000000006",
+      "tenantId": "10000000-0000-4000-8000-000000000001",
+      "issuerId": "60000000-0000-4000-8000-000000000001",
+      "occurredAt": "2026-11-05T11:59:59Z",
+      "action": "members.invitation.created"
+    },
+    {
+      "eventId": "70000000-0000-4000-8000-000000000007",
+      "tenantId": null,
+      "issuerId": null,
+      "occurredAt": "2026-11-05T12:00:00Z",
+      "action": "auth.request.denied"
+    }
+  ],
+  "status": [
+    {
+      "tenantId": "10000000-0000-4000-8000-000000000001",
+      "issuerId": "60000000-0000-4000-8000-000000000001",
+      "desired": "revoked",
+      "published": "valid"
+    },
+    {
+      "tenantId": "10000000-0000-4000-8000-000000000001",
+      "issuerId": "60000000-0000-4000-8000-000000000001",
+      "desired": "valid",
+      "published": "valid"
+    },
+    {
+      "tenantId": "10000000-0000-4000-8000-000000000001",
+      "issuerId": "60000000-0000-4000-8000-000000000002",
+      "desired": "revoked",
+      "published": "valid"
+    },
+    {
+      "tenantId": "10000000-0000-4000-8000-000000000002",
+      "issuerId": "60000000-0000-4000-8000-000000000003",
+      "desired": "revoked",
+      "published": "valid"
+    }
+  ],
+  "expected": {
+    "activeMembers": 2,
+    "tenantEventIds": [
+      "70000000-0000-4000-8000-000000000001",
+      "70000000-0000-4000-8000-000000000002",
+      "70000000-0000-4000-8000-000000000003"
+    ],
+    "issuerEventIds": [
+      "70000000-0000-4000-8000-000000000002"
+    ],
+    "pendingStatusChanges": 1,
+    "excludedAtTo": "70000000-0000-4000-8000-000000000005"
+  }
+}

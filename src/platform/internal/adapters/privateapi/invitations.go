@@ -20,15 +20,17 @@ type InvitationVerifier interface {
 	VerifyInvitationOperator(context.Context, string) (a.Operator, time.Time, error)
 }
 type InvitationHandler struct {
-	Operators *Handler
-	Verifier  InvitationVerifier
-	Service   *tenancy.InvitationService
+	Acceptance *tenancy.AcceptanceService
+	Recipients *a.SessionService
+	Operators  *Handler
+	Verifier   InvitationVerifier
+	Service    *tenancy.InvitationService
 }
 
 func (h *InvitationHandler) Register(mux *http.ServeMux) {
-	for _, path := range []string{"/v1/operator/tenants/{tenantId}/invitations", "/v1/operator/tenants/{tenantId}/invitations/{invitationId}/revocations"} {
+	for _, path := range []string{"/v1/operator/invitation-acceptances", "/v1/operator/tenants/{tenantId}/invitations", "/v1/operator/tenants/{tenantId}/invitations/{invitationId}/revocations"} {
 		pattern := path
-		if !strings.HasSuffix(path, "/revocations") {
+		if !strings.HasSuffix(path, "/revocations") && !strings.HasSuffix(path, "/invitation-acceptances") {
 			pattern = "POST " + path
 		}
 		mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
@@ -50,6 +52,10 @@ func (h *InvitationHandler) Register(mux *http.ServeMux) {
 // A BFF passes its server-held access token and binds the authenticated actor to
 // the session. Both surfaces share decoding, authorization and mutation logic.
 func (h *InvitationHandler) Authenticate(w http.ResponseWriter, r *http.Request, raw, sessionActor string, bearer bool) {
+	if strings.HasSuffix(r.URL.Path, "/invitation-acceptances") {
+		h.accept(w, r, raw, sessionActor, bearer)
+		return
+	}
 	operator, deadline, err := h.Verifier.VerifyInvitationOperator(r.Context(), raw)
 	if err != nil {
 		InvitationProblem(w, err, bearer)
@@ -179,6 +185,14 @@ func decodeInvitation(w http.ResponseWriter, r *http.Request, dest any, fields [
 }
 func InvitationProblem(w http.ResponseWriter, err error, bearer bool) {
 	switch {
+	case errors.Is(err, a.ErrRecipient):
+		writeProblem(w, 403, "recipient_unverified", "Se requiere identidad verificada")
+	case errors.Is(err, tenancy.ErrInvitationInvalid):
+		writeProblem(w, 409, "invitation_invalid", "Invitación inválida")
+	case errors.Is(err, tenancy.ErrMembershipExists):
+		writeProblem(w, 409, "membership_exists", "Membership existente")
+	case errors.Is(err, tenancy.ErrMemberRevoked):
+		writeProblem(w, 409, "membership_revoked", "Membership revocada")
 	case errors.Is(err, tenancy.ErrInvitationBusy):
 		w.Header().Set("Retry-After", "1")
 		writeProblem(w, 409, "operation_in_progress", "Operación en curso")

@@ -27,7 +27,7 @@ export async function startTestIdp(policy) {
       id_token_signed_response_alg: 'ES256',
     }],
     scopes: policy.scopes,
-    claims: { openid: ['sub', 'auth_time', 'acr', 'amr'] },
+    claims: { openid: ['sub', 'auth_time', 'acr', 'amr'], email: ['email', 'email_verified'] },
     acrValues: policy.acceptedAcr,
     pkce: { required: () => true, methods: ['S256'] },
     features: {
@@ -51,7 +51,7 @@ export async function startTestIdp(policy) {
     rotateRefreshToken: true,
     findAccount(_ctx, id) {
       if (id !== 'operator-test-a') return undefined;
-      return { accountId: id, claims: async () => ({ sub: id }) };
+      return { accountId: id, claims: async () => ({ sub: id, email: 'Lab+recipient@example.invalid', email_verified: true }) };
     },
     extraTokenClaims(ctx, token) {
       const source = ctx.oidc.entities.AuthorizationCode || ctx.oidc.entities.RefreshToken;

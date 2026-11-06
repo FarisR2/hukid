@@ -94,6 +94,9 @@ func (s *LoginStore) CreateInitialSession(ctx context.Context, v authentication.
 	if err != nil {
 		return err
 	}
+	if _, err := tx.Exec(ctx, `UPDATE console_auth.sessions SET access_hash=$2 WHERE session_id=$1`, v.SessionID, v.AccessHash); err != nil {
+		return err
+	}
 	if err := appendAuthEvent(ctx, tx, "auth.login.completed", "success", actor, "", v.FamilyID); err != nil {
 		return err
 	}

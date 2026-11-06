@@ -16,9 +16,9 @@ type InvitationHandler struct {
 }
 
 func (h *InvitationHandler) Register(mux *http.ServeMux) {
-	for _, path := range []string{"/console/api/tenants/{tenantId}/invitations", "/console/api/tenants/{tenantId}/invitations/{invitationId}/revocations"} {
+	for _, path := range []string{"/console/api/invitation-acceptances", "/console/api/tenants/{tenantId}/invitations", "/console/api/tenants/{tenantId}/invitations/{invitationId}/revocations"} {
 		pattern := path
-		if !strings.HasSuffix(path, "/revocations") {
+		if !strings.HasSuffix(path, "/revocations") && !strings.HasSuffix(path, "/invitation-acceptances") {
 			pattern = "POST " + path
 		}
 		mux.HandleFunc(pattern, h.serve)
@@ -57,7 +57,7 @@ func (h *InvitationHandler) serve(w http.ResponseWriter, r *http.Request) {
 		fail(err)
 		return
 	}
-	if session.ActiveTenantID == "" || session.ActiveTenantID != r.PathValue("tenantId") {
+	if !strings.HasSuffix(r.URL.Path, "/invitation-acceptances") && (session.ActiveTenantID == "" || session.ActiveTenantID != r.PathValue("tenantId")) {
 		fail(a.ErrTenant)
 		return
 	}

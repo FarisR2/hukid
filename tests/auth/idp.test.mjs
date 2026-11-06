@@ -93,6 +93,8 @@ test('real code/PKCE exchange emits signed operator token and a distinct ID toke
   await verifyAccess(tokens.access_token);
   const identity = await jwtVerify(tokens.id_token, keys, {issuer:policy.issuer,audience:policy.clientId,algorithms:['ES256']});
   assert.equal(identity.payload.nonce, tokens.request.nonce);
+  assert.equal(identity.payload.email, 'Lab+recipient@example.invalid');
+  assert.equal(identity.payload.email_verified, true);
   assert.equal(identity.payload.acr, policy.acceptedAcr[0]);
   assert.deepEqual(identity.payload.amr, policy.requiredAmr);
   assert.ok(Number.isInteger(identity.payload.auth_time));

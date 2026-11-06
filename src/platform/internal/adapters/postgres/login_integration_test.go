@@ -144,6 +144,10 @@ func TestLoginHTTPWithRealOIDCAndPostgres(t *testing.T) {
 	command.Env = append(command.Env, "HUKID_CONTEXT_DATABASE_URL="+discovery.Config().ConnString(), "HUKID_TENANT_DATABASE_URL="+tenantPool.Config().ConnString())
 	membersPolicy, _ := filepath.Abs("../../../config/user-management.test.json")
 	command.Env = append(command.Env, "HUKID_MEMBERS_DATABASE_URL="+membersPool.Config().ConnString(), "HUKID_MEMBERS_POLICY="+membersPolicy, "HUKID_MEMBERS_CURSOR_KEY="+base64.StdEncoding.EncodeToString(key))
+	invitationKey, invitationMAC := make([]byte, 32), make([]byte, 32)
+	rand.Read(invitationKey)
+	rand.Read(invitationMAC)
+	command.Env = append(command.Env, "HUKID_INVITATION_KEY="+base64.StdEncoding.EncodeToString(invitationKey), "HUKID_INVITATION_HMAC_KEY="+base64.StdEncoding.EncodeToString(invitationMAC), "HUKID_INVITATION_KEY_VERSION=http-invitation-test")
 	logs := &capturedLogs{}
 	command.Stdout = logs
 	command.Stderr = logs
@@ -499,6 +503,78 @@ func TestLoginHTTPWithRealOIDCAndPostgres(t *testing.T) {
 			t.Fatal("unexpected invitation")
 		}
 		call(strings.Replace(browserDirectory, "memberships", "invitations", 1), "", sessionCookie, 200)
+		// Both real transports: strict input, CSRF/origin, conditional revoke,
+		// safe replay and live authorization all hit the same database commands.
+		mutate := func(path, body, key, etag, origin, csrf, token string, cookie *http.Cookie, status int) map[string]any {
+			t.Helper()
+			req, _ := http.NewRequest("POST", p.ConsoleOrigin+path, strings.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Idempotency-Key", key)
+			if etag != "" {
+				req.Header.Set("If-Match", etag)
+			}
+			if origin != "" {
+				req.Header.Set("Origin", origin)
+			}
+			if csrf != "" {
+				req.Header.Set("X-CSRF-Token", csrf)
+			}
+			if token != "" {
+				req.Header.Set("Authorization", "Bearer "+token)
+			}
+			if cookie != nil {
+				req.AddCookie(cookie)
+			}
+			response, e := client.Do(req)
+			if e != nil {
+				t.Fatal(e)
+			}
+			defer response.Body.Close()
+			data, _ := io.ReadAll(response.Body)
+			if response.StatusCode != status {
+				t.Fatalf("invitation HTTP expected %d got %d: %s", status, response.StatusCode, data)
+			}
+			if response.Header.Get("Cache-Control") != "no-store" || response.Header.Get("Referrer-Policy") != "no-referrer" || response.Header.Get("X-Correlation-Id") == "" {
+				t.Fatal("missing mutation headers")
+			}
+			if strings.Contains(string(data), "recipient@example.invalid") || strings.Contains(string(data), secrets.AccessToken) {
+				t.Fatal("mutation response secret leak")
+			}
+			var result map[string]any
+			if json.Unmarshal(data, &result) != nil {
+				t.Fatal("invalid mutation JSON")
+			}
+			if status < 300 && response.Header.Get("ETag") == "" {
+				t.Fatal("missing ETag")
+			}
+			return result
+		}
+		body := `{"email":"recipient@example.invalid","roles":["support_readonly"],"issuerIds":[]}`
+		browserInvites := strings.Replace(browserDirectory, "memberships", "invitations", 1)
+		mutate(invites, body, "http_invite_missing_001", "", "", "", "", sessionCookie, 401)
+		mutate(browserInvites, body, "http_invite_origin_001", "", "null", secrets.CSRF, "", sessionCookie, 403)
+		mutate(browserInvites, body, "http_invite_csrf_001", "", p.ConsoleOrigin, "bad", "", sessionCookie, 403)
+		mutate(invites, `{"email":"a@example.invalid","email":"b@example.invalid","roles":["support_readonly"],"issuerIds":[]}`, "http_invite_duplicate_001", "", "", "", secrets.AccessToken, nil, 400)
+		mutate(invites, `{"email":"recipient@example.invalid","roles":["global_admin"],"issuerIds":[]}`, "http_invite_invalid_001", "", "", "", secrets.AccessToken, nil, 422)
+		created := mutate(invites, body, "http_invite_create_001", "", "", "", secrets.AccessToken, nil, 201)
+		replayed := mutate(browserInvites, body, "http_invite_create_001", "", p.ConsoleOrigin, secrets.CSRF, "", sessionCookie, 201)
+		if created["invitationId"] != replayed["invitationId"] {
+			t.Fatal("BFF/Management replay mismatch")
+		}
+		mutate(invites, strings.Replace(body, "recipient@", "different@", 1), "http_invite_create_001", "", "", "", secrets.AccessToken, nil, 409)
+		revokePath := invites + "/" + created["invitationId"].(string) + "/revocations"
+		call(revokePath, secrets.AccessToken, nil, 405)
+		call(strings.Replace(revokePath, "/v1/operator", "/console/api", 1), "", sessionCookie, 405)
+		reason := `{"reasonCode":"invitation_cancelled"}`
+		mutate(revokePath, reason, "http_invite_revoke_001", "", "", "", secrets.AccessToken, nil, 428)
+		mutate(revokePath, reason, "http_invite_revoke_001", `W/"1"`, "", "", secrets.AccessToken, nil, 400)
+		mutate(revokePath, reason, "http_invite_revoke_001", `"2"`, "", "", secrets.AccessToken, nil, 412)
+		mutate(revokePath, reason, "http_invite_revoke_001", `"1"`, "", "", secrets.AccessToken, nil, 200)
+		mutate(strings.Replace(revokePath, "/v1/operator", "/console/api", 1), reason, "http_invite_revoke_001", `"1"`, p.ConsoleOrigin, secrets.CSRF, "", sessionCookie, 200)
+		mustExec(t, db.admin, `UPDATE tenancy.membership_roles SET role='security_admin' WHERE membership_id=$1`, TestMemberA)
+		mutate(invites, body, "http_invite_create_001", "", "", "", secrets.AccessToken, nil, 403)
+		mustExec(t, db.admin, `UPDATE tenancy.membership_roles SET role='tenant_admin' WHERE membership_id=$1`, TestMemberA)
+		secretValues = append(secretValues, "recipient@example.invalid", base64.StdEncoding.EncodeToString(invitationKey), base64.StdEncoding.EncodeToString(invitationMAC))
 		for _, role := range []string{"issuer_operator", "support_readonly"} {
 			mustExec(t, db.admin, `UPDATE tenancy.membership_roles SET role=$1 WHERE membership_id=$2`, role, TestMemberA)
 			call(directory, secrets.AccessToken, nil, 403)

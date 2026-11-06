@@ -179,10 +179,10 @@ func TestMigrateEmptyAndRejectChangedHistory(t *testing.T) {
 	mustMigrate(t, db)
 	mustMigrate(t, db)
 	var count int
-	if err := db.admin.QueryRow(testContext, `SELECT count(*) FROM public.hukid_schema_migrations`).Scan(&count); err != nil || count != 7 {
+	if err := db.admin.QueryRow(testContext, `SELECT count(*) FROM public.hukid_schema_migrations`).Scan(&count); err != nil || count != 8 {
 		t.Fatal("migration history incorrect")
 	}
-	if err := db.admin.QueryRow(testContext, `SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname IN ('tenancy','platform') AND c.relkind='r' AND c.relrowsecurity AND c.relforcerowsecurity`).Scan(&count); err != nil || count != 10 {
+	if err := db.admin.QueryRow(testContext, `SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname IN ('tenancy','platform') AND c.relkind='r' AND c.relrowsecurity AND c.relforcerowsecurity`).Scan(&count); err != nil || count != 11 {
 		t.Fatal("tenant tables must force RLS")
 	}
 	if pool, err := OpenRuntimePool(testContext, db.dsn, "hukid_tenant_runtime", 1); err == nil {

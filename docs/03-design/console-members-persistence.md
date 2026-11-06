@@ -4,6 +4,8 @@ Estado: foundation de almacenamiento de laboratorio. La [migración 0007](../../
 
 ## Modelo y diccionario
 
+Evolución posterior: [USR-T04](console-invitation-delivery.md) conecta creación/revocación, cifrado/purga y worker, y añade recibos sintéticos mediante 0008. Este documento conserva el alcance de la foundation 0007; sus límites históricos no sustituyen el estado vigente de las [tareas](../features/FEAT-002-user-management/tasks.md).
+
 PostgreSQL 18.6 y pgx existentes. La identidad canónica continúa en operator_identities con unicidad issuer/subject. No hay tabla users ni búsqueda de identidad por correo.
 
 ```mermaid

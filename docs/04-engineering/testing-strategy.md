@@ -8,6 +8,8 @@ USR-T01 añade [contrato de miembros](../03-design/console-members-contract.md):
 
 USR-T02 añade seis escenarios Go de [persistencia de miembros](../03-design/console-members-persistence.md) en test:postgres: upgrade 0006→0007 con datos preservados, RLS/credenciales/constraints/pool reuse, rollback de invitación ante fallo de evidencia, archivo y fingerprints/retención, carrera de últimos administradores bajo lock, UUID canónico/cancelación de waiter. Son pruebas de almacenamiento y protocolo de transacción; las mutaciones USR todavía no están implementadas. USR-T03 añade [lecturas autorizadas](../03-design/console-members-directory.md): unitarias de filtros/matriz/cursor, dos escenarios PostgreSQL de aislamiento/permisos/expiración efectiva y pruebas HTTP Management/BFF dentro del escenario AUTH real. La suite AUTH completa se conserva.
 
+USR-T04 añade [invitaciones y entrega](../03-design/console-invitation-delivery.md): seis escenarios PostgreSQL de comandos/replay, autorización viva, locks/concurrencia, rollback de evidencia/reemplazo, migración 0007→0008/RLS de recibos, fallos/reintentos/caída/purga y expiración del MFA durante la escritura. La suite HTTP real añade creación/revocación en Management/BFF, input estricto, CSRF/Origin, ETag y replay entre superficies; las unitarias OIDC/configuración cubren deadlines y separación de claves. El proveedor sólo simula aceptación con recibos duraderos, sin correo real, canje ni UI.
+
 | Comando existente | Qué comprueba | Límite |
 | --- | --- | --- |
 | `npm run check` | Formato/vet/pruebas Go, TypeScript, contratos/IdP y documentación. | No incluye PostgreSQL ni navegador. |

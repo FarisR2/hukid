@@ -2,7 +2,7 @@
 
 Referencias: [spec](spec.md), [tareas](tasks.md), [FEAT-001](../FEAT-001-authentication/plan.md).
 
-USR-T01 materializa U0: [contrato y políticas](../../03-design/console-members-contract.md), [OpenAPI](../../../src/platform/contracts/console-members.openapi.json), schemas y reglas puras según [ADR-0011](../../decisions/ADR-0011.md). USR-T02 añade [persistencia/RLS y protocolo transaccional](../../03-design/console-members-persistence.md) según [ADR-0012](../../decisions/ADR-0012.md). USR-T03 conecta [cuatro lecturas autorizadas con filtros/cursor](../../03-design/console-members-directory.md) según [ADR-0013](../../decisions/ADR-0013.md); ocho mutaciones siguen contract-only. El siguiente incremento es USR-T04: invitación y entrega.
+USR-T01 materializa U0: [contrato y políticas](../../03-design/console-members-contract.md), [OpenAPI](../../../src/platform/contracts/console-members.openapi.json), schemas y reglas puras según [ADR-0011](../../decisions/ADR-0011.md). USR-T02 añade [persistencia/RLS y protocolo transaccional](../../03-design/console-members-persistence.md) según [ADR-0012](../../decisions/ADR-0012.md). USR-T03 conecta [cuatro lecturas autorizadas con filtros/cursor](../../03-design/console-members-directory.md) según [ADR-0013](../../decisions/ADR-0013.md); USR-T04 conecta [creación/revocación y entrega sintética](../../03-design/console-invitation-delivery.md) según ADR-0014. Cuatro mutaciones de aceptación/memberships siguen contract-only. El siguiente incremento es USR-T05: identidad verificada, aceptación y reinvitación.
 
 ## Estado inicial y módulos
 

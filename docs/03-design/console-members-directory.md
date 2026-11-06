@@ -1,6 +1,6 @@
 # Lectura de miembros e invitaciones — USR-T03
 
-Estado: implementación de laboratorio de cuatro GET del [contrato de miembros](console-members-contract.md), según [ADR-0013](../decisions/ADR-0013.md). Las ocho mutaciones, entrega, aceptación y UI siguen pendientes. No hay migraciones nuevas ni cambios de grants AUTH.
+Estado: implementación de laboratorio de cuatro GET del [contrato de miembros](console-members-contract.md), según [ADR-0013](../decisions/ADR-0013.md). Este corte no añade migraciones ni cambia grants AUTH. Evolución posterior: [USR-T04](console-invitation-delivery.md) añade creación/revocación y entrega sintética; aceptación, cambios de miembros y UI siguen pendientes.
 
 ## Rutas y autorización
 

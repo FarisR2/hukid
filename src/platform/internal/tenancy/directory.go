@@ -124,6 +124,10 @@ func DirectoryAllowed(roles []string, kind string) bool {
 	} else if kind != "memberships" {
 		return false
 	}
+	return MemberCapabilityAllowed(roles, capability)
+}
+
+func MemberCapabilityAllowed(roles []string, capability string) bool {
 	var matrix struct {
 		Roles map[string][]string `json:"roles"`
 	}

@@ -23,8 +23,9 @@ type Context struct {
 	AuthorizationRevision   int64
 }
 type Membership struct {
-	Roles    []string
-	Revision int64
+	Roles     []string
+	IssuerIDs []string
+	Revision  int64
 }
 type Store interface {
 	Identity(context.Context, authentication.Operator) (Identity, error)
@@ -62,7 +63,7 @@ func (s *Service) Context(ctx context.Context, actorID, tenantID string) (Contex
 	if err != nil {
 		return Context{}, err
 	}
-	c := Context{TenantID: tenantID, Capabilities: []string{}, IssuerIDs: []string{}, AuthorizationRevision: m.Revision}
+	c := Context{TenantID: tenantID, Capabilities: []string{}, IssuerIDs: append([]string{}, m.IssuerIDs...), AuthorizationRevision: m.Revision}
 	for _, role := range m.Roles {
 		permissions, ok := s.roles[role]
 		if !ok {
@@ -76,4 +77,14 @@ func (s *Service) Context(ctx context.Context, actorID, tenantID string) (Contex
 	}
 	slices.Sort(c.Capabilities)
 	return c, nil
+}
+
+// SessionContext revalidates the selected tenant without treating the stored
+// revision as authority. A missing membership returns the browser to selection.
+func (s *Service) SessionContext(ctx context.Context, actor, tenant string) (authentication.ContextSelection, error) {
+	c, err := s.Context(ctx, actor, tenant)
+	if err != nil {
+		return authentication.ContextSelection{}, err
+	}
+	return authentication.ContextSelection{TenantID: c.TenantID, Revision: c.AuthorizationRevision}, nil
 }

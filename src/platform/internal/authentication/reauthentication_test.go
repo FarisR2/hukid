@@ -45,6 +45,9 @@ func (m *reauthStore) ReadSession(context.Context, []byte, time.Time) (a.ReadSes
 func (m *reauthStore) TouchSession(context.Context, []byte, time.Time, time.Duration) error {
 	return nil
 }
+func (m *reauthStore) ReconcileSessionContext(context.Context, []byte, a.ReadSession, a.ContextSelection, time.Time) error {
+	return m.err
+}
 func (m *reauthStore) RotateSession(_ context.Context, old a.ReadSession, next a.SessionRotation, identity *a.VerifiedLogin, _ *a.ContextSelection, now time.Time) error {
 	if m.err != nil {
 		return m.err

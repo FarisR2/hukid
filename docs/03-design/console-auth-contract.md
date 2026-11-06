@@ -75,3 +75,7 @@ Logout invalida primero la familia local y limpia cookie aunque falle el IdP. Un
 Fuentes externas para el diseño: [OpenAPI 3.1](https://spec.openapis.org/oas/v3.1.0), [OIDC Core](https://openid.net/specs/openid-connect-core-1_0.html), [RFC 9068](https://www.rfc-editor.org/rfc/rfc9068.html), [OAuth Security BCP](https://www.rfc-editor.org/rfc/rfc9700.html) y [API oficial de oidc-provider](https://github.com/panva/node-oidc-provider/blob/main/docs/README.md). El uso del formato de RFC 9068 en el laboratorio no declara conformidad completa con todos sus algoritmos o requisitos.
 
 El callback test exige también `iss` igual al issuer de la transacción, además de state/binding. El AS anuncia soporte para identificación de issuer de [RFC 9207](https://www.rfc-editor.org/rfc/rfc9207.html); se comprueba el valor también en respuestas OAuth de error. HTTP loopback es una excepción exclusiva del laboratorio, no evidencia de cumplimiento de los requisitos HTTPS productivos de esa RFC.
+
+## Revalidación integrada USR-T07
+
+[ADR-0017](../decisions/ADR-0017.md) concreta AUTH-FR07/09 y USR-FR08: [revalidación/reconciliación de contexto](console-authorization-revalidation.md). /console/api/me devuelve selección/contexto null tras retirar acceso, con tenants restantes y sin cerrar la identidad global. Roles/scopes/revisión actuales se consultan por petición; la sesión nunca es autoridad cacheada. Se conserva el schema HTTP y se actualiza la descripción OpenAPI de ambos endpoints de contexto.

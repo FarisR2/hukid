@@ -20,10 +20,40 @@ func (s *LoginStore) ReadSession(ctx context.Context, hash []byte, now time.Time
 	return v, nil
 }
 
-const sessionColumns = `s.family_id::text,s.operator_identity_id::text,COALESCE(s.active_tenant_id::text,''),f.policy_version,s.generation,s.csrf_hash,s.secret_ciphertext,s.secret_nonce,COALESCE(s.secret_key_version,''),s.created_at,s.last_seen_at,s.idle_expires_at,s.absolute_expires_at,f.created_at,s.refresh_digest`
+const sessionColumns = `s.family_id::text,s.operator_identity_id::text,COALESCE(s.active_tenant_id::text,''),f.policy_version,s.generation,s.csrf_hash,s.secret_ciphertext,s.secret_nonce,COALESCE(s.secret_key_version,''),s.created_at,s.last_seen_at,s.idle_expires_at,s.absolute_expires_at,f.created_at,s.refresh_digest,COALESCE(s.authorization_revision,0)`
 
 func sessionTargets(v *authentication.ReadSession) []any {
-	return []any{&v.FamilyID, &v.ActorID, &v.ActiveTenantID, &v.PolicyVersion, &v.Generation, &v.CSRFHash, &v.Secrets.Ciphertext, &v.Secrets.Nonce, &v.Secrets.KeyVersion, &v.CreatedAt, &v.LastSeenAt, &v.IdleExpiresAt, &v.AbsoluteExpiresAt, &v.FamilyCreatedAt, &v.RefreshDigest}
+	return []any{&v.FamilyID, &v.ActorID, &v.ActiveTenantID, &v.PolicyVersion, &v.Generation, &v.CSRFHash, &v.Secrets.Ciphertext, &v.Secrets.Nonce, &v.Secrets.KeyVersion, &v.CreatedAt, &v.LastSeenAt, &v.IdleExpiresAt, &v.AbsoluteExpiresAt, &v.FamilyCreatedAt, &v.RefreshDigest, &v.AuthorizationRevision}
+}
+
+// Use the same family->generation lock order as rotation/logout. Compare the
+// observed selection so an obsolete reader cannot overwrite a newer context.
+func (s *LoginStore) ReconcileSessionContext(ctx context.Context, hash []byte, old authentication.ReadSession, next authentication.ContextSelection, now time.Time) error {
+	tx, err := s.Pool.Begin(ctx)
+	if err != nil {
+		return authentication.ErrDependency
+	}
+	defer rollbackLogin(tx)
+	v, err := lockCommandSession(ctx, tx, hash)
+	if err != nil {
+		return err
+	}
+	if v.familyState != "active" || v.deadline != nil || v.state != "active" || v.Generation != old.Generation || now.Before(v.LastSeenAt) || !now.Before(v.IdleExpiresAt) || !now.Before(v.AbsoluteExpiresAt) {
+		return authentication.ErrSession
+	}
+	if v.ActiveTenantID != old.ActiveTenantID || v.AuthorizationRevision != old.AuthorizationRevision {
+		// Identical concurrent reconciliations are harmless. A different newer
+		// selection requires a fresh request, never revocation of the family.
+		if v.ActiveTenantID == next.TenantID && v.AuthorizationRevision == next.Revision {
+			return nil
+		}
+		return authentication.ErrDependency
+	}
+	_, err = tx.Exec(ctx, `UPDATE console_auth.sessions SET active_tenant_id=NULLIF($2,'')::uuid,authorization_revision=NULLIF($3::bigint,0),revision=revision+1 WHERE cookie_hash=$1`, hash, next.TenantID, next.Revision)
+	if err != nil || tx.Commit(ctx) != nil {
+		return authentication.ErrDependency
+	}
+	return nil
 }
 
 func (s *LoginStore) TouchSession(ctx context.Context, hash []byte, now time.Time, idle time.Duration) error {

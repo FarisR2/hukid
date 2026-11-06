@@ -1792,7 +1792,7 @@
       "get": {
         "operationId": "consoleMe",
         "summary": "Componer identidad y contexto de la sesión",
-        "description": "AUTH-T05/T06 handler for the isolated test profile. Reads the active session generation, revalidates operator/tenant authority, then extends idle activity within the original absolute deadline. Refresh is explicit; tenant switch is pending. All responses are no-store and correlated; codes/cookies/tokens must not be logged.",
+        "description": "AUTH/USR-T07 isolated test handler. Revalidates selected membership and authorization revision on each session read. Lost tenant access clears stored selection and returns 200 with activeTenantId/context null and remaining accessible tenants, preserving authentication. Current roles/scopes drive capabilities; no cached authority. Extends idle activity only after authorization, within the original absolute deadline. All responses are no-store and correlated; credentials must not be logged.",
         "security": [
           {
             "consoleSession": []
@@ -2300,7 +2300,7 @@
       "get": {
         "operationId": "operatorTenantContext",
         "summary": "Leer capacidades efectivas del propio operador",
-        "description": "AUTH-T05 handler for the isolated test profile. Revalidates active local membership and tenant on every request; issuerIds is empty until issuer assignments exist. All responses are no-store and correlated; codes/cookies/tokens must not be logged.",
+        "description": "AUTH/USR-T07 isolated test handler. Revalidates active local membership and tenant on every request. Roles, stored issuer scopes and authorization revision use one SQL snapshot with own-membership RLS. Missing/suspended/revoked access returns 404. No issuer ownership or assignment is granted by this projection. All responses are no-store and correlated; credentials must not be logged.",
         "security": [
           {
             "operatorBearer": []

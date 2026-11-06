@@ -672,7 +672,10 @@ func TestLoginHTTPWithRealOIDCAndPostgres(t *testing.T) {
 		call(directory, secrets.AccessToken, nil, 404)
 		call(browserDirectory, "", sessionCookie, 404)
 		call(own, secrets.AccessToken, nil, 404)
-		call("/console/api/me", "", sessionCookie, 404)
+		cleared := call("/console/api/me", "", sessionCookie, 200)
+		if cleared["activeTenantId"] != nil || cleared["context"] != nil || cleared["csrfToken"] != secrets.CSRF {
+			t.Fatal("suspension did not return to selector with the same session")
+		}
 		mustExec(t, db.admin, `UPDATE tenancy.memberships SET state='active',authorization_revision=3 WHERE membership_id=$1`, TestMemberA)
 		c = call(own, secrets.AccessToken, nil, 200)
 		if c["authorizationRevision"] != float64(3) {
@@ -869,9 +872,14 @@ func TestLoginHTTPWithRealOIDCAndPostgres(t *testing.T) {
 			}
 		}
 		mustExec(t, db.admin, `UPDATE tenancy.memberships SET state='suspended',authorization_revision=authorization_revision+1 WHERE membership_id=$1`, TestMemberA)
-		if request(t, "/console/api/me", selectedCookie).StatusCode != 404 {
-			t.Fatal("suspended membership survived context rotation")
+		response = request(t, "/console/api/me", selectedCookie)
+		var cleared map[string]any
+		json.NewDecoder(response.Body).Decode(&cleared)
+		response.Body.Close()
+		if response.StatusCode != 200 || cleared["activeTenantId"] != nil || cleared["context"] != nil || len(cleared["tenants"].([]any)) != len(selection["tenants"].([]any))-1 {
+			t.Fatal("suspension must preserve the independent tenant and return to selector")
 		}
+		postJSON("/console/auth/tenant-context", `{"tenantId":"`+TestTenantB+`"}`, selection["csrfToken"].(string), "http://invalid.example", selectedCookie, 403)
 		postJSON("/console/auth/tenant-context", `{"tenantId":"`+TestTenantA+`"}`, selection["csrfToken"].(string), p.ConsoleOrigin, selectedCookie, 404)
 		mustExec(t, db.admin, `UPDATE tenancy.memberships SET state='active',authorization_revision=authorization_revision+1 WHERE membership_id=$1`, TestMemberA)
 	})

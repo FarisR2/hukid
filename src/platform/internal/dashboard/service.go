@@ -67,7 +67,7 @@ type Overview struct {
 	Sections    map[string]Section `json:"sections"`
 }
 
-// Service is not connected to HTTP until DASH-T03. Its store is a separate
+// Service is exposed by the optional DASH-T03 HTTP adapters. Its store is a separate
 // read credential; it never resolves identities, decrypts sessions or emits audit.
 type Service struct {
 	store  Store
@@ -167,7 +167,7 @@ func (s *Service) Overview(ctx context.Context, actor, tenant, raw string) (Over
 	return result, nil
 }
 
-// ReadActivity opens an authorized read snapshot. DASH-T03 must authenticate opaque
+// ReadActivity opens an authorized read snapshot. Activity authenticates opaque
 // cursor state (including Access revision/scopes) inside this snapshot, via the
 // callback, before requesting rows. This port does not decode opaque cursors.
 func (s *Service) ReadActivity(ctx context.Context, actor, tenant, raw string, read func(Snapshot, Filter) error) error {

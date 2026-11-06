@@ -105,6 +105,7 @@ func TestLoginHTTPWithRealOIDCAndPostgres(t *testing.T) {
 	discovery := db.pool(t, "hukid_context_runtime")
 	tenantPool := db.pool(t, "hukid_tenant_runtime")
 	membersPool := db.pool(t, "hukid_members_runtime")
+	dashboardPool := db.pool(t, "hukid_dashboard_runtime")
 	file, err := os.Open("../../../config/auth.test.json")
 	if err != nil {
 		t.Fatal(err)
@@ -145,6 +146,10 @@ func TestLoginHTTPWithRealOIDCAndPostgres(t *testing.T) {
 	command.Env = append(command.Env, "HUKID_CONTEXT_DATABASE_URL="+discovery.Config().ConnString(), "HUKID_TENANT_DATABASE_URL="+tenantPool.Config().ConnString())
 	membersPolicy, _ := filepath.Abs("../../../config/user-management.test.json")
 	command.Env = append(command.Env, "HUKID_MEMBERS_DATABASE_URL="+membersPool.Config().ConnString(), "HUKID_MEMBERS_POLICY="+membersPolicy, "HUKID_MEMBERS_CURSOR_KEY="+base64.StdEncoding.EncodeToString(key))
+	dashboardPolicy, _ := filepath.Abs("../../../config/dashboard.test.json")
+	dashboardKey := make([]byte, 32)
+	rand.Read(dashboardKey)
+	command.Env = append(command.Env, "HUKID_DASHBOARD_DATABASE_URL="+dashboardPool.Config().ConnString(), "HUKID_DASHBOARD_POLICY="+dashboardPolicy, "HUKID_DASHBOARD_CURSOR_KEY="+base64.StdEncoding.EncodeToString(dashboardKey))
 	invitationKey, invitationMAC := make([]byte, 32), make([]byte, 32)
 	rand.Read(invitationKey)
 	rand.Read(invitationMAC)
@@ -473,6 +478,7 @@ func TestLoginHTTPWithRealOIDCAndPostgres(t *testing.T) {
 			t.Fatal("wrong authorization revision")
 		}
 		mustExec(t, db.admin, `UPDATE console_auth.sessions SET active_tenant_id=$1,authorization_revision=1 WHERE cookie_hash=$2`, TestTenantA, a.Digest(sessionCookie.Value))
+		testDashboardHTTP(t, db, call, secrets.AccessToken, sessionCookie, actor)
 		directory := "/v1/operator/tenants/" + TestTenantA + "/memberships"
 		browserDirectory := "/console/api/tenants/" + TestTenantA + "/memberships"
 		for _, endpoint := range []string{directory, browserDirectory} {

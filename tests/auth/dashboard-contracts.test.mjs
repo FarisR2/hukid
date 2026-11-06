@@ -17,7 +17,7 @@ const check=name=>ajv.compile({$ref:schema.$id+'#/$defs/'+name});
 const contractPath=fileURLToPath(new URL('src/platform/contracts/console-dashboard.openapi.json',root));
 const contract=await SwaggerParser.dereference(contractPath);
 
-test('DASH-T01 defines four contract-only reads with matching API/BFF payloads and effective gates',async()=>{
+test('DASH-T03 exposes four implemented-test reads with matching API/BFF payloads and effective gates',async()=>{
   await SwaggerParser.validate(contractPath);
   const matrix=read('src/platform/contracts/capabilities.json');
   const auth=read('src/platform/config/auth.test.json');
@@ -27,7 +27,7 @@ test('DASH-T01 defines four contract-only reads with matching API/BFF payloads a
     assert.deepEqual(Object.keys(methods),['get']);
     const op=methods.get;ids.push(op.operationId);
     const browser=route.startsWith('/console/'),activity=route.endsWith('/activity');
-    assert.equal(op['x-implementation-status'],'contract-only');
+    assert.equal(op['x-implementation-status'],'implemented-test');
     assert.equal(op['x-read-only'],true);
     assert.deepEqual(op['x-required-scopes'],['operator:read']);
     assert.deepEqual(op['x-required-capabilities'],activity?['dashboard:read','audit:read']:['dashboard:read']);

@@ -245,3 +245,7 @@ Aplicar la secuencia de migraciones hasta 0010 mediante el CLI/harness existente
 ## Gate y operación USR-T09
 
 `npm run test:members:gate` ejecuta check/build/PostgreSQL/smoke/Chromium con regresión AUTH y USR completas. Reutiliza el runner AUTH y genera `.cache/members-gate/latest.json`, con digest estable y metadatos sin logs ni entorno. El workflow Windows ejecuta este comando; su éxito remoto se acredita por separado. Mantiene `npm run test:auth:gate` y su informe propio. Alcance/matriz en el [gate U4](../05-delivery/members-gate.md); preparación, entrega/purga por tenant, diagnóstico y retirada en el [runbook de miembros](console-members-runbook.md). No cambia DDL, API ni permisos. Siguiente DASH-T01; producción NO-GO.
+
+## API/BFF dashboard DASH-T03
+
+Aplicar migraciones hasta 0011 y suministrar la configuración AUTH completa. Habilitar opcionalmente HUKID_DASHBOARD_DATABASE_URL (login exclusivo hukid_dashboard_runtime), HUKID_DASHBOARD_POLICY (src/platform/config/dashboard.test.json) y HUKID_DASHBOARD_CURSOR_KEY (32 bytes aleatorios Base64 exclusivos). Todo permanece restringido a test/loopback/hukid_test_*. El API no provisiona logins ni migra automáticamente. Sin las tres variables no registra rutas; configuración parcial falla antes del listener. [Referencia](../03-design/console-dashboard-http.md) mantiene contrato, preparación, cursor, retirada y límites. La interfaz queda en DASH-T04.

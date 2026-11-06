@@ -1,6 +1,6 @@
 # Lectura base autorizada del dashboard
 
-Estado: DASH-T02 implementada para laboratorio, 2026-11-06. [ADR-0020](../decisions/ADR-0020.md). Implementa el caso de uso y las lecturas tenancy/audit del [contrato DASH-T01](console-dashboard-contract.md). OpenAPI continúa contract-only: no hay rutas HTTP ni dashboard activo en la consola por este incremento.
+Estado: DASH-T02 implementada para laboratorio, 2026-11-06. [ADR-0020](../decisions/ADR-0020.md). Implementa el caso de uso y las lecturas tenancy/audit del [contrato DASH-T01](console-dashboard-contract.md). DASH-T02 no habilitó rutas HTTP ni UI; DASH-T03 conecta [API/BFF y cursor](console-dashboard-http.md) como incremento posterior. Las secciones siguientes describen el corte DASH-T02.
 
 ## Caso de uso y autorización
 

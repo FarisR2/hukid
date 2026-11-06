@@ -15,7 +15,7 @@ var (
 	ErrCursor  = errors.New("invalid dashboard cursor")
 )
 
-// Policy is an explicit isolated-test profile, not wired into the runtime yet.
+// Policy is the explicit isolated-test profile used by the optional dashboard runtime.
 type Policy struct {
 	Environment          string `json:"environment"`
 	DefaultWindowSeconds int    `json:"defaultWindowSeconds"`

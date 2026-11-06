@@ -1,6 +1,6 @@
 # Contrato de lectura del dashboard
 
-Estado: baseline DASH-T01, 2026-11-06, contrato y reglas de laboratorio según [ADR-0019](../decisions/ADR-0019.md). DASH-T02 añade [caso de uso/lectura SQL autorizada](console-dashboard-reads.md) y credencial separada según [ADR-0020](../decisions/ADR-0020.md). Las cuatro rutas continúan contract-only, sin handlers ni UI hasta DASH-T03/T04.
+Estado: baseline DASH-T01, 2026-11-06, contrato y reglas de laboratorio según [ADR-0019](../decisions/ADR-0019.md). DASH-T02 añade [caso de uso/lectura SQL autorizada](console-dashboard-reads.md) y credencial separada según [ADR-0020](../decisions/ADR-0020.md). DASH-T03 conecta las cuatro rutas [API/BFF y cursor autenticado](console-dashboard-http.md) según [ADR-0021](../decisions/ADR-0021.md); UI sigue en DASH-T04.
 
 ## Artefactos y consumidores
 
@@ -8,10 +8,10 @@ Estado: baseline DASH-T01, 2026-11-06, contrato y reglas de laboratorio según [
 - [Schemas estrictos](../../src/platform/contracts/dashboard.schema.json): overview, sección, actividad, ventana y Problem Details; sin propiedades adicionales.
 - [Catálogo de métricas](../../src/platform/contracts/dashboard-metrics.json): fuente, capacidad, periodo, filtro issuer y definición por métrica. Es la fuente de detalle de las métricas; los nombres no implican módulos implementados.
 - [Política test](../../src/platform/config/dashboard.test.json) y [schema](../../src/platform/contracts/dashboard-policy.schema.json): perfil cerrado de laboratorio; no autoriza despliegue productivo.
-- [Reglas Go](../../src/platform/internal/dashboard/request.go): análisis de filtros/ventanas sin efectos, todavía sin conexión al listener.
+- [Reglas Go](../../src/platform/internal/dashboard/request.go): análisis de filtros/ventanas sin efectos, compartido por los adaptadores HTTP.
 - [Ejemplos](../../tests/fixtures/dashboard/responses.json) y [dataset](../../tests/fixtures/dashboard/dataset.json) sintéticos para pruebas. No se importan en API, worker ni consola.
 
-Management acepta sólo Bearer operator válido con `operator:read`, además de membership y permisos locales vivos. BFF reutiliza sesión AUTH server-side y sus reglas de expiración/refresh; no transporta Bearer al navegador. Ambos exigen `dashboard:read`; activity exige además `audit:read`. No requieren step-up por ser lecturas. No aceptan tenant/rol/capacidad alternativos por body o cabecera. El BFF exige que el tenant de ruta coincida con el seleccionado; una discrepancia devuelve 403. Management autoriza el tenant de ruta sin depender de una selección de navegador.
+Management acepta sólo Bearer operator válido con `operator:read`, además de membership y permisos locales vivos. BFF reutiliza sesión AUTH server-side y sus reglas de expiración/refresh; no transporta Bearer al navegador. Ambos exigen `dashboard:read`; activity exige además `audit:read`. No requieren step-up por ser lecturas. No aceptan tenant/rol/capacidad alternativos por body o cabecera. El BFF rechaza primero un tenant inexistente/inaccesible con 404 y exige que un selector accesible coincida con el seleccionado; una discrepancia o selección ausente devuelve 403. Esta precedencia se concreta en [ADR-0021](../decisions/ADR-0021.md), incluida la selección retirada por AUTH. Management autoriza el tenant de ruta sin depender de una selección de navegador.
 
 ## Autorización y fuentes
 
@@ -63,6 +63,6 @@ Orden descendente `(recorded_at,event_id)`; posición de página estrictamente m
 
 Todos los éxitos y errores llevan no-store, no-referrer y X-Correlation-Id generado por servidor; errores usan Problem Details sin texto externo. No hay caché compartida. Las lecturas no emiten auditoría de negocio ni publican status; el middleware AUTH puede registrar rechazos como hasta ahora. Los futuros adapters medirán duración/resultado/correlación con etiquetas acotadas, sin URL/query/payload sensibles ni llamadas live a Events, IdP o KMS para calcular métricas.
 
-Contrato propio nuevo v0.1-draft, aditivo respecto a AUTH/USR. Sigue contract-only hasta DASH-T03; cambiar grants, ampliar el allowlist, incorporar status efectivo o alterar semántica requiere revisar contrato, historias y ADR. Las pruebas de contrato no acreditan RLS, consultas, carrera de permisos, cancelación de UI ni endpoints disponibles. DASH-T02/03 implementan lecturas/perímetro; DASH-T04 interfaz; DASH-T05 dominios futuros; DASH-T06–T08 cierran pruebas y operación.
+Contrato propio nuevo v0.1-draft, aditivo respecto a AUTH/USR. DASH-T03 implementa las cuatro rutas en laboratorio; cambiar grants, ampliar el allowlist, incorporar status efectivo o alterar semántica requiere revisar contrato, historias y ADR. Las pruebas de fixtures no acreditan RLS, consultas, carrera de permisos ni cancelación de UI. DASH-T02/03 añaden pruebas de lecturas y perímetro HTTP real; DASH-T04 interfaz; DASH-T05 dominios futuros; DASH-T06–T08 cierran pruebas y operación.
 
 La propuesta inicial de FEAT-003 mencionaba solicitudes por estado. Este baseline concreta únicamente el total createdRequests, sin inventar un enum de estados para un dominio aún ausente; el desglose se difiere al contrato propietario y DASH-T05. La spec refleja esta diferencia. Asimismo, la propuesta de mostrar la última publicación status se mantiene diferida: pendingStatusChanges y su asOf no representan un watermark de publicación. Ninguna de estas fuentes está conectada por DASH-T01.

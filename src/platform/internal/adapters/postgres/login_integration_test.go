@@ -103,6 +103,7 @@ func TestLoginHTTPWithRealOIDCAndPostgres(t *testing.T) {
 	pool := db.pool(t, "hukid_session_runtime")
 	discovery := db.pool(t, "hukid_context_runtime")
 	tenantPool := db.pool(t, "hukid_tenant_runtime")
+	membersPool := db.pool(t, "hukid_members_runtime")
 	file, err := os.Open("../../../config/auth.test.json")
 	if err != nil {
 		t.Fatal(err)
@@ -141,6 +142,8 @@ func TestLoginHTTPWithRealOIDCAndPostgres(t *testing.T) {
 	command := exec.Command(binary)
 	command.Env = append(os.Environ(), "HUKID_ENV=test", "HUKID_AUTH_POLICY="+policyPath, "HUKID_LISTEN_ADDR="+listen, "HUKID_SESSION_DATABASE_URL="+pool.Config().ConnString(), "HUKID_OIDC_CLIENT_SECRET="+secret, "HUKID_AUTH_KEY="+base64.StdEncoding.EncodeToString(key), "HUKID_AUTH_KEY_VERSION=integration-v1")
 	command.Env = append(command.Env, "HUKID_CONTEXT_DATABASE_URL="+discovery.Config().ConnString(), "HUKID_TENANT_DATABASE_URL="+tenantPool.Config().ConnString())
+	membersPolicy, _ := filepath.Abs("../../../config/user-management.test.json")
+	command.Env = append(command.Env, "HUKID_MEMBERS_DATABASE_URL="+membersPool.Config().ConnString(), "HUKID_MEMBERS_POLICY="+membersPolicy, "HUKID_MEMBERS_CURSOR_KEY="+base64.StdEncoding.EncodeToString(key))
 	logs := &capturedLogs{}
 	command.Stdout = logs
 	command.Stderr = logs
@@ -465,11 +468,50 @@ func TestLoginHTTPWithRealOIDCAndPostgres(t *testing.T) {
 			t.Fatal("wrong authorization revision")
 		}
 		mustExec(t, db.admin, `UPDATE console_auth.sessions SET active_tenant_id=$1,authorization_revision=1 WHERE cookie_hash=$2`, TestTenantA, a.Digest(sessionCookie.Value))
+		directory := "/v1/operator/tenants/" + TestTenantA + "/memberships"
+		browserDirectory := "/console/api/tenants/" + TestTenantA + "/memberships"
+		for _, endpoint := range []string{directory, browserDirectory} {
+			token, cookie := secrets.AccessToken, (*http.Cookie)(nil)
+			if strings.HasPrefix(endpoint, "/console/") {
+				token = ""
+				cookie = sessionCookie
+			}
+			page := call(endpoint, token, cookie, 200)
+			items := page["items"].([]any)
+			if len(items) != 1 || len(items[0].(map[string]any)) != 10 || items[0].(map[string]any)["membershipId"] != TestMemberA || page["nextCursor"] != nil {
+				t.Fatal("directory projection")
+			}
+			if call(endpoint+"?state=unknown", token, cookie, 422)["code"] != "invalid_input" {
+				t.Fatal("wrong input error")
+			}
+			call(endpoint+"?limit=1&limit=2", token, cookie, 400)
+			if call(endpoint+"?cursor=altered", token, cookie, 400)["code"] != "invalid_cursor" {
+				t.Fatal("wrong cursor error")
+			}
+			call(strings.Replace(endpoint, TestTenantA, TestTenantB, 1), token, cookie, 404)
+		}
+		call(directory, "", sessionCookie, 401)
+		call(browserDirectory, secrets.AccessToken, nil, 401)
+		invites := strings.Replace(directory, "memberships", "invitations", 1)
+		call(invites, secrets.AccessToken, nil, 403)
+		mustExec(t, db.admin, `UPDATE tenancy.membership_roles SET role='tenant_admin' WHERE membership_id=$1`, TestMemberA)
+		if len(call(invites, secrets.AccessToken, nil, 200)["items"].([]any)) != 0 {
+			t.Fatal("unexpected invitation")
+		}
+		call(strings.Replace(browserDirectory, "memberships", "invitations", 1), "", sessionCookie, 200)
+		for _, role := range []string{"issuer_operator", "support_readonly"} {
+			mustExec(t, db.admin, `UPDATE tenancy.membership_roles SET role=$1 WHERE membership_id=$2`, role, TestMemberA)
+			call(directory, secrets.AccessToken, nil, 403)
+			call(browserDirectory, "", sessionCookie, 403)
+		}
+		mustExec(t, db.admin, `UPDATE tenancy.membership_roles SET role='security_admin' WHERE membership_id=$1`, TestMemberA)
 		selected := call("/console/api/me", "", sessionCookie, 200)
 		if selected["activeTenantId"] != TestTenantA || selected["context"].(map[string]any)["tenantId"] != TestTenantA {
 			t.Fatal("context inconsistent")
 		}
 		mustExec(t, db.admin, `UPDATE tenancy.memberships SET state='suspended',authorization_revision=2 WHERE membership_id=$1`, TestMemberA)
+		call(directory, secrets.AccessToken, nil, 404)
+		call(browserDirectory, "", sessionCookie, 404)
 		call(own, secrets.AccessToken, nil, 404)
 		call("/console/api/me", "", sessionCookie, 404)
 		mustExec(t, db.admin, `UPDATE tenancy.memberships SET state='active',authorization_revision=3 WHERE membership_id=$1`, TestMemberA)

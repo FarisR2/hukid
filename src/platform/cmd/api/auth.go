@@ -29,6 +29,13 @@ type authConfig struct {
 }
 
 func loadAuthConfiguration() (*authConfig, error) {
+	memberConfig, memberErr := loadDirectoryConfiguration()
+	if memberConfig != nil {
+		clear(memberConfig.Key)
+	}
+	if memberErr != nil {
+		return nil, memberErr
+	}
 	path, environment := os.Getenv("HUKID_AUTH_POLICY"), os.Getenv("HUKID_ENV")
 	values := []string{os.Getenv("HUKID_SESSION_DATABASE_URL"), os.Getenv("HUKID_OIDC_CLIENT_SECRET"), os.Getenv("HUKID_AUTH_KEY"), os.Getenv("HUKID_AUTH_KEY_VERSION"), os.Getenv("HUKID_CONTEXT_DATABASE_URL"), os.Getenv("HUKID_TENANT_DATABASE_URL")}
 	configured := path != "" || environment != ""
@@ -128,7 +135,12 @@ func configureHandler(ctx context.Context, address string) (http.Handler, func()
 	service.Reauthentication = store
 	protectedCommands := consolehttp.NewCommands(service, provider, contexts)
 	me := &consolehttp.MeHandler{Verifier: provider, Tenancy: contexts, Sessions: sessions}
+	registerDirectory, closeDirectory, err := configureDirectory(ctx, management, me)
+	if err != nil {
+		closePools()
+		return nil, nil, err
+	}
 	commands := consolehttp.NewSessions(&authentication.SessionLifecycle{Sessions: sessions, Store: store, OIDC: provider, Random: rand.Reader})
 	stopCleanup := store.StartSessionCleanup(context.Background())
-	return audithttp.Wrap(bootstrap.Handler(consolehttp.New(service).Register, management.Register, me.Register, commands.Register, protectedCommands.Register), store, slog.Default()), func() { stopCleanup(); closePools() }, nil
+	return audithttp.Wrap(bootstrap.Handler(consolehttp.New(service).Register, management.Register, me.Register, commands.Register, protectedCommands.Register, registerDirectory), store, slog.Default()), func() { stopCleanup(); closeDirectory(); closePools() }, nil
 }

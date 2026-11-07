@@ -1,8 +1,11 @@
-"""DASH-T04: real BFF reads plus explicitly injected UI degradation/late responses."""
+"""DASH-T04/T07: real BFF reads and explicit UI-only fault fixtures."""
 from playwright.sync_api import expect
+import json
+from time import perf_counter
 
 
 def run_dashboard(page, context, config, database, heading, login, artifacts):
+    database('dashboard-activity')
     page.goto(config['origin'])
     page.wait_for_load_state('networkidle')
     login(page)
@@ -18,6 +21,40 @@ def run_dashboard(page, context, config, database, heading, login, artifacts):
     expect(page.get_by_text('Tu rol:', exact=True)).to_be_visible()
     expect(page.locator('.workspace-context')).to_contain_text('Administración de organización')
     expect(dashboard.get_by_text('Sin permiso', exact=True)).to_have_count(5)
+    # Real cursor round-trip: two tenants have 30 seeded events each. Gather
+    # only this tenant's pages through the UI and never persist IDs or cursors.
+    first = first_feed.value.json()
+    assert len(first['items']) == 25 and first['nextCursor']
+    next_button = dashboard.get_by_role('button', name='Siguiente página de actividad')
+    next_button.focus()
+    before_page = perf_counter()
+    with page.expect_response(lambda response: '/activity?' in response.url and 'cursor=' in response.url) as next_feed:
+        page.keyboard.press('Enter')
+    assert next_feed.value.status == 200
+    second = next_feed.value.json()
+    expect(page.get_by_role('region', name='Actividad reciente')).to_have_attribute('aria-busy', 'false')
+    expect(dashboard.get_by_role('heading', name='Actividad reciente')).to_be_focused()
+    assert second['asOf'] == first['asOf'] and second['nextCursor'] is None
+    ids = [item['eventId'] for item in first['items'] + second['items']]
+    assert len(ids) == len(set(ids)) and len(ids) >= 30
+    assert all(item['targetId'] != '10000000-0000-4000-8000-000000000002'
+               for item in first['items'] + second['items'])
+    (artifacts / 'dashboard-performance.json').write_text(json.dumps({
+        'profile': 'synthetic loopback; Chromium; 4x CPU; 30 events per tenant; no SLA',
+        'nextPageToRenderedMs': (perf_counter() - before_page) * 1000,
+        'pages': 2, 'uniqueEvents': len(ids), 'pageLimit': 25,
+    }, indent=2), encoding='utf-8')
+    with page.expect_response(lambda response: '/activity?' in response.url and 'cursor=' not in response.url):
+        dashboard.get_by_role('button', name='Reiniciar actividad').press('Enter')
+    expect(next_button).to_be_visible()
+    # Send a synthetic PII canary in malformed input to the real BFF. The Go
+    # harness checks captured application logs after this request (never prints
+    # them). This does not claim to cover external proxies or infrastructure.
+    from urllib.parse import urlsplit, urlunsplit
+    feed_url = urlsplit(first_feed.value.url)
+    invalid = context.request.get(urlunsplit(feed_url._replace(query='')), params={
+        'from': 'dashboard-pii-canary@example.invalid', 'to': '2026-11-01T00:00:00Z'})
+    assert invalid.status == 422
     page.get_by_role('link', name='Resumen', exact=True).press('Enter')
     expect(page.get_by_role('link', name='Resumen', exact=True)).to_have_attribute('aria-current', 'location')
     assert page.locator('h1').count() == 1
@@ -36,14 +73,32 @@ def run_dashboard(page, context, config, database, heading, login, artifacts):
     # Invalid input is preserved with focused recovery; no malformed read is sent.
     start = dashboard.get_by_label('Desde (UTC)')
     end = dashboard.get_by_label('Hasta (UTC)')
+    # Reach controls through the actual tab sequence, not locator.press alone.
+    refresh = dashboard.get_by_role('button', name='Actualizar resumen')
+    refresh.focus()
+    page.keyboard.press('Tab')
+    expect(start).to_be_focused()
+    # datetime-local has browser-native subfields; traverse until the next
+    # named control rather than assuming one Tab per input.
+    for target in [end, dashboard.get_by_role('button', name='Aplicar periodo')]:
+        for _ in range(20):
+            page.keyboard.press('Tab')
+            if target.evaluate('(element) => element === document.activeElement'):
+                break
+        expect(target).to_be_focused()
+    for control in [start, end]:
+        expect(control).to_have_attribute('aria-describedby', 'range-help range-error')
     original_from, original_to = start.input_value(), end.input_value()
     start.fill(original_to)
     dashboard.get_by_role('button', name='Aplicar periodo').press('Enter')
     expect(dashboard.locator('#range-error')).to_contain_text('fin debe ser posterior')
     expect(start).to_be_focused()
+    expect(start).to_have_attribute('aria-invalid', 'true')
     start.fill(original_from)
     dashboard.get_by_role('button', name='Aplicar periodo').press('Enter')
     expect(metric.locator('.metric-value')).to_have_text('1')
+    expect(start).to_have_attribute('aria-invalid', 'false')
+    expect(dashboard.locator('#range-error')).to_be_empty()
 
     # Capture real payload and inject only the section state for UI coverage.
     degradation_calls = [0]
@@ -101,6 +156,9 @@ def run_dashboard(page, context, config, database, heading, login, artifacts):
     dashboard.get_by_role('button', name='Reiniciar actividad').press('Enter')
     dashboard.get_by_role('button', name='Siguiente página de actividad').press('Enter')
     expect(dashboard.get_by_role('alert')).to_contain_text('La página ha caducado')
+    expect(dashboard.get_by_role('heading', name='Actividad reciente')).to_be_focused()
+    page.keyboard.press('Tab')
+    expect(dashboard.get_by_role('button', name='Reiniciar actividad')).to_be_focused()
     assert page_requests[1]['cursor'] == [cursor]
     assert page_requests[0]['from'] == page_requests[1]['from'] and page_requests[0]['to'] == page_requests[1]['to']
     with page.expect_response(lambda response: '/activity?' in response.url):

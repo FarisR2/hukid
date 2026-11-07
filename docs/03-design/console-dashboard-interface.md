@@ -33,3 +33,7 @@ Un único h1 de organización, navegación con aria-current, etiquetas visibles,
 El harness Chromium se amplía con la credencial/clave dashboard efímeras propias. Los conteos, revalidación de roles y errores de permisos usan API/DB reales; las degradaciones y respuestas tardías se inyectan de forma explícita sólo en pruebas. Comandos y evidencia ejecutada: [tareas](../features/FEAT-003-dashboard/tasks.md). Las capturas se guardan bajo .cache/browser-auth, fuera del código distribuido.
 
 No acredita auditoría WCAG certificada, lector de pantalla físico, carga/SLO, CI remoto ni producción. DASH-T05 conserva adaptadores futuros y DASH-T06–T08 la matriz ampliada, mediciones y operación. El perfil permanece draft y el roadmap HK sigue abierto.
+
+## Revisión DASH-T07
+
+La siguiente página mueve el foco al encabezado de actividad con tabindex=-1 antes de retirar el botón. El foco permanece en la región al terminar o fallar; Tab permite alcanzar Reiniciar actividad. El E2E cubre éxito con cursor real, recuperación de cursor inválido, recorrido Tab de los filtros y ayuda/error asociados. [Informe DASH-T07](../05-delivery/reviews/dashboard-t07-laboratory.md) conserva mediciones, revisión visual, privacidad y límites; siguiente DASH-T08, con DASH-T05 pendiente por fuentes futuras.

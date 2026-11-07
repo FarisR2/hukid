@@ -189,3 +189,7 @@ La corrección posterior de [reloj de fuente](../decisions/ADR-0023.md) elimina 
 La [matriz negativa base](../features/FEAT-003-dashboard/tasks.md#matriz-negativa-dash-t06--base-de-laboratorio) amplía autorización viva entre páginas, cursores autenticados/TTL fijo, degradación SQL por API/BFF y precisión de ventanas UTC. Corrige truncamiento nanosegundo al consultar timestamps microsegundo sin cambiar contrato, DDL o grants.
 
 La cobertura de desired/published, unavailable y parciales de dominios futuros es contractual/pura o interceptada en navegador; no acredita fuentes operativas ni propiedad de issuers. DASH-T05 sigue pendiente por módulos propietarios, con repetición de la matriz por adaptador. DASH-T07 conserva E2E/accesibilidad y medición de consultas; DASH-T08 rollout/runbook y DoD base. La regresión local no acredita CI remoto, carga/SLO, interoperabilidad VC ni producción.
+
+## Incremento DASH-T07
+
+[E2E/accesibilidad y medición base](reviews/dashboard-t07-laboratory.md) ejecutadas localmente: cursor real en Chromium, teclado/foco/estados y privacidad de logs de aplicación, con consultas pgx medidas sobre 20.000 eventos sintéticos. Corrige pérdida de foco en paginación; no cambia contratos, grants ni persistencia. Los tiempos seriales locales no fijan SLA/SLO. Continúa DASH-T08 para operación/DoD; DASH-T05 permanece pendiente por fuentes futuras. Lector físico, certificación WCAG/ISO, otros motores/dispositivos, proxies externos, concurrencia del piloto, CI remoto y producción siguen sin acreditarse.

@@ -68,3 +68,7 @@ Chromium añade dashboard sobre BFF/DB reales: conteos, roles propios, teclado, 
 ## Matriz base DASH-T06
 
 La [matriz negativa](../features/FEAT-003-dashboard/tasks.md#matriz-negativa-dash-t06--base-de-laboratorio) reúne unitarias, contratos, PostgreSQL/HTTP y regresión Chromium. Amplía reautorización entre páginas, replay de cursor entre actores/tenants, TTL fijo 899/900 s, manipulación de nonce/ciphertext/tag, fallos SQL por ambas superficies y límites nanosegundo sobre la fuente microsegundo. Conserva la separación entre pruebas contractuales de fuentes futuras y adaptadores reales; desired/published sigue siendo un oráculo sintético hasta DASH-T05. DASH-T07 conserva medición de consultas y revisión de accesibilidad; DASH-T08 documenta operación/DoD.
+
+## E2E y medición DASH-T07
+
+El [informe DASH-T07](../05-delivery/reviews/dashboard-t07-laboratory.md) registra paginación Chromium con cursor autenticado real, revalidación tenant/rol, recorrido Tab y regresión de foco al desmontar Siguiente página. El canary email inválido y las claves efímeras se contrastan contra logs de aplicación/auditoría sin volcar estos destinos. test:postgres añade tracer pgx exclusivo de prueba con 2×10.000 eventos y 30 muestras seriales; los informes locales contienen sólo etiquetas y tiempos. No hay datos operativos, SLA nuevo ni carga concurrente del piloto. DASH-T08 conserva rollout/runbook y DoD base.

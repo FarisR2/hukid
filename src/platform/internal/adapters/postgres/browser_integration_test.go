@@ -157,7 +157,7 @@ func TestConsoleBrowser(t *testing.T) {
 	t.Cleanup(func() { cmd.Process.Kill() })
 	json.NewEncoder(input).Encode(map[string]string{"origin": p.ConsoleOrigin, "issuer": p.Issuer, "interactionKey": secrets["interactionKey"]})
 	var actor string
-	privateValues := []string{"Browser+recipient@example.invalid"}
+	privateValues := []string{"Browser+recipient@example.invalid", "dashboard-pii-canary@example.invalid", "dashboard-pii-canary%40example.invalid"}
 	scanner := bufio.NewScanner(output)
 	for scanner.Scan() {
 		switch scanner.Text() {
@@ -180,6 +180,15 @@ func TestConsoleBrowser(t *testing.T) {
 			continue
 		case "expire-invitation":
 			mustExec(t, db.admin, `UPDATE tenancy.invitations SET expires_at=created_at+interval '1 microsecond' WHERE tenant_id=$1 AND state='pending'`, TestTenantA)
+		case "dashboard-activity":
+			for _, tenant := range []string{TestTenantA, TestTenantB} {
+				mustExec(t, db.admin, `WITH seeded AS (
+ INSERT INTO platform.audit_events(event_id,tenant_id,target_id,action,outcome,correlation_id,recorded_at)
+ SELECT md5('browser-dashboard'||$1::text||n::text)::uuid,$1::uuid,$1::uuid,'auth.context.changed','success',
+ md5('browser-dashboard'||$1::text||n::text)::uuid,now()-interval '1 hour'-n*interval '1 second'
+ FROM generate_series(1,30) n RETURNING event_id,tenant_id)
+ INSERT INTO platform.outbox_events(event_id,tenant_id) SELECT event_id,tenant_id FROM seeded`, tenant)
+			}
 		case "stale-member":
 			mustExec(t, db.admin, `UPDATE tenancy.memberships SET authorization_revision=authorization_revision+1 WHERE tenant_id=$1 AND operator_identity_id<>$2`, TestTenantA, actor)
 		case "seed":
@@ -219,6 +228,7 @@ func TestConsoleBrowser(t *testing.T) {
 		t.Fatal(err)
 	}
 	privateValues = append(privateValues, secrets["clientSecret"], secrets["interactionKey"], base64.StdEncoding.EncodeToString(key), base64.StdEncoding.EncodeToString(invitationKey), base64.StdEncoding.EncodeToString(macKey))
+	privateValues = append(privateValues, base64.StdEncoding.EncodeToString(dashboardKey), base64.StdEncoding.EncodeToString(cursorKey))
 	for _, secret := range privateValues {
 		if secret != "" && (strings.Contains(apiLogs.String(), secret) || strings.Contains(stored, secret)) {
 			t.Fatal("browser secret leaked to audit/logs")

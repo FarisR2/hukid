@@ -20,6 +20,7 @@ export function Dashboard({ identity, onAccessError }: { identity: Identity; onA
   const [activityReload, setActivityReload] = useState(0);
   const [cursor, setCursor] = useState('');
   const fromInput = useRef<HTMLInputElement>(null);
+  const activityHeading = useRef<HTMLHeadingElement>(null);
   const accessError = useRef(onAccessError); accessError.current = onAccessError;
   const caps = identity.context!.capabilities;
   const canAudit = caps.includes('audit:read');
@@ -94,7 +95,7 @@ export function Dashboard({ identity, onAccessError }: { identity: Identity; onA
           })}</dl></>}
       </div>
       <section className="dashboard-activity" aria-labelledby="activity-title" aria-busy={loading.activity}>
-        <h3 id="activity-title">Actividad reciente</h3>
+        <h3 id="activity-title" ref={activityHeading} tabIndex={-1}>Actividad reciente</h3>
         {!canAudit ? <p role="status">No tienes permiso para consultar la actividad.</p> : <>
           {loading.activity && <p role="status">Cargando actividad…</p>}
           {errors.activity && <p role="alert">{errors.activity}</p>}
@@ -104,7 +105,7 @@ export function Dashboard({ identity, onAccessError }: { identity: Identity; onA
               <time dateTime={item.occurredAt}>{date(item.occurredAt)}</time><span className="muted metric-detail">Referencia: {item.targetId}</span>
             </li>)}</ol>}</>}
           <div className="actions"><button disabled={loading.activity} onClick={() => { setCursor(''); setActivityReload(n => n + 1); }}>Reiniciar actividad</button>
-            {activity?.nextCursor && <button disabled={loading.activity} onClick={() => { setActivity(null); setCursor(activity.nextCursor!); }}>Siguiente página de actividad</button>}</div>
+            {activity?.nextCursor && <button disabled={loading.activity} onClick={() => { activityHeading.current?.focus(); setActivity(null); setCursor(activity.nextCursor!); }}>Siguiente página de actividad</button>}</div>
         </>}
       </section>
     </>}

@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"net/url"
 	"strings"
@@ -31,10 +32,62 @@ func (r *activitySnapshot) Activity(_ context.Context, f Filter, pos Position, a
 	r.calls++
 	r.positions = append(r.positions, pos)
 	r.ceilings = append(r.ceilings, asOf)
-	if pos.ID != "" {
-		return r.events[1:], r.err
+	for i, event := range r.events {
+		if event.EventID == pos.ID {
+			return r.events[i+1:], r.err
+		}
 	}
 	return r.events, r.err
+}
+
+func TestActivityContinuationDoesNotRenewTTL(t *testing.T) {
+	origin := time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
+	now := origin
+	actor, tenant := "20000000-0000-4000-8000-000000000001", "10000000-0000-4000-8000-000000000001"
+	r := &activitySnapshot{access: Access{1, []string{"tenant_admin"}, nil}, events: []Event{
+		{EventID: "90000000-0000-4000-8000-000000000003", OccurredAt: origin.Add(-time.Second)},
+		{EventID: "90000000-0000-4000-8000-000000000002", OccurredAt: origin.Add(-2 * time.Second)},
+		{EventID: "90000000-0000-4000-8000-000000000001", OccurredAt: origin.Add(-3 * time.Second)},
+	}}
+	s, _ := New(activityStore{r}, testPolicy(), func() time.Time { return now })
+	a, _ := NewActivity(s, make([]byte, 32))
+	first, err := a.List(context.Background(), actor, tenant, "limit=1")
+	if err != nil || first.NextCursor == nil {
+		t.Fatal("first page", err)
+	}
+	q := url.Values{"from": {first.Window.From.Format(time.RFC3339Nano)}, "to": {first.Window.To.Format(time.RFC3339Nano)}, "limit": {"1"}, "cursor": {*first.NextCursor}}
+	now = origin.Add(899 * time.Second)
+	second, err := a.List(context.Background(), actor, tenant, q.Encode())
+	if err != nil || second.NextCursor == nil || !second.AsOf.Equal(origin) || len(second.Items) != 1 || second.Items[0].EventID != r.events[1].EventID {
+		t.Fatal("continuation", err)
+	}
+	q.Set("cursor", *second.NextCursor)
+	// A token issued one second before expiry still has the original deadline.
+	now = origin.Add(900 * time.Second)
+	before := r.calls
+	page, err := a.List(context.Background(), actor, tenant, q.Encode())
+	if !errors.Is(err, ErrCursor) || r.calls != before || page.Items != nil || page.NextCursor != nil {
+		t.Fatal("continuation extended TTL", err)
+	}
+	now = origin.Add(900*time.Second - time.Nanosecond)
+	last, err := a.List(context.Background(), actor, tenant, q.Encode())
+	if err != nil || len(last.Items) != 1 || last.NextCursor != nil || !last.AsOf.Equal(origin) {
+		t.Fatal("valid deadline boundary rejected", err)
+	}
+	// Mutate nonce, ciphertext and authentication tag separately.
+	token, err := base64.RawURLEncoding.DecodeString(*first.NextCursor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, offset := range []int{0, a.aead.NonceSize(), len(token) - 1} {
+		changed := append([]byte(nil), token...)
+		changed[offset] ^= 1
+		q.Set("cursor", base64.RawURLEncoding.EncodeToString(changed))
+		before = r.calls
+		if _, err := a.List(context.Background(), actor, tenant, q.Encode()); !errors.Is(err, ErrCursor) || r.calls != before {
+			t.Fatal("tampered token reached source", offset, err)
+		}
+	}
 }
 
 type activityStore struct{ reader *activitySnapshot }

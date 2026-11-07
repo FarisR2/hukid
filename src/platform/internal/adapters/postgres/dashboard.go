@@ -98,11 +98,21 @@ func (r *dashboardSnapshot) Activity(ctx context.Context, f dashboard.Filter, po
 	if (pos.ID == "") != pos.At.IsZero() || pos.ID != "" && !validID(id) {
 		return nil, dashboard.ErrCursor
 	}
+	// recorded_at has microsecond precision. pgx truncates nanosecond inputs,
+	// which would widen >= from and narrow < to. Ceil both bounds onto the
+	// source's timestamp grid to preserve the requested half-open interval.
+	ceilMicrosecond := func(at time.Time) time.Time {
+		floor := at.Truncate(time.Microsecond)
+		if floor.Before(at) {
+			return floor.Add(time.Microsecond)
+		}
+		return floor
+	}
 	rows, err := r.tx.Query(ctx, `SELECT event_id::text,action,outcome,recorded_at,actor_operator_identity_id::text,target_id::text
  FROM platform.audit_events WHERE tenant_id=$1 AND outcome='success'
  AND recorded_at >= $2 AND recorded_at < $3 AND recorded_at <= $4
  AND ($5 OR (recorded_at,event_id)<($6,$7::uuid))
- ORDER BY recorded_at DESC,event_id DESC LIMIT $8`, r.tenant, f.From, f.To, asOf, pos.ID == "", pos.At, id, f.Limit+1)
+ ORDER BY recorded_at DESC,event_id DESC LIMIT $8`, r.tenant, ceilMicrosecond(f.From), ceilMicrosecond(f.To), asOf, pos.ID == "", pos.At, id, f.Limit+1)
 	if err != nil {
 		return nil, authentication.ErrDependency
 	}

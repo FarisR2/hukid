@@ -21,13 +21,17 @@ func TestSourceAvailabilityAndFreshness(t *testing.T) {
 	}{
 		{"zero", true, true, 0, now, nil, "available", ""},
 		{"permission first", false, false, 3, now, nil, "notAuthorized", "capability_required"},
+		{"denied connected failure", false, true, 42, now, errors.New("private source error"), "notAuthorized", "capability_required"},
 		{"future source", true, false, 0, time.Time{}, nil, "unavailable", "source_not_connected"},
 		{"failed", true, true, 0, now, errors.New("private database diagnostic"), "error", "source_failed"},
 		{"no observation", true, true, 0, time.Time{}, nil, "error", "source_failed"},
 		{"future observation", true, true, 1, now.Add(time.Second), nil, "error", "source_failed"},
+		{"future nanosecond", true, true, 1, now.Add(time.Nanosecond), nil, "error", "source_failed"},
+		{"largest exact count", true, true, 9007199254740991, now, nil, "available", ""},
 		{"overflow", true, true, 9007199254740992, now, nil, "error", "source_failed"},
 		{"negative", true, true, -1, now, nil, "error", "source_failed"},
 		{"fresh boundary", true, true, 0, now.Add(-300 * time.Second), nil, "available", ""},
+		{"stale nanosecond", true, true, 7, now.Add(-300*time.Second - time.Nanosecond), nil, "stale", "source_stale"},
 		{"stale zero", true, true, 0, now.Add(-301 * time.Second), nil, "stale", "source_stale"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

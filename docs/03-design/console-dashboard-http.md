@@ -10,6 +10,8 @@ BFF revalida el selector antes de comparar la selección: tenant inexistente/ina
 
 Filtros, ventana UTC [from,to), máximo de 31 días, query de 4096 bytes y límite activity 1–100 proceden del parser compartido. Parámetros desconocidos, repetidos, vacíos o mal codificados devuelven 400 invalid_request; forma/rangos inválidos 422 invalid_input; cursor no válido 422 invalid_cursor. El contrato mantiene 401 invalid_credential, 403 forbidden, 404 resource_not_found y 503 dependency_unavailable. Sólo Management incluye el challenge Bearer ante 401. No se añade rate limiter propio; 429 conserva la representación contractual para infraestructura futura.
 
+DASH-T06 conserva la precisión de hasta nueve decimales admitida por el contrato: al consultar recorded_at (microsegundos), el adaptador eleva ambos límites from/to al microsegundo siguiente si tienen fracción adicional. Sobre esa fuente discreta, `>= ceil(from)` y `< ceil(to)` preservan exactamente [from,to); truncarlos incluía eventos anteriores a from o excluía eventos anteriores a to. La ventana devuelta y el binding del cursor mantienen los valores originales. No cambia esquema, límite, permiso ni precisión de los registros existentes.
+
 Éxitos y errores llevan Cache-Control: no-store, Referrer-Policy: no-referrer y correlación UUID generada por servidor, compartida con el middleware AUTH. Problem Details usa title/code fijos y no incluye diagnóstico SQL, tokens ni mensajes externos. Cada petición tiene timeout de cinco segundos. La observación de lectura registra operación, resultado, duración y correlación; no registra URL, filtros, IDs de actor/tenant, filas o credenciales. Los rechazos previos conservan la observación y auditoría AUTH existentes.
 
 ## Paginación autenticada

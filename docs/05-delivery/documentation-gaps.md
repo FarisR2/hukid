@@ -183,3 +183,9 @@ DASH-T04 conserva UI; DASH-T05 fuentes futuras; DASH-T06–T08 matriz ampliada, 
 DASH-T05 conserva módulos/ownership issuer futuros y DASH-T06–T08 matriz ampliada, mediciones y operación. Las degradaciones futuras/paginación de UI se inyectan sólo en pruebas; no son fuentes operativas. Sin lector de pantalla físico/certificación WCAG, carga/SLO, CI remoto, IdP/MFA reales, preparación productiva ni cierre del roadmap HK.
 
 La corrección posterior de [reloj de fuente](../decisions/ADR-0023.md) elimina la comparación asOf PostgreSQL/generatedAt Go que produjo 503 intermitentes en el pipeline Windows. El gate integral local pasó con la regresión determinista de relojes distintos; la nueva ejecución remota queda pendiente de publicar la corrección. No cambia los bloqueos productivos anteriores.
+
+## Incremento DASH-T06
+
+La [matriz negativa base](../features/FEAT-003-dashboard/tasks.md#matriz-negativa-dash-t06--base-de-laboratorio) amplía autorización viva entre páginas, cursores autenticados/TTL fijo, degradación SQL por API/BFF y precisión de ventanas UTC. Corrige truncamiento nanosegundo al consultar timestamps microsegundo sin cambiar contrato, DDL o grants.
+
+La cobertura de desired/published, unavailable y parciales de dominios futuros es contractual/pura o interceptada en navegador; no acredita fuentes operativas ni propiedad de issuers. DASH-T05 sigue pendiente por módulos propietarios, con repetición de la matriz por adaptador. DASH-T07 conserva E2E/accesibilidad y medición de consultas; DASH-T08 rollout/runbook y DoD base. La regresión local no acredita CI remoto, carga/SLO, interoperabilidad VC ni producción.

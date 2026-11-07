@@ -4,6 +4,8 @@ Estado: DASH-T02 implementada para laboratorio, 2026-11-06. [ADR-0020](../decisi
 
 ## Caso de uso y autorización
 
+La corrección posterior de DASH-T04 usa el reloj PostgreSQL para generatedAt del overview según [ADR-0023](../decisions/ADR-0023.md), evitando comparar el reloj de fuente con el de Go al calcular vigencia. El resto de límites y autorización del incremento se conserva.
+
 [Service](../../src/platform/internal/dashboard/service.go) recibe actor autenticado, tenant selector y filtros; reutiliza el parser UTC y la matriz AUTH/USR sin nuevos grants. Overview compone seis secciones; ReadActivity abre una lectura autorizada cuyo consumidor trabaja dentro del mismo snapshot. Callback y store son puertos internos de confianza, no interfaces para el navegador.
 
 [DashboardStore](../../src/platform/internal/adapters/postgres/dashboard.go) abre una transacción READ ONLY / REPEATABLE READ y establece operator_id/tenant_id mediante parámetros SET LOCAL. Revalida tenant/membership activos y carga roles, revisión y scopes antes de llamar al caso de uso. Éste comprueba dashboard:read y, para actividad, audit:read antes de consultar fuentes. No recibe capacidades desde claims o parámetros cliente. Una lectura en curso conserva su snapshot; la siguiente vuelve a leer permisos y revisión. El pool no conserva contexto al terminar, fallar o cancelar.
@@ -14,7 +16,7 @@ Tenant ajeno, inexistente o suspendido y membership no activa usan el mismo erro
 
 | Fuente | Lectura | Límites |
 | --- | --- | --- |
-| tenancy.memberships | COUNT de memberships activas, una vez por membership. | Tenant y members:read; snapshot actual independiente del periodo. asOf de transaction_timestamp() y generatedAt del reloj de composición. |
+| tenancy.memberships | COUNT de memberships activas, una vez por membership. | Tenant y members:read; snapshot actual independiente del periodo. asOf de transaction_timestamp() y generatedAt de clock_timestamp(), leído después del conteo dentro de la misma transacción autorizada. |
 | platform.audit_events | eventId/action/outcome/occurredAt/actorId/targetId. | Tenant, success del allowlist, ventana UTC [from,to), techo asOf y posición descendente estricta (recorded_at,event_id), antes del límite. |
 
 Actividad consulta como máximo limit+1 filas (limit entre 1 y 100) para detectar continuación. El puerto devuelve filas y lookahead, no una respuesta HTTP ni un cursor. DASH-T03 debe fijar asOf/deadline iniciales y autenticar el cursor ligado a actor, revisión/scopes, tenant y filtros **dentro del callback**, después de reautorizar y antes de consultar filas. Cifrado de cursor y respuesta paginada siguen pendientes; Position nunca se toma directamente de un cliente.

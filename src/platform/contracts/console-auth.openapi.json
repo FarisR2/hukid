@@ -2662,6 +2662,20 @@
           "authorizationRevision": {
             "type": "integer",
             "minimum": 1
+          },
+          "roles": {
+            "type": "array",
+            "uniqueItems": true,
+            "description": "Roles actuales de la membresía autorizada; campo aditivo DASH-T04. No procede del JWT ni del navegador.",
+            "items": {
+              "type": "string",
+              "enum": [
+                "tenant_admin",
+                "security_admin",
+                "support_readonly",
+                "issuer_operator"
+              ]
+            }
           }
         }
       },

@@ -1,7 +1,7 @@
 # FEAT-003 — Dashboard operativo del tenant
 
 - Producto: HukID Console / Team 5.
-- Estado: DASH-T01 contractual y DASH-T02 lectura base autorizada implementadas en laboratorio; DASH-T03 conecta API/BFF y cursor; interfaz pendiente en DASH-T04.
+- Estado: DASH-T01 contractual y DASH-T02 lectura base autorizada implementadas en laboratorio; DASH-T03 conecta API/BFF y cursor; DASH-T04 conecta la interfaz base accesible.
 - Depende de: identidad/contexto [FEAT-001](../FEAT-001-authentication/spec.md) y matriz [FEAT-002](../FEAT-002-user-management/spec.md).
 - Salidas: [plan](plan.md), [tareas](tasks.md).
 
@@ -62,3 +62,5 @@ Las fuentes de lectura, límites y capacidad reservada status:read se concretan 
 La [lectura base DASH-T02](../../03-design/console-dashboard-reads.md) conecta tenancy/audit mediante credencial separada y snapshot autorizado según [ADR-0020](../../decisions/ADR-0020.md). No cambia requisitos, grants o semántica contractual; HTTP/BFF y cursor público siguen en DASH-T03.
 
 DASH-T03 conecta [API/BFF, filtros y cursor autenticado](../../03-design/console-dashboard-http.md) según [ADR-0021](../../decisions/ADR-0021.md), sin cambiar grants, requisitos ni semántica de fuentes. La interfaz continúa en DASH-T04.
+
+DASH-T04 conecta [shell/contexto/navegación e interfaz base](../../03-design/console-dashboard-interface.md) según [ADR-0022](../../decisions/ADR-0022.md). AC01 se concreta con roles aditivos de la membresía viva en /me; no cambia permisos ni fuentes. AC07/08 se aplican por región, con revalidación de contexto y descarte de respuestas tardías.

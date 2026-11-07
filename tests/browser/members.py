@@ -63,7 +63,8 @@ def run_members(page, context, browser, config, authorize, database, heading, lo
     recipient.get_by_label('Organización', exact=True).select_option(label='Organización de prueba A')
     recipient.get_by_role('button', name='Continuar', exact=True).press('Enter')
     heading(recipient, 'Organización de prueba A')
-    expect(recipient.get_by_text('No tienes permiso para consultar miembros.', exact=False)).to_be_visible()
+    expect(recipient.get_by_role('region', name='Miembros e invitaciones')).to_have_count(0)
+    expect(recipient.get_by_role('link', name='Miembros e invitaciones')).to_have_count(0)
     assert recipient.evaluate('localStorage.length === 0 && sessionStorage.length === 0')
 
     page.get_by_role('button', name='Miembros', exact=True).press('Enter')
@@ -104,7 +105,7 @@ def run_members(page, context, browser, config, authorize, database, heading, lo
     dialog.get_by_role('button', name='Confirmar cambio').press('Enter')
     expect(management.get_by_role('listitem').filter(has_text=target_id)).to_contain_text('Administración de seguridad')
     recipient.reload()
-    expect(recipient.get_by_role('listitem')).to_have_count(2)
+    expect(recipient.get_by_role('region', name='Miembros e invitaciones').get_by_role('listitem')).to_have_count(2)
     recipient.get_by_role('button', name='Invitaciones', exact=True).press('Enter')
     expect(recipient.get_by_text('No tienes permiso para consultar invitaciones.', exact=False)).to_be_visible()
 

@@ -32,6 +32,7 @@ type Context struct {
 	Capabilities          []string `json:"capabilities"`
 	IssuerIDs             []string `json:"issuerIds"`
 	AuthorizationRevision int64    `json:"authorizationRevision"`
+	Roles                 []string `json:"roles"`
 }
 
 func IdentityDTO(i tenancy.Identity) Me {
@@ -42,7 +43,7 @@ func IdentityDTO(i tenancy.Identity) Me {
 	return m
 }
 func ContextDTO(c tenancy.Context) Context {
-	return Context{c.TenantID, c.Capabilities, c.IssuerIDs, c.AuthorizationRevision}
+	return Context{c.TenantID, c.Capabilities, c.IssuerIDs, c.AuthorizationRevision, c.Roles}
 }
 func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/v1/operator/me", h.Protect(h.serve))

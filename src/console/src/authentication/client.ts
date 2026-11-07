@@ -3,7 +3,7 @@ export interface Identity {
   actorId: string;
   tenants: Tenant[];
   activeTenantId: string | null;
-  context: { tenantId: string; capabilities: string[]; issuerIds: string[]; authorizationRevision: number } | null;
+  context: { tenantId: string; capabilities: string[]; issuerIds: string[]; roles?: string[]; authorizationRevision: number } | null;
   csrfToken: string;
 }
 
@@ -40,6 +40,8 @@ export async function readIdentity(signal: AbortSignal): Promise<Identity> {
       (value.activeTenantId === null && value.context !== null) ||
       (value.activeTenantId !== null && (!value.context || value.context.tenantId !== value.activeTenantId ||
         !Array.isArray(value.context.capabilities) || !Array.isArray(value.context.issuerIds) ||
+        !value.context.capabilities.every(c => typeof c === 'string') || !value.context.issuerIds.every(id => typeof id === 'string') ||
+        (value.context.roles !== undefined && (!Array.isArray(value.context.roles) || !value.context.roles.every(r => typeof r === 'string'))) ||
         !Number.isSafeInteger(value.context.authorizationRevision) ||
         !value.tenants.some(t => t.tenantId === value.activeTenantId)))) {
     throw new AuthError(503, 'invalid_response');

@@ -71,14 +71,25 @@ func TestAuthorizationFailsClosedBeforeSources(t *testing.T) {
 }
 
 type testSnapshot struct {
-	access     Access
-	countCalls int
-	err        error
+	access                  Access
+	countCalls              int
+	err                     error
+	observedAt, generatedAt time.Time
+	clockErr                error
 }
 
 func (r *testSnapshot) Access() Access { return r.access }
+func (r *testSnapshot) GeneratedAt(context.Context) (time.Time, error) {
+	if !r.generatedAt.IsZero() || r.clockErr != nil {
+		return r.generatedAt, r.clockErr
+	}
+	return time.Now().UTC(), nil
+}
 func (r *testSnapshot) ActiveMembers(context.Context) (int64, time.Time, error) {
 	r.countCalls++
+	if !r.observedAt.IsZero() {
+		return 0, r.observedAt, r.err
+	}
 	return 0, time.Now().UTC(), r.err
 }
 func (r *testSnapshot) Activity(context.Context, Filter, Position, time.Time) ([]Event, error) {
@@ -91,6 +102,34 @@ func (s testStore) Read(_ context.Context, _, _ string, fn func(Snapshot) error)
 	return fn(s.reader)
 }
 func testPolicy() Policy { return Policy{"test", 86400, 2678400, 25, 100, 900, 300, 4096} }
+
+func TestOverviewUsesSourceClockAndStillRejectsFutureObservations(t *testing.T) {
+	appTime := time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
+	sourceTime := appTime.Add(time.Second)
+	r := &testSnapshot{access: Access{1, []string{"tenant_admin"}, nil}, observedAt: sourceTime, generatedAt: sourceTime}
+	s, _ := New(testStore{r}, testPolicy(), func() time.Time { return appTime })
+	read := func() (Overview, error) {
+		return s.Overview(context.Background(), "20000000-0000-4000-8000-000000000001", "10000000-0000-4000-8000-000000000001", "")
+	}
+	o, err := read()
+	if err != nil || !o.GeneratedAt.Equal(sourceTime) || o.Sections["activeMembers"].State != "available" {
+		t.Fatal("source/app clock skew rejected a valid observation", err)
+	}
+	r.observedAt = sourceTime.Add(-301 * time.Second)
+	o, err = read()
+	if err != nil || o.Sections["activeMembers"].State != "stale" {
+		t.Fatal("source-clock stale detection lost", err)
+	}
+	r.observedAt = sourceTime.Add(time.Microsecond)
+	if _, err = read(); !errors.Is(err, authentication.ErrDependency) {
+		t.Fatal("future observation accepted", err)
+	}
+	r.observedAt = sourceTime
+	r.clockErr = errors.New("private clock query failure")
+	if _, err = read(); !errors.Is(err, authentication.ErrDependency) {
+		t.Fatal("clock failure accepted", err)
+	}
+}
 
 func TestOverviewSkipsProtectedSourcesAndFailsOnOnlyConnectedSource(t *testing.T) {
 	r := &testSnapshot{access: Access{1, []string{"support_readonly"}, nil}}

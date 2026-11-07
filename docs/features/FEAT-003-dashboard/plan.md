@@ -62,3 +62,7 @@ Los comandos se toman del toolchain registrado en AUTH-T01. Medir consultas y la
 ## Rollout y reversión
 
 Activar shell/overview por tenant de pruebas; conectar fuentes gradualmente, con capability checks. Si una fuente falla se degrada esa sección; si falla autorización se bloquea el acceso completo. Revertir UI/adapter o deshabilitar sección sin borrar datos ni cambiar estados de emisión. No requiere KMS ni firma para el incremento base.
+
+## Operación del incremento base
+
+DASH-T08 documenta fuentes activas, rollout/retirada y evidencia de DoD en el [runbook](../../04-engineering/console-dashboard-runbook.md) y el [gate D4](../../05-delivery/dashboard-gate.md). No cambia contrato, grants ni fuentes; D3/DASH-T05 permanece abierto.

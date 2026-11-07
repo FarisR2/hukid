@@ -249,3 +249,7 @@ Aplicar la secuencia de migraciones hasta 0010 mediante el CLI/harness existente
 ## API/BFF dashboard DASH-T03
 
 Aplicar migraciones hasta 0011 y suministrar la configuración AUTH completa. Habilitar opcionalmente HUKID_DASHBOARD_DATABASE_URL (login exclusivo hukid_dashboard_runtime), HUKID_DASHBOARD_POLICY (src/platform/config/dashboard.test.json) y HUKID_DASHBOARD_CURSOR_KEY (32 bytes aleatorios Base64 exclusivos). Todo permanece restringido a test/loopback/hukid_test_*. El API no provisiona logins ni migra automáticamente. Sin las tres variables no registra rutas; configuración parcial falla antes del listener. [Referencia](../03-design/console-dashboard-http.md) mantiene contrato, preparación, cursor, retirada y límites. La interfaz queda en DASH-T04.
+
+## Gate dashboard DASH-T08
+
+npm run test:dashboard:gate ejecuta check, build, PostgreSQL, smoke y Chromium incluyendo regresión AUTH/USR, matriz DASH base y medición de consultas. Guarda metadata y digest de fuentes en .cache/dashboard-gate/latest.json. [Matriz D4 y límites](../05-delivery/dashboard-gate.md); [fuentes, rollout y retirada](console-dashboard-runbook.md). No deja un entorno manual persistente ni acredita CI remoto o producción.

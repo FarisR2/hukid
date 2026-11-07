@@ -1,7 +1,7 @@
 # FEAT-003 — Dashboard operativo del tenant
 
 - Producto: HukID Console / Team 5.
-- Estado: DASH-T01 contractual y DASH-T02 lectura base autorizada implementadas en laboratorio; DASH-T03 conecta API/BFF y cursor; DASH-T04 conecta la interfaz base accesible.
+- Estado: D1/D2 y gate D4 base entregados en laboratorio: contrato, lectura autorizada, API/BFF/cursor, interfaz, matriz negativa, E2E/medición y [operación DASH-T08](../../05-delivery/dashboard-gate.md). D3/DASH-T05 permanece abierto por módulos futuros.
 - Depende de: identidad/contexto [FEAT-001](../FEAT-001-authentication/spec.md) y matriz [FEAT-002](../FEAT-002-user-management/spec.md).
 - Salidas: [plan](plan.md), [tareas](tasks.md).
 

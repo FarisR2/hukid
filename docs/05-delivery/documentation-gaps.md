@@ -2,7 +2,7 @@
 
 Fecha: 2026-11-03. Inventario del paquete recibido; no significa que los artefactos no existan en otro repositorio. Los diez Markdown HukID incorporados sustituyen referencias personales para arquitectura, perfil y modelo conceptual, pero no adjuntan los archivos ejecutables citados.
 
-Estado de ejecución actualizado al 2026-11-06: AUTH-T01–T10 implementadas en laboratorio; USR-T01 materializa [contrato/política de miembros](../03-design/console-members-contract.md) y reglas puras; USR-T02 añade [persistencia ampliada/RLS/locks/evidencia](../03-design/console-members-persistence.md), USR-T03 añade lecturas autorizadas y USR-T04 [invitaciones con entrega sintética](../03-design/console-invitation-delivery.md). USR-T05–T08 añaden aceptación, cambios de acceso, reconciliación y [UI administrativa](../03-design/console-members-interface.md). La [ruta vigente](implementation-plan.md) continúa con DASH-T04, tras contrato DASH-T01, lectura DASH-T02 y API/BFF DASH-T03 y el [gate U4 de laboratorio](members-gate.md) y distingue el panel web del negocio de credenciales. Este inventario conserva procedencia y evidencia histórica; un artefacto nuevo de consola no sustituye al artefacto histórico ausente de emisión/wallet/verificación.
+Estado de ejecución actualizado al 2026-11-06: AUTH-T01–T10 y USR-T01–T09 entregadas en laboratorio; dashboard D1/D2 y [gate D4 base DASH-T08](dashboard-gate.md) completados. D3/DASH-T05 sigue abierto por módulos propietarios futuros. La [ruta vigente](implementation-plan.md) distingue el panel web del negocio de credenciales. Este inventario conserva procedencia y evidencia histórica; un artefacto nuevo de consola no sustituye al artefacto histórico ausente de emisión/wallet/verificación.
 
 ## Archivos referenciados que no se adjuntaron
 
@@ -66,7 +66,7 @@ Los paquetes [FEAT-001/002/003](../features/README.md) añaden especificación, 
 
 Para empezar AUTH-T01 no es necesario recuperar los ejemplos de emisión ni configurar KMS issuer. Para completar login integrado sí hacen falta IdP test compatible, políticas de sesión/MFA, contrato de operador y migraciones mínimas; miembros necesita policy de invitación/notificación. No marcar esos artefactos como disponibles por existir el plan.
 
-Pendientes actuales del panel: implementación FEAT-002 miembros y FEAT-003 dashboard. AUTH-T10 cierra [operación/gate de laboratorio](authentication-gate.md), con límites productivos explícitos. Hay un harness E2E descartable y pantallas conectadas. El owner confirmó ingreso en un laboratorio manual temporal preparado fuera del código versionado; no es un entorno demo persistente reproducible desde checkout ni un despliegue productivo. No acredita emisión/verificación documental. Las secciones de incremento que siguen conservan el estado histórico de su fecha.
+Pendientes actuales del panel: D3/DASH-T05 y los bloqueos productivos de los gates [AUTH](authentication-gate.md), [USR](members-gate.md) y [DASH](dashboard-gate.md). Hay un harness E2E descartable y pantallas conectadas. El owner confirmó ingreso en un laboratorio manual temporal preparado fuera del código versionado; no es un entorno demo persistente reproducible desde checkout ni un despliegue productivo. No acredita emisión/verificación documental. Las secciones de incremento que siguen conservan el estado histórico de su fecha.
 
 ### Incremento USR-T02
 
@@ -193,3 +193,7 @@ La cobertura de desired/published, unavailable y parciales de dominios futuros e
 ## Incremento DASH-T07
 
 [E2E/accesibilidad y medición base](reviews/dashboard-t07-laboratory.md) ejecutadas localmente: cursor real en Chromium, teclado/foco/estados y privacidad de logs de aplicación, con consultas pgx medidas sobre 20.000 eventos sintéticos. Corrige pérdida de foco en paginación; no cambia contratos, grants ni persistencia. Los tiempos seriales locales no fijan SLA/SLO. Continúa DASH-T08 para operación/DoD; DASH-T05 permanece pendiente por fuentes futuras. Lector físico, certificación WCAG/ISO, otros motores/dispositivos, proxies externos, concurrencia del piloto, CI remoto y producción siguen sin acreditarse.
+
+## Incremento DASH-T08
+
+[Operación/gate D4 base](dashboard-gate.md) y [runbook](../04-engineering/console-dashboard-runbook.md) identifican fuentes activas tenancy/audit, permisos, diagnóstico, activación y retirada por configuración de proceso. El gate acumulado tiene comando/informe propio y entrada CI; no cambia contratos, grants, UI ni DDL. D1/D2 quedan entregados en laboratorio con evidencia en tareas; D3/DASH-T05 sigue pendiente. Sin flag por tenant, entorno manual persistente desde checkout ni ensayo completo manual de retirada/reactivación. Permanecen abiertos CI remoto de este incremento, ownership issuer, módulos futuros, factores reales, HTTPS, secretos/rotación operativa, retención institucional, rate limiting, observabilidad/on-call, carga/SLO, rollback binario, restore/DR, conformance del perfil y producción.

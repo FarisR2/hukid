@@ -66,3 +66,7 @@ Todos los éxitos y errores llevan no-store, no-referrer y X-Correlation-Id gene
 Contrato propio nuevo v0.1-draft, aditivo respecto a AUTH/USR. DASH-T03 implementa las cuatro rutas en laboratorio; cambiar grants, ampliar el allowlist, incorporar status efectivo o alterar semántica requiere revisar contrato, historias y ADR. Las pruebas de fixtures no acreditan RLS, consultas, carrera de permisos ni cancelación de UI. DASH-T02/03 añaden pruebas de lecturas y perímetro HTTP real; DASH-T04 interfaz; DASH-T05 dominios futuros; DASH-T06–T08 cierran pruebas y operación.
 
 La propuesta inicial de FEAT-003 mencionaba solicitudes por estado. Este baseline concreta únicamente el total createdRequests, sin inventar un enum de estados para un dominio aún ausente; el desglose se difiere al contrato propietario y DASH-T05. La spec refleja esta diferencia. Asimismo, la propuesta de mostrar la última publicación status se mantiene diferida: pendingStatusChanges y su asOf no representan un watermark de publicación. Ninguna de estas fuentes está conectada por DASH-T01.
+
+## Operación del incremento base
+
+DASH-T08 documenta fuentes activas, rollout/retirada y evidencia de DoD en el [runbook](../04-engineering/console-dashboard-runbook.md) y el [gate D4](../05-delivery/dashboard-gate.md). No cambia contrato, grants ni fuentes; D3/DASH-T05 permanece abierto.

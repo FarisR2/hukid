@@ -1,6 +1,6 @@
 # FEAT-003 — Tareas
 
-Estado: DASH-T01–T04 y DASH-T06/T07 completadas para la base de laboratorio (contrato, lectura autorizada, API/BFF/cursor, interfaz, matriz negativa y E2E/medición). Siguiente DASH-T08; DASH-T05 pendiente por módulos propietarios futuros. Owner: Team 5, backend/lecturas y consola; cada dominio mantiene sus datos.
+Estado: DASH-T01–T04 y DASH-T06–T08 completadas para la base de laboratorio (contrato, lectura autorizada, API/BFF/cursor, interfaz, matriz negativa y E2E/medición). D1/D2 y gate D4 base entregados; D3/DASH-T05 pendiente por módulos propietarios futuros. Owner: Team 5, backend/lecturas y consola; cada dominio mantiene sus datos.
 
 | Estado / ID | Objetivo y artefacto | Depende de | Componentes | Aceptación / verificación | Riesgo |
 | --- | --- | --- | --- | --- | --- |
@@ -11,7 +11,7 @@ Estado: DASH-T01–T04 y DASH-T06/T07 completadas para la base de laboratorio (c
 | [ ] DASH-T05 | Conectar por separado adaptadores issuer/definition/issuance/status cuando existan sus módulos. | DASH-T01, DASH-T03; módulos propietarios disponibles | Puertos de lectura y repositorios | Cada fuente incorporada cumple AC02/03/04/06 con fixtures. Registrar fuentes habilitadas; no fingir emisión o status con datos mock. | Dependencia futura. |
 | [x] DASH-T06 (base) | Ejecutar matriz negativa, cambios de permisos, ventanas y degradación. | DASH-T02–DASH-T04; DASH-T05 para cada fuente conectada | Unit/integration/contract tests | Actor sólo-A nunca observa B; data no disponible no aparece como 0; stale/desired/published, límites UTC y cursors manipulados correctos. Matriz y alcance diferido al final. | Exposición/consistencia. |
 | [x] DASH-T07 | Ejecutar E2E/accesibilidad y medición de consultas sin datos sensibles. | DASH-T04, DASH-T06 | Browser QA, métricas | Foco/estados/rangos y cambio tenant/rol funcionan; logs no exponen PII; latencias medidas sin prometer SLA nuevo. | UX/performance no medidos. |
-| [ ] DASH-T08 | Documentar fuentes activas, rollout y evidencia de DoD. | DASH-T07 | Runbook, contrato, docs | Incremento D1/D2 identificable; D3 abierto si faltan dominios; limitaciones y reversión reproducibles. | Marcar cobertura falsa. |
+| [x] DASH-T08 | Documentar fuentes activas, rollout y evidencia de DoD. | DASH-T07 | Runbook, contrato, docs | Incremento D1/D2 identificable; D3 abierto si faltan dominios; limitaciones y reversión reproducibles. | Marcar cobertura falsa. |
 
 ## Cobertura requisito → aceptación → tarea
 
@@ -33,7 +33,7 @@ Estado: DASH-T01–T04 y DASH-T06/T07 completadas para la base de laboratorio (c
 
 ## Orden y trabajo diferido
 
-DASH-T01 materializa la matriz USR-T01 sin ampliar sus grants. DASH-T04 conecta la interfaz real y DASH-T06 valida la matriz base. DASH-T07 completa E2E/accesibilidad y medición local; continuar por DASH-T08; DASH-T05 se ejecuta por fuente cuando exista su módulo y requiere repetir la matriz DASH-T06 de ese adaptador. El shell puede prepararse con contrato y fixture de UI aislado, pero la feature se entrega sólo con APIs reales. Fixtures de pruebas deben estar identificados; no se usan como datos operativos.
+DASH-T01 materializa la matriz USR-T01 sin ampliar sus grants. DASH-T04 conecta la interfaz real y DASH-T06 valida la matriz base. DASH-T07 completa E2E/accesibilidad y medición local; DASH-T08 completa [operación/gate D4 base](../../05-delivery/dashboard-gate.md); DASH-T05 se ejecuta por fuente cuando exista su módulo y requiere repetir la matriz DASH-T06 de ese adaptador. El shell puede prepararse con contrato y fixture de UI aislado, pero la feature se entrega sólo con APIs reales. Fixtures de pruebas deben estar identificados; no se usan como datos operativos.
 
 DASH-T05 se subdivide por fuente cuando el dominio esté listo. No bloquea el incremento base y permanece pendiente para las fuentes ausentes. Las tareas que verifican D3 se ejecutan para cada adaptador incorporado, sin dar por completa la tarea global.
 
@@ -125,3 +125,11 @@ El harness comprueba un canary email sintético rechazado con 422 y su ausencia 
 Validación local aprobada: npm run check (Go/formato/vet, TypeScript, 18 contratos/IdP y documentación), npm run test:postgres (35,453 s), npm run build, npm run smoke y npm run test:browser (45,137 s). Revisadas capturas desktop/móvil/oscuro; reflujo 320–1440 px y texto 200% comprobados por harness. Informe con límites de accesibilidad, perfiles, percentiles, reproducción y artefactos locales; enlaces/anclas/bloques/estructura y diff validados al cerrar.
 
 DASH-T07 completa para la base de laboratorio. Siguiente DASH-T08; DASH-T05 sigue pendiente por dominios/ownership futuros. Sin certificación WCAG/ISO, lector físico, motores alternativos, factores reales, carga/SLO, CI remoto, preparación productiva ni cierre del roadmap HK. Sin migración, permiso o contrato nuevo.
+
+## Evidencia DASH-T08 — 2026-11-06
+
+El [runbook](../../04-engineering/console-dashboard-runbook.md) identifica fuentes activas tenancy/audit, permisos, preparación, diagnóstico, retirada/reactivación por configuración del proceso y límites de la consola sin flag por tenant. El [gate D4 base](../../05-delivery/dashboard-gate.md) relaciona AC01–AC09/QR y DoD con pruebas ejecutables y distingue D1/D2 entregados de D3/DASH-T05 abierto. Actualizados contrato documental, plan e índices; no cambian payloads, grants, DDL ni UI. No requiere ADR nuevo porque conserva límites y compatibilidad.
+
+npm run test:dashboard:gate reutiliza el runner acumulado con informe independiente y es el comando del workflow CI. Ejecución local completa aprobada sobre HEAD base 1d0002dd11ce78577db1b90293d13fcfbf00d3a9, dirty=true, sourceDigest e2b6cb5d00d523cd2a58a02dcb050f0643d867e491da32c16417eca47c278256, Node v24.22.1: check (7,273 s), build (4,487 s), test:postgres (40,853 s incluido harness; suite Go 37,262 s), smoke (2,231 s) y test:browser (47,167 s incluido harness; suite Go/Chromium 43,535 s). Los cinco pasos terminaron con exitCode=0 y digest estable. Check incluyó Go/formato/vet, TypeScript, 18 contratos/IdP y documentación (114 Markdown, 1087 enlaces/anclas/bloques/estructura). El primer intento restringido falló por ACL de caché Go; el gate completo se reinició con permisos para recursos locales, sin omitir pasos.
+
+El informe ignorado .cache/dashboard-gate/latest.json corresponde al árbol antes de añadir este resultado y las precisiones finales de navegación documental; estas ediciones posteriores se validan con check:docs y git diff --check. No se vuelven a acreditar capturas/revisión visual manual, ensayo completo de retirada/reactivación, rollback binario, CI remoto, carga/SLO, factores reales, restore/DR ni producción. D4 cierra sólo el incremento base D1/D2 de laboratorio; D3/DASH-T05 y el roadmap HK permanecen abiertos.

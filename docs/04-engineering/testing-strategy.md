@@ -72,3 +72,7 @@ La [matriz negativa](../features/FEAT-003-dashboard/tasks.md#matriz-negativa-das
 ## E2E y medición DASH-T07
 
 El [informe DASH-T07](../05-delivery/reviews/dashboard-t07-laboratory.md) registra paginación Chromium con cursor autenticado real, revalidación tenant/rol, recorrido Tab y regresión de foco al desmontar Siguiente página. El canary email inválido y las claves efímeras se contrastan contra logs de aplicación/auditoría sin volcar estos destinos. test:postgres añade tracer pgx exclusivo de prueba con 2×10.000 eventos y 30 muestras seriales; los informes locales contienen sólo etiquetas y tiempos. No hay datos operativos, SLA nuevo ni carga concurrente del piloto. DASH-T08 conserva rollout/runbook y DoD base.
+
+## Gate D4 base DASH-T08
+
+npm run test:dashboard:gate agrupa las suites existentes y conserva un informe propio con HEAD, dirty, digest de fuentes, tiempos y resultado. El workflow acumulado usa este comando. [Matriz DoD y límites](../05-delivery/dashboard-gate.md); [runbook](console-dashboard-runbook.md). D1/D2 se entregan en laboratorio; D3/DASH-T05 sigue abierto. Fuentes futuras requieren ampliar matriz/gate; no se acredita CI remoto, carga ni producción por una ejecución local.

@@ -6,9 +6,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
-const members = process.argv[2] === '--members';
-if (process.argv.slice(2).some(arg => arg !== '--members')) throw new Error('Unknown laboratory gate option');
-const gate = members ? 'members' : 'auth';
+const options = process.argv.slice(2);
+if (options.length > 1 || options.some(arg => !['--members', '--dashboard'].includes(arg))) throw new Error('Unknown laboratory gate option');
+const gate = options[0] === '--dashboard' ? 'dashboard' : options[0] === '--members' ? 'members' : 'auth';
 const npm = process.env.npm_execpath;
 if (!npm) throw new Error(`Run npm run test:${gate}:gate`);
 function git(args) {

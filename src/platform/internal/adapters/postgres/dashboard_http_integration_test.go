@@ -48,6 +48,35 @@ func testDashboardHTTP(t *testing.T, db *testDatabase, call func(string, string,
 			problem := call(base+"/overview?"+query, bearer, session, status)
 			runtimeCases = append(runtimeCases, map[string]any{"schema": "Problem", "value": problem})
 		}
+		// Fail the real audit query without disrupting the independent overview.
+		// Restore grants before leaving this scope, including on assertion failure.
+		func() {
+			mustExec(t, db.admin, `REVOKE SELECT(event_id,tenant_id,actor_operator_identity_id,target_id,action,outcome,recorded_at) ON platform.audit_events FROM hukid_dashboard_runtime`)
+			defer mustExec(t, db.admin, `GRANT SELECT(event_id,tenant_id,actor_operator_identity_id,target_id,action,outcome,recorded_at) ON platform.audit_events TO hukid_dashboard_runtime`)
+			problem := call(base+"/activity", bearer, session, 503)
+			if problem["code"] != "dependency_unavailable" || len(problem) != 5 {
+				t.Fatal("failed feed became empty or leaked diagnostics")
+			}
+			runtimeCases = append(runtimeCases, map[string]any{"schema": "Problem", "value": problem})
+			if call(base+"/overview", bearer, session, 200)["sections"].(map[string]any)["activeMembers"].(map[string]any)["value"] != float64(1) {
+				t.Fatal("feed failure contaminated overview")
+			}
+			mustExec(t, db.admin, `UPDATE tenancy.membership_roles SET role='support_readonly' WHERE membership_id=$1`, TestMemberA)
+			defer mustExec(t, db.admin, `UPDATE tenancy.membership_roles SET role='security_admin' WHERE membership_id=$1`, TestMemberA)
+			call(base+"/activity", bearer, session, 403)
+		}()
+		// Authorization-source failure must close both reads, never return a
+		// successful overview of zeros or a partially authorized feed.
+		func() {
+			mustExec(t, db.admin, `REVOKE SELECT ON tenancy.memberships FROM hukid_dashboard_runtime`)
+			defer mustExec(t, db.admin, `GRANT SELECT ON tenancy.memberships TO hukid_dashboard_runtime`)
+			problem := call(base+"/overview", bearer, session, 503)
+			if problem["code"] != "dependency_unavailable" || len(problem) != 5 {
+				t.Fatal("failed aggregate became zero or leaked diagnostics")
+			}
+			runtimeCases = append(runtimeCases, map[string]any{"schema": "Problem", "value": problem})
+			call(base+"/activity", bearer, session, 503)
+		}()
 		q := url.Values{"from": {from.Format(time.RFC3339)}, "to": {to.Format(time.RFC3339)}, "limit": {"1"}}
 		var first map[string]any
 		for i := 2; i >= 0; i-- {

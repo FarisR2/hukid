@@ -63,4 +63,8 @@ npm run test:auth:gate ejecuta secuencialmente los cinco comandos de la tabla, c
 
 ## Interfaz DASH-T04
 
-Chromium añade dashboard sobre BFF/DB reales: conteos, roles propios, teclado, reflujo 320–1440 px/200%, modo oscuro, rango UTC, cambio de tenant y permisos, 401/403, reintento y descarte de respuestas tardías. Degradación de secciones y paginación/cursor inválido de UI usan respuestas interceptadas explícitas; el cursor autenticado real conserva pruebas DASH-T03. La [interfaz](../03-design/console-dashboard-interface.md) y las [tareas](../features/FEAT-003-dashboard/tasks.md) distinguen esta evidencia de la matriz ampliada DASH-T06 y el gate DASH-T07/T08 pendientes.
+Chromium añade dashboard sobre BFF/DB reales: conteos, roles propios, teclado, reflujo 320–1440 px/200%, modo oscuro, rango UTC, cambio de tenant y permisos, 401/403, reintento y descarte de respuestas tardías. Degradación de secciones y paginación/cursor inválido de UI usan respuestas interceptadas explícitas; el cursor autenticado real conserva pruebas DASH-T03. La [interfaz](../03-design/console-dashboard-interface.md) y las [tareas](../features/FEAT-003-dashboard/tasks.md) distinguen esta evidencia del trabajo DASH-T07/T08 pendiente.
+
+## Matriz base DASH-T06
+
+La [matriz negativa](../features/FEAT-003-dashboard/tasks.md#matriz-negativa-dash-t06--base-de-laboratorio) reúne unitarias, contratos, PostgreSQL/HTTP y regresión Chromium. Amplía reautorización entre páginas, replay de cursor entre actores/tenants, TTL fijo 899/900 s, manipulación de nonce/ciphertext/tag, fallos SQL por ambas superficies y límites nanosegundo sobre la fuente microsegundo. Conserva la separación entre pruebas contractuales de fuentes futuras y adaptadores reales; desired/published sigue siendo un oráculo sintético hasta DASH-T05. DASH-T07 conserva medición de consultas y revisión de accesibilidad; DASH-T08 documenta operación/DoD.

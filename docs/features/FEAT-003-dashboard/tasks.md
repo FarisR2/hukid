@@ -1,6 +1,6 @@
 # FEAT-003 — Tareas
 
-Estado: DASH-T01–T04 completadas en laboratorio (contrato/reglas/fixtures, lectura base autorizada, API/BFF/cursor e interfaz base). Siguiente DASH-T06 para la matriz base; DASH-T05 pendiente por módulos propietarios futuros. Owner: Team 5, backend/lecturas y consola; cada dominio mantiene sus datos.
+Estado: DASH-T01–T04 y DASH-T06 completadas para la base de laboratorio (contrato, lectura autorizada, API/BFF/cursor, interfaz y matriz negativa). Siguiente DASH-T07; DASH-T05 pendiente por módulos propietarios futuros. Owner: Team 5, backend/lecturas y consola; cada dominio mantiene sus datos.
 
 | Estado / ID | Objetivo y artefacto | Depende de | Componentes | Aceptación / verificación | Riesgo |
 | --- | --- | --- | --- | --- | --- |
@@ -9,7 +9,7 @@ Estado: DASH-T01–T04 completadas en laboratorio (contrato/reglas/fixtures, lec
 | [x] DASH-T03 | Implementar API/BFF con filtros, paginación y estados parciales. | DASH-T02 | Private API/console adapters | AC04/06/07: intervalo [from,to), límites, 401/403/404, parciales y no-store probados por contrato. | Falsos éxitos/consultas ilimitadas. |
 | [x] DASH-T04 | Implementar shell, contexto, navegación y vista base accesible. | DASH-T01, DASH-T03, AUTH-T08 | Console dashboard | AC01/07/08: rol/contexto reales, teclado/móvil, reintento y descarte de respuestas de tenant anterior. | Caché/respuestas tardías. |
 | [ ] DASH-T05 | Conectar por separado adaptadores issuer/definition/issuance/status cuando existan sus módulos. | DASH-T01, DASH-T03; módulos propietarios disponibles | Puertos de lectura y repositorios | Cada fuente incorporada cumple AC02/03/04/06 con fixtures. Registrar fuentes habilitadas; no fingir emisión o status con datos mock. | Dependencia futura. |
-| [ ] DASH-T06 | Ejecutar matriz negativa, cambios de permisos, ventanas y degradación. | DASH-T02–DASH-T04; DASH-T05 para cada fuente conectada | Unit/integration/contract tests | Actor sólo-A nunca observa B; data no disponible no aparece como 0; stale/desired/published, límites UTC y cursors manipulados correctos. | Exposición/consistencia. |
+| [x] DASH-T06 (base) | Ejecutar matriz negativa, cambios de permisos, ventanas y degradación. | DASH-T02–DASH-T04; DASH-T05 para cada fuente conectada | Unit/integration/contract tests | Actor sólo-A nunca observa B; data no disponible no aparece como 0; stale/desired/published, límites UTC y cursors manipulados correctos. Matriz y alcance diferido al final. | Exposición/consistencia. |
 | [ ] DASH-T07 | Ejecutar E2E/accesibilidad y medición de consultas sin datos sensibles. | DASH-T04, DASH-T06 | Browser QA, métricas | Foco/estados/rangos y cambio tenant/rol funcionan; logs no exponen PII; latencias medidas sin prometer SLA nuevo. | UX/performance no medidos. |
 | [ ] DASH-T08 | Documentar fuentes activas, rollout y evidencia de DoD. | DASH-T07 | Runbook, contrato, docs | Incremento D1/D2 identificable; D3 abierto si faltan dominios; limitaciones y reversión reproducibles. | Marcar cobertura falsa. |
 
@@ -33,11 +33,28 @@ Estado: DASH-T01–T04 completadas en laboratorio (contrato/reglas/fixtures, lec
 
 ## Orden y trabajo diferido
 
-DASH-T01 materializa la matriz USR-T01 sin ampliar sus grants. DASH-T04 conecta la interfaz real. Continuar por DASH-T06 para la matriz base; DASH-T05 se ejecuta por fuente cuando exista su módulo. El shell puede prepararse con contrato y fixture de UI aislado, pero la feature se entrega sólo con APIs reales. Fixtures de pruebas deben estar identificados; no se usan como datos operativos.
+DASH-T01 materializa la matriz USR-T01 sin ampliar sus grants. DASH-T04 conecta la interfaz real y DASH-T06 valida la matriz base. Continuar por DASH-T07; DASH-T05 se ejecuta por fuente cuando exista su módulo y requiere repetir la matriz DASH-T06 de ese adaptador. El shell puede prepararse con contrato y fixture de UI aislado, pero la feature se entrega sólo con APIs reales. Fixtures de pruebas deben estar identificados; no se usan como datos operativos.
 
 DASH-T05 se subdivide por fuente cuando el dominio esté listo. No bloquea el incremento base y permanece pendiente para las fuentes ausentes. Las tareas que verifican D3 se ejecutan para cada adaptador incorporado, sin dar por completa la tarea global.
 
 La DoD exige [spec](spec.md), [plan](plan.md), fuentes activas documentadas y [criterios comunes](../../05-delivery/definition-of-done.md). Sin datos Events, inventario wallet ni exportaciones nuevas.
+
+## Matriz negativa DASH-T06 — base de laboratorio
+
+La matriz reúne pruebas nuevas y regresión de DASH-T01–T04. Sólo tenancy (miembros) y audit (actividad tenant) son fuentes operativas. Cada adaptador futuro DASH-T05 debe repetir sus casos de autorización, periodo, degradación y freshness antes de considerarse cubierto.
+
+| Riesgo / AC | Evidencia ejecutable | Resultado exigido / límite |
+| --- | --- | --- |
+| Tenant/actor ajeno y sólo lectura, AC02/09 | [Integración base](../../../src/platform/internal/adapters/postgres/dashboard_integration_test.go), [matriz nueva](../../../src/platform/internal/adapters/postgres/dashboard_negative_integration_test.go) | Conteos/feed aislados; replay entre actores autorizados o tenants rechaza cursor; actor sólo-A recibe ErrTenant en B; RLS y pool sin contexto residual; lectura no escribe audit/outbox. |
+| Cambio de autorización entre páginas, AC02/05/08 | Matriz nueva y [HTTP real](../../../src/platform/internal/adapters/postgres/dashboard_http_integration_test.go) | Retirada de audit:read devuelve 403 incluso con fuente averiada; revocación devuelve 404; reactivación con revisión nueva invalida el cursor; scopes issuer nuevos fallan cerrados sin ownership. |
+| Precisión y límites UTC, AC04 | [Parser](../../../src/platform/internal/dashboard/request_test.go), matriz nueva y HTTP real | [from,to), 31 días, futuro, duplicados y límites de página; cinco casos PostgreSQL fijan bordes exactos y desplazados 1 ns, incluido intervalo vacío menor que 1 µs. Ventana original intacta. |
+| Cursor autenticado y deadline fijo, AC04/08 | [Unitarias activity](../../../src/platform/internal/dashboard/activity_test.go) y HTTP real | Actor/tenant/revisión/roles/scopes/rango/límite ligados; manipulación separada de nonce/ciphertext/tag y cambio de clave rechazados antes de consultar filas. Cursor de segunda página emitido en t+899 s vence en t+900 s; se acepta hasta 1 ns antes. asOf permanece fijo. |
+| Degradación real y autorización, AC03/07 | HTTP real Management y BFF, [unitarias service](../../../src/platform/internal/dashboard/service_test.go) | Fallo SQL de audit da 503 sin items ni diagnóstico; overview independiente sigue disponible. Fallo de fuente de autorización cierra ambas lecturas con 503, nunca cero. Problemas serializados validan schema estricto. |
+| Cero, null y freshness, AC03/06 | Unitarias service, [contratos](../../../tests/auth/dashboard-contracts.test.mjs) | Cero sólo tras consulta exitosa; notAuthorized/unavailable/error sin value/asOf; permiso evaluado antes del error. Edad de 300 s sigue disponible, +1 ns es stale; observación futura +1 ns se rechaza; conteo máximo exacto y overflow diferenciados. |
+| desired/published y fuentes futuras, AC03/06 | Contratos y [dataset sintético](../../../tests/fixtures/dashboard/dataset.json) | desired≠published no cambia published. Evidencia sólo contractual: no existe adaptador status ni grants status:read; no acredita publicación operativa ni aislamiento issuer real. |
+| Respuestas tardías, cambios de filtros/tenant/rol, AC07/08 | [Regresión Chromium DASH-T04](../../../tests/browser/dashboard.py) | Descarta respuestas anteriores, revalida /me tras 403 y retira feed/navegación; 401 vuelve al login. Degradaciones de secciones futuras y cursor UI son interceptaciones explícitas. |
+
+No se cambia DDL, política de grants, payload ni compatibilidad HTTP. La corrección de precisión implementa el contrato UTC existente; no requiere una nueva decisión de arquitectura. DASH-T07 conserva E2E/accesibilidad y medición de consultas; DASH-T08 conserva rollout/runbook y DoD del incremento base. D3, carga/SLO, factores reales, CI remoto y producción no se acreditan por esta matriz.
 
 ## Evidencia DASH-T01 — 2026-11-06
 
@@ -88,3 +105,13 @@ Según [ADR-0023](../../decisions/ADR-0023.md), el overview obtiene generatedAt 
 Regresión determinista: unitarias con relojes distintos, dato disponible/stale, observación futura de un microsegundo y fallo del reloj; integración PostgreSQL con reloj de aplicación fijado en 2020 y cien lecturas actuales coherentes. Las pruebas existentes de aislamiento, suspensión y HTTP permanecen activas.
 
 Validación local: check:platform y test:postgres (37.635 s) aprobados; después npm run test:members:gate completo aprobado con check, build, PostgreSQL (31.856 s), smoke y Chromium (31.817 s). La evidencia corresponde al código corregido antes del añadido documental de este resultado; CI remoto debe ejecutarse de nuevo tras publicar la corrección. No se acredita todavía ese nuevo resultado remoto.
+
+## Evidencia DASH-T06 — 2026-11-06
+
+La matriz base anterior queda ejecutada en laboratorio. Nuevas pruebas PostgreSQL reproducen dos errores en los bordes de 1 ns: truncar from incluía un evento previo, y truncar to excluía un evento interior. El adaptador ahora eleva ambos límites a la cuadrícula microsegundo de recorded_at, preservando el intervalo [from,to), los valores devueltos y el binding original. Los cinco subcasos de precisión pasan tras la corrección.
+
+Se añaden replays entre actores autorizados/tenants, retirada de permiso con fuente averiada, revocación/reactivación con revisión nueva y grants issuer sin ownership. Las unitarias fijan el deadline de un cursor de continuación, manipulación de nonce/ciphertext/tag, prioridad de permiso y freshness a 1 ns. API y BFF usan revocación temporal de privilegios SQL en la DB descartable para verificar fallo real de audit (503 con overview independiente disponible), fallo de autorización (ambas lecturas 503) y precedencia del 403; las respuestas se validan con schema estricto.
+
+Validación local aprobada: npm run check (Go/formato/vet, TypeScript, 18 pruebas de contratos/IdP y documentación), npm run test:postgres (40.462 s), npm run build, npm run smoke y npm run test:browser (43.242 s). Chromium ejecuta la regresión existente AUTH/USR/DASH-T04; no se añade UI ni se vuelve a acreditar revisión visual manual. Enlaces/anclas/bloques/estructura Markdown y git diff --check validados. No se crea migración ni se cambia configuración runtime.
+
+DASH-T06 queda completa para la base. DASH-T05 sigue abierta por fuentes futuras y requiere extender esta matriz; desired/published y parciales futuros conservan evidencia contractual/sintética. Siguiente DASH-T07, después DASH-T08. No se acredita CI remoto, medición de carga/SLO, interoperabilidad VC ni preparación productiva.

@@ -11,6 +11,7 @@ from urllib.parse import urlsplit, urljoin
 from playwright.sync_api import sync_playwright, expect
 from members import run_members
 from dashboard import run_dashboard
+from frontend_audit import run_frontend_audit
 
 config = json.loads(sys.stdin.readline())
 origin = config['origin']
@@ -59,8 +60,15 @@ with sync_playwright() as playwright:
     context = browser.new_context(viewport={'width': 1440, 'height': 1000}, reduced_motion='reduce')
     context.add_init_script("""(() => {
       window.authMetrics = {lcpMs: 0, cls: 0, maxInteractionMs: 0};
+      window.authLayoutShifts = [];
       new PerformanceObserver(list => { for (const e of list.getEntries()) window.authMetrics.lcpMs = e.startTime; }).observe({type: 'largest-contentful-paint', buffered: true});
-      new PerformanceObserver(list => { for (const e of list.getEntries()) if (!e.hadRecentInput) window.authMetrics.cls += e.value; }).observe({type: 'layout-shift', buffered: true});
+      new PerformanceObserver(list => { for (const e of list.getEntries()) if (!e.hadRecentInput) {
+        window.authMetrics.cls += e.value;
+        window.authLayoutShifts.push({value: e.value, sources: e.sources.map(s => ({
+          tag: s.node?.tagName, className: typeof s.node?.className === 'string' ? s.node.className : '',
+          previous: s.previousRect.toJSON(), current: s.currentRect.toJSON()
+        }))});
+      } }).observe({type: 'layout-shift', buffered: true});
       new PerformanceObserver(list => { for (const e of list.getEntries()) if (e.interactionId) window.authMetrics.maxInteractionMs = Math.max(window.authMetrics.maxInteractionMs, e.duration); }).observe({type: 'event', durationThreshold: 16, buffered: true});
     })();""")
 
@@ -125,6 +133,7 @@ with sync_playwright() as playwright:
     private_storage(page, context)
 
     metrics = page.evaluate('window.authMetrics')
+    (artifacts / 'layout-shifts.json').write_text(json.dumps(page.evaluate('window.authLayoutShifts'), indent=2), encoding='utf-8')
     (artifacts / 'performance.json').write_text(json.dumps(metrics, indent=2), encoding='utf-8')
     assert 0 < metrics['lcpMs'] <= 2500 and metrics['cls'] <= .1 and metrics['maxInteractionMs'] <= 200, metrics
     for width in [320, 360, 768, 1024, 1440]:
@@ -252,6 +261,7 @@ with sync_playwright() as playwright:
     page.unroute('**/console/api/me', one_tenant)
     run_dashboard(page, context, config, database, heading, login, artifacts)
     run_members(page, context, browser, config, authorize, database, heading, login, artifacts)
+    run_frontend_audit(browser, origin, artifacts)
     context.close()
     browser.close()
     print('Browser: login/pending/tenant/me/refresh/step-up/logout, live suspension, expiry, failures, keyboard, history, cross-tab, storage and responsive screenshots passed.', flush=True)

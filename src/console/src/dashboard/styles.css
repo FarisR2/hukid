@@ -1,25 +1,26 @@
 .dashboard, .workspace-nav { grid-column: 1 / -1; min-width: 0; }
-.workspace-nav { display: flex; flex-wrap: wrap; gap: var(--s3); border-bottom: 1px solid var(--border); padding-bottom: var(--s4); }
-.workspace-nav a { color: var(--primary); display: inline-flex; align-items: center; min-height: var(--control); padding: var(--s3) var(--s4); text-decoration-thickness: 1px; text-underline-offset: var(--s1); }
-.workspace-nav a[aria-current] { background: var(--badge-bg); color: var(--badge-text); border-radius: var(--radius); font-weight: 600; }
+.workspace-nav { display: flex; flex-wrap: wrap; gap: var(--s3); border-bottom: var(--border-width) solid var(--border); padding-bottom: var(--s4); }
+.workspace-nav a { color: var(--primary); display: inline-flex; align-items: center; min-height: var(--control); padding: var(--s3) var(--s4); text-decoration-thickness: var(--border-width); text-underline-offset: var(--s1); }
+.workspace-nav a[aria-current] { background: var(--badge-bg); color: var(--badge-text); border-radius: var(--radius); font-weight: var(--weight-emphasis); }
 .dashboard-filters { display: flex; flex-flow: row wrap; align-items: end; gap: var(--s4); margin-bottom: var(--s4); }
-.dashboard-filters label { flex: 1 1 16rem; min-width: 0; }
+.dashboard-filters label { flex: 1 1 var(--filter-basis); min-width: 0; }
 .dashboard-filters input { display: block; width: 100%; margin-top: var(--s2); }
 .dashboard-filters button { flex: 0 0 auto; }
 .metric-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: var(--s5) 0 var(--s7); gap: var(--s5); }
-.metric { border-top: 2px solid var(--primary); padding-top: var(--s4); min-width: 0; }
-.metric dt { font-weight: 600; }
+.metric { border-top: var(--border-accent) solid var(--primary); padding-top: var(--s4); min-width: 0; }
+.metric dt { font-weight: var(--weight-emphasis); }
 .metric dd { margin: var(--s2) 0 0; }
-.metric-value { display: block; font-size: 2rem; font-weight: 650; font-variant-numeric: tabular-nums; margin-bottom: var(--s2); }
+.metric-value { display: block; font-size: var(--text-metric); font-weight: var(--weight-metric); font-variant-numeric: tabular-nums; margin-bottom: var(--s2); }
 .metric .badge, .activity-list .badge { margin-bottom: var(--s2); }
 .metric-detail { display: block; overflow-wrap: anywhere; }
-.metric-detail, .activity-list time { font-size: .875rem; }
-.dashboard-activity { border-top: 1px solid var(--border); padding-top: var(--s5); }
+.metric-detail, .activity-list time { font-size: var(--text-sm); }
+.dashboard-activity { border-top: var(--border-width) solid var(--border); padding-top: var(--s5); }
 .activity-list { list-style: none; padding: 0; margin: var(--s5) 0; }
-.activity-list li { padding-block: var(--s4); border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
+.activity-list li { padding-block: var(--s4); border-bottom: var(--border-width) solid var(--border); overflow-wrap: anywhere; }
 .workspace-context { grid-column: 1 / -1; }
 .workspace-context p { margin-bottom: var(--s2); }
 .workspace-context summary { min-height: var(--control); padding-block: var(--s3); cursor: pointer; }
-.workspace-context summary:focus-visible { outline: 3px solid var(--focus); outline-offset: var(--s1); }
+.workspace-context summary:focus-visible { outline: var(--focus-width) solid var(--focus); outline-offset: var(--s1); }
 .dashboard:focus { outline: none; }
+/* Native media queries use the shared 768px breakpoint documented in the design system. */
 @media (max-width: 767px) { .metric-grid { grid-template-columns: minmax(0, 1fr); } .dashboard-filters button { width: 100%; } }

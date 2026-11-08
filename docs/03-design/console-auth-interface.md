@@ -12,7 +12,9 @@ La selección invalida la vista antes de enviar el comando; las respuestas de un
 
 ## Interacción y presentación
 
-Interfaz en español, un h1 por estado, foco de entrada al título, skip link y mensajes status/alert. Selector con label visible, error asociado y foco al control; botones deshabilitados sólo durante la operación. Tamaños táctiles de 48 px, reflow móvil, paleta clara/oscura según sistema y respeto de reduced motion. Tokens CSS centralizados; sin tipografías ni recursos de terceros.
+La referencia visual consolidada es el [design system de consola](../frontend/design-system.md), aprobado el 2026-11-08. El panel anónimo agrupa explicación y acción en una columna; el layout de trabajo se reserva al contexto autenticado. Durante una revalidación se conserva sólo la geometría del layout anterior y se retira el contenido privado.
+
+Interfaz en español, un h1 por estado, foco de entrada al título o a la sección autorizada restaurada, skip link y mensajes status/alert. Selector con label visible, error asociado y foco al control; botones deshabilitados sólo durante la operación. Tamaños táctiles de 48 px, reflow móvil, paleta clara/oscura según sistema y respeto de reduced motion. Tokens CSS centralizados; sin tipografías ni recursos de terceros.
 
 El patrón es una superficie de acceso con contexto lateral que se apila en móvil. La pantalla no recibe contraseñas ni declara MFA completada mediante datos del navegador: delega ambas al IdP/BFF. Los identificadores opacos y capacidades no se muestran como datos de negocio.
 

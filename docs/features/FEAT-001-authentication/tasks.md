@@ -1,5 +1,9 @@
 # FEAT-001 — Tareas
 
+## Seguimiento de auditoría frontend — 2026-11-08
+
+- [x] F-001/F-002/F-006: consolidar design system aprobado, acceso compacto y tokens compartidos; mantener estabilidad de layout y retirada del contenido privado al revalidar. Evidencia y límites en la [reauditoría](../../frontend/audits/2026-11-08-consola-correcciones.md). No cambia el alcance histórico de AUTH-T01–T10 ni habilita producción.
+
 Estado: AUTH-T01–T05 completadas para bootstrap, contratos, PostgreSQL, login/callback y lecturas autorizadas /me de laboratorio; AUTH-T06 completa [ciclo de sesión, refresh/logout y purga](../../03-design/console-session-lifecycle.md); AUTH-T07 completa [MFA/step-up y cambio de tenant](../../03-design/console-reauthentication.md); AUTH-T08 completa [interfaz y navegador](../../03-design/console-auth-interface.md); AUTH-T09 completa [auditoría integrada](../../03-design/console-auth-audit.md); AUTH-T10 completa [runbook y gate de laboratorio](../../05-delivery/authentication-gate.md). Owner: Team 5; backend/seguridad, consola y plataforma coordinan contratos y migraciones. Hay autenticación visual de laboratorio; miembros/dashboard y evidencia productiva siguen pendientes.
 
 | Estado / ID | Objetivo y artefacto | Depende de | Componentes | Aceptación / verificación | Riesgo |

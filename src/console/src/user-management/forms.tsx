@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { request } from '../authentication/client';
 import type { Identity } from '../authentication/client';
-import { directoryPath, errorMessage, itemId, list, reasons, roleNames, roles, states } from './client';
+import { directoryPath, errorMessage, isInvitationCode, itemId, list, reasons, roleNames, roles, states } from './client';
 import type { Kind, Membership, Reason, RecordItem, Role } from './client';
 
 function FormHeading({ id, children }: { id: string; children: ReactNode }) {
@@ -181,6 +181,10 @@ export function EditForm({ identity, item, kind, onDone, onCancel }: {
     {confirm && <Confirm busy={command.busy} onCancel={() => setConfirm(false)} onConfirm={() => void save()} destructive={destructive}>
       <p className="record-id">Objetivo: {target}</p><p>Razón: {reasons[reason]}.</p>
       <p>{kind === 'invitations' ? 'La invitación dejará de permitir el acceso.' : `Estado propuesto: ${states[state]}. Roles: ${roleNames(selected)}.`}</p>
+      {kind === 'memberships' && rolesChanged && base.issuerIds.length > 0 && <>
+        <p>Este cambio retirará los alcances de emisores existentes. La persona perderá el acceso de operación a estos emisores:</p>
+        <ul>{base.issuerIds.map(id => <li className="record-id" key={id}>{id}</li>)}</ul>
+      </>}
       {state === 'revoked' && <p>La revocación es definitiva. Para volver a acceder necesitará una invitación nueva.</p>}
     </Confirm>}
   </form>;
@@ -190,11 +194,18 @@ export function Acceptance({ identity, initialToken, onDone }: { identity: Ident
   const input = useRef<HTMLInputElement>(null);
   useEffect(() => { if (input.current) input.current.value = initialToken; }, [initialToken]);
   const [success, setSuccess] = useState(false);
+  const [codeError, setCodeError] = useState('');
   const command = useCommand();
+  function validateCode(): boolean {
+    const valid = isInvitationCode(input.current?.value ?? '');
+    setCodeError(valid ? '' : 'Introduce el código completo de la invitación.');
+    return valid;
+  }
   async function submit(event: FormEvent) {
     event.preventDefault();
+    command.setError('');
+    if (!validateCode()) { input.current?.focus(); return; }
     const token = input.current?.value ?? '';
-    if (!/^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$/.test(token)) { command.setError('Introduce el código completo de la invitación.'); return; }
     try {
       if (await command.send('/console/api/invitation-acceptances', identity, { token }, 'POST')) {
         if (input.current) input.current.value = '';
@@ -204,10 +215,13 @@ export function Acceptance({ identity, initialToken, onDone }: { identity: Ident
   }
   return <section className="acceptance" aria-labelledby="accept-title"><h2 id="accept-title">Aceptar una invitación</h2>
     <p>Usa la cuenta cuyo correo recibió la invitación. Si necesitas iniciar sesión o verificar tu identidad, vuelve a abrirla después.</p>
-    {success ? <p role="status">Invitación aceptada. Elige la organización para continuar.</p> : <form onSubmit={e => void submit(e)}>
+    {success ? <p role="status">Invitación aceptada. Elige la organización para continuar.</p> : <form onSubmit={e => void submit(e)} noValidate>
       <label htmlFor="invitation-code">Código de invitación</label><input ref={input} id="invitation-code" type="password" autoComplete="off" maxLength={43}
-        spellCheck={false} required aria-describedby="accept-help" />
+        spellCheck={false} required aria-invalid={!!codeError} aria-describedby={codeError ? 'accept-help accept-error' : 'accept-help'}
+        onBlur={() => { if (input.current?.value) validateCode(); }}
+        onChange={() => { if (codeError) validateCode(); }} />
       <p id="accept-help" className="muted">El código permanece sólo mientras esta página esté abierta.</p>
+      {codeError && <p id="accept-error" role="alert" className="field-error">{codeError}</p>}
       {command.error && <p role="alert" className="field-error">{command.error}</p>}
       <button disabled={command.busy}>{command.busy ? 'Aceptando…' : 'Aceptar invitación'}</button>
     </form>}

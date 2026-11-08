@@ -7,6 +7,7 @@ import type { Identity } from './client';
 import { MemberManagement } from '../user-management/MemberManagement';
 import { Acceptance } from '../user-management/forms';
 import { discardInvitation, takeInvitation } from '../user-management/client';
+import { restoreSection } from '../navigation';
 
 type View = { kind: 'loading' | 'anonymous' | 'error'; title: string; message: string } |
   { kind: 'authenticated'; identity: Identity };
@@ -27,7 +28,8 @@ function failure(error: unknown): View {
 }
 
 export function AuthConsole() {
-  const [view, setView] = useState<View>(loading);
+  const [view, setViewState] = useState<View>(loading);
+  const [workspaceLayout, setWorkspaceLayout] = useState(false);
   const [busy, setBusy] = useState(false);
   const [selection, setSelection] = useState('');
   const [formError, setFormError] = useState('');
@@ -38,6 +40,12 @@ export function AuthConsole() {
   const locked = useRef(false);
   const heading = useRef<HTMLHeadingElement>(null);
   const channel = useRef<BroadcastChannel | null>(null);
+
+  function setView(next: View) {
+    // Keep only the public layout shape while loading, never the old private UI.
+    if (next.kind !== 'loading') setWorkspaceLayout(next.kind === 'authenticated');
+    setViewState(next);
+  }
 
   function reset() {
     current.current?.abort();
@@ -144,7 +152,11 @@ export function AuthConsole() {
     }
   }
 
-  useEffect(() => { if (view.kind !== 'loading') heading.current?.focus(); }, [view]);
+  useEffect(() => {
+    if (view.kind === 'loading') return;
+    if (view.kind === 'authenticated' && view.identity.activeTenantId && restoreSection(view.identity.context!.capabilities)) return;
+    heading.current?.focus();
+  }, [view]);
 
   function selectTenant(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -159,7 +171,7 @@ export function AuthConsole() {
   return <div className="app">
     <a className="skip" href="#content">Ir al contenido</a>
     <header className="header"><a className="brand" href="/" aria-label="HukID, inicio"><span className="brand-mark" aria-hidden="true">h.</span>HukID</a><span className="header-label">Consola de operadores</span></header>
-    <main id="content" className="content workspace" aria-busy={busy}>
+    <main id="content" className={`content ${workspaceLayout ? 'workspace' : 'access'}`} aria-busy={busy} tabIndex={-1}>
       <section className="access-panel" aria-labelledby="title">
         <span className="eyebrow">{active ? 'Tu organización' : 'Acceso de operadores'}</span>
         <h1 id="title" ref={heading} tabIndex={-1}>{title}</h1>

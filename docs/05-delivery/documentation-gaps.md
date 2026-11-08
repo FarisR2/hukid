@@ -1,5 +1,9 @@
 # Artefactos pendientes y diferencias documentales
 
+## Correcciones de auditoría frontend — 2026-11-08
+
+La [reauditoría](../frontend/audits/2026-11-08-consola-correcciones.md) cierra F-001–F-006 del frontend base y consolida el [design system aprobado](../frontend/design-system.md). Mantiene abiertos lector de pantalla, zoom nativo, dispositivos/motores alternativos, axe/Lighthouse y métricas de campo. La prueba de confirmación con scopes issuer es UI-only y no demuestra ownership ni asignaciones reales. Sin cambio de contratos/DDL, cierre de DASH-T05, CI remoto nuevo ni aprobación productiva. Los informes y pruebas se versionan; capturas y métricas generadas se conservan localmente.
+
 Fecha: 2026-11-03. Inventario del paquete recibido; no significa que los artefactos no existan en otro repositorio. Los diez Markdown HukID incorporados sustituyen referencias personales para arquitectura, perfil y modelo conceptual, pero no adjuntan los archivos ejecutables citados.
 
 Estado de ejecución actualizado al 2026-11-06: AUTH-T01–T10 y USR-T01–T09 entregadas en laboratorio; dashboard D1/D2 y [gate D4 base DASH-T08](dashboard-gate.md) completados. D3/DASH-T05 sigue abierto por módulos propietarios futuros. La [ruta vigente](implementation-plan.md) distingue el panel web del negocio de credenciales. Este inventario conserva procedencia y evidencia histórica; un artefacto nuevo de consola no sustituye al artefacto histórico ausente de emisión/wallet/verificación.

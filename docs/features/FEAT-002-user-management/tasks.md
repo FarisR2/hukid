@@ -1,5 +1,9 @@
 # FEAT-002 — Tareas
 
+## Seguimiento de auditoría frontend — 2026-11-08
+
+- [x] F-004/F-005: explicar retirada de alcances issuer en confirmación y asociar al campo los errores de formato del código de invitación, conservando errores de red globales. Fixture UI-only y regresión real USR aprobados; evidencia y límites en la [reauditoría](../../frontend/audits/2026-11-08-consola-correcciones.md). Sin cambios de permisos, ownership issuer o persistencia.
+
 Estado: USR-T01–USR-T09 completadas en laboratorio: contrato/reglas, persistencia, lecturas, invitaciones/entrega, aceptación/reingreso, PATCH, revalidación y UI administrativa. [Gate U4](../../05-delivery/members-gate.md) completado en laboratorio; siguiente DASH-T01. Owner: Team 5, tenancy/seguridad, backend/worker y consola.
 
 | Estado / ID | Objetivo y artefacto | Depende de | Componentes | Aceptación / verificación | Riesgo |

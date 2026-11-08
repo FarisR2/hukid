@@ -4,6 +4,8 @@ Estado: implementación de laboratorio. Referencias: [spec](../features/FEAT-003
 
 ## Contexto y navegación
 
+La presentación se rige por el [design system](../frontend/design-system.md). Las anclas públicas reconocidas se conservan al iniciar/recargar; después de resolver sesión y tenant se restaura la sección y el foco. Un destino sin la capacidad requerida vuelve al título de contexto. Los fragmentos de invitación y desconocidos se retiran antes de renderizar y no se conservan en historial ni storage.
+
 La consola reutiliza la sesión AUTH y el tenant seleccionado de GET /console/api/me. Muestra el nombre de la organización, roles actuales y capacidades; los enlaces a resumen y miembros aparecen sólo con las capacidades correspondientes. La selección y los controles de sesión siguen disponibles. Los enlaces llevan a secciones semánticas de la misma página; no añaden rutas SPA ni dominios inexistentes. Las URLs BFF conservan autorización en servidor.
 
 El contrato de contexto anterior incluía capacidades, issuerIds y revisión, pero omitía roles aunque AC01 los solicita. DASH-T04 añade roles al contexto BFF/Management, obtenidos de la misma membresía viva que calcula las capacidades. El schema admite el campo opcional para compatibilidad con respuestas anteriores; el servidor actual lo emite siempre. No se infiere un rol desde sus permisos, no cambia la matriz y no se aceptan roles como entrada del navegador. Sin el campo, un servidor anterior muestra las capacidades disponibles.

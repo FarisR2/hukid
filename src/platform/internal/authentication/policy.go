@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -60,15 +61,30 @@ func LoadPolicy(reader io.Reader, environment string) (Policy, error) {
 	return policy, nil
 }
 
+// SupportedEnvironment lists the only environments this build accepts. "test" is the
+// isolated automated laboratory; "local" is a persistent single-machine profile that
+// talks to a real IdP and database on loopback. Neither is a production profile.
+func SupportedEnvironment(environment string) bool {
+	return environment == "test" || environment == "local"
+}
+
 func (p Policy) Validate(environment string) error {
-	invalid := errors.New("invalid or unsupported auth policy; only explicit isolated test configuration is supported")
-	if environment != "test" || p.Environment != environment {
+	invalid := errors.New("invalid or unsupported auth policy; only explicit loopback test or local configuration is supported")
+	if !SupportedEnvironment(environment) || p.Environment != environment {
 		return invalid
 	}
-	if !loopbackOrigin(p.Issuer) || !loopbackOrigin(p.ConsoleOrigin) || p.Issuer == p.ConsoleOrigin || p.RedirectURI != p.ConsoleOrigin+"/console/auth/callback" {
+	issuerOK := loopbackOrigin(p.Issuer)
+	if environment == "local" {
+		issuerOK = loopbackRealmIssuer(p.Issuer)
+	}
+	if !issuerOK || !loopbackOrigin(p.ConsoleOrigin) || issuerOrigin(p.Issuer) == p.ConsoleOrigin || p.RedirectURI != p.ConsoleOrigin+"/console/auth/callback" {
 		return invalid
 	}
-	if p.ClientID != "hukid-console-test" || p.Audience != "https://api.hukid.pe/operator" || p.CookieName != "hukid_test_session" || p.CookieSecure == nil || *p.CookieSecure || p.CookieSameSite != "Lax" {
+	clientID, cookieName := "hukid-console-test", "hukid_test_session"
+	if environment == "local" {
+		clientID, cookieName = "hukid-console", "hukid_local_session"
+	}
+	if p.ClientID != clientID || p.Audience != "https://api.hukid.pe/operator" || p.CookieName != cookieName || p.CookieSecure == nil || *p.CookieSecure || p.CookieSameSite != "Lax" {
 		return invalid
 	}
 	for _, seconds := range []int{p.ClockSkewSeconds, p.AccessTokenSeconds, p.SessionIdleSeconds, p.SessionAbsoluteSeconds, p.TransactionSeconds, p.RefreshTokenSeconds, p.StepUpSeconds, p.LoginRateLimit.WindowSeconds} {
@@ -79,10 +95,44 @@ func (p Policy) Validate(environment string) error {
 	if p.ClockSkewSeconds > 60 || p.ClockSkewSeconds >= p.AccessTokenSeconds || p.AccessTokenSeconds > p.SessionIdleSeconds || p.SessionIdleSeconds > p.SessionAbsoluteSeconds || p.RefreshTokenSeconds > p.SessionAbsoluteSeconds || p.StepUpSeconds > p.SessionIdleSeconds || p.TransactionSeconds > p.SessionIdleSeconds || p.LoginRateLimit.MaxAttempts < 1 || p.LoginRateLimit.MaxAttempts > 100 {
 		return invalid
 	}
-	if !slices.Equal(p.RequiredAMR, []string{"pwd", "otp"}) || !slices.Equal(p.AcceptedACR, []string{"urn:hukid:test:mfa"}) || !slices.Equal(p.AllowedReturnTo, []string{"/"}) || !slices.Equal(p.Scopes, []string{"openid", "email", "offline_access", "operator:read"}) {
+	if !slices.Equal(p.AllowedReturnTo, []string{"/"}) || !slices.Equal(p.Scopes, []string{"openid", "email", "offline_access", "operator:read"}) {
+		return invalid
+	}
+	if environment == "test" {
+		if !slices.Equal(p.RequiredAMR, []string{"pwd", "otp"}) || !slices.Equal(p.AcceptedACR, []string{"urn:hukid:test:mfa"}) {
+			return invalid
+		}
+		return nil
+	}
+	// local: the real IdP names its own ACR values, but MFA evidence stays mandatory:
+	// both factors are required and at least one explicit ACR must be accepted.
+	if !slices.Equal(p.RequiredAMR, []string{"pwd", "otp"}) || len(p.AcceptedACR) == 0 || len(p.AcceptedACR) > 8 || slices.Contains(p.AcceptedACR, "") || slices.Contains(p.AcceptedACR, "0") {
 		return invalid
 	}
 	return nil
+}
+
+// loopbackRealmIssuer accepts a loopback http issuer whose only path is a Keycloak-style
+// realm (/realms/<name>); the origin part still has to satisfy loopbackOrigin.
+func loopbackRealmIssuer(value string) bool {
+	u, err := url.Parse(value)
+	if err != nil || u.RawQuery != "" || u.Fragment != "" || !strings.HasPrefix(u.Path, "/realms/") {
+		return false
+	}
+	realm := strings.TrimPrefix(u.Path, "/realms/")
+	if realm == "" || len(realm) > 64 || strings.Trim(realm, "abcdefghijklmnopqrstuvwxyz0123456789_-") != "" || value != u.Scheme+"://"+u.Host+u.Path {
+		return false
+	}
+	return loopbackOrigin(u.Scheme + "://" + u.Host)
+}
+
+// issuerOrigin is scheme://host of the issuer, so a realm path cannot hide a shared origin.
+func issuerOrigin(value string) string {
+	u, err := url.Parse(value)
+	if err != nil {
+		return value
+	}
+	return u.Scheme + "://" + u.Host
 }
 
 func loopbackOrigin(value string) bool {

@@ -230,12 +230,10 @@ def run_dashboard(page, context, config, database, heading, login, artifacts):
 
     # HTTP 401 returns to login and clears all dashboard data without a loop.
     page.route('**/overview?*', lambda route: route.fulfill(status=401, json={'code': 'invalid_credential'}), times=1)
+    before = next(c['value'] for c in context.cookies() if c['name'] == 'hukid_test_session')
     dashboard.get_by_role('button', name='Actualizar resumen').press('Enter')
-    heading(page, 'Accede a HukID')
+    # A rejected credential restarts the provider login: a new session without an active tenant.
+    heading(page, 'Elige una organización')
     expect(dashboard).to_have_count(0)
+    assert next(c['value'] for c in context.cookies() if c['name'] == 'hukid_test_session') != before
     assert page.evaluate('localStorage.length === 0 && sessionStorage.length === 0')
-    # The injected failure did not revoke the real session: close it for USR.
-    page.reload()
-    heading(page, 'Organización de prueba A')
-    page.get_by_role('button', name='Cerrar sesión', exact=True).click()
-    heading(page, 'Sesión cerrada')

@@ -3,12 +3,12 @@ import type { FormEvent } from 'react';
 import { AuthError } from '../authentication/client';
 import type { Identity } from '../authentication/client';
 import { date } from '../user-management/client';
-import { actionNames, initialFilters, message, metrics, readDashboard } from './client';
+import { actionNames, initialFilters, message, metrics, outcomeNames, readDashboard } from './client';
 import type { Activity, DataState, Filters, Overview } from './client';
 
 const states: Record<DataState, string> = { available: 'Disponible', stale: 'Dato antiguo', unavailable: 'Fuente no disponible', error: 'Error de la fuente', notAuthorized: 'Sin permiso' };
 
-export function Dashboard({ identity, onAccessError }: { identity: Identity; onAccessError: (status: number) => void }) {
+export function Dashboard({ identity, view, onAccessError }: { identity: Identity; view: 'resumen' | 'actividad'; onAccessError: (status: number) => void }) {
   const [draft, setDraft] = useState(initialFilters);
   const [filters, setFilters] = useState<Filters>(draft);
   const [validation, setValidation] = useState('');
@@ -47,7 +47,7 @@ export function Dashboard({ identity, onAccessError }: { identity: Identity; onA
     if (!canRead || !canAudit) { setLoading(l => ({ ...l, activity: false })); return; }
     const controller = new AbortController();
     setLoading(l => ({ ...l, activity: true }));
-    void readDashboard(identity, 'activity', filters, AbortSignal.any([controller.signal, AbortSignal.timeout(12000)]), cursor)
+    void readDashboard(identity, 'activity', filters, AbortSignal.any([controller.signal, AbortSignal.timeout(12000)]), view === 'actividad' ? cursor : '', view === 'resumen' ? 5 : 25)
       .then(result => { if (!controller.signal.aborted) setActivity(result); })
       .catch(cause => { if (!controller.signal.aborted) {
         setErrors(e => ({ ...e, activity: message(cause) }));
@@ -66,10 +66,9 @@ export function Dashboard({ identity, onAccessError }: { identity: Identity; onA
     setValidation(''); setOverview(null); setActivity(null); setCursor(''); setFilters({ ...draft });
   }
 
-  return <section id="overview" className="dashboard" aria-labelledby="dashboard-title" tabIndex={-1}>
-    <div className="section-heading"><div><span className="eyebrow">Estado de la organización</span><h2 id="dashboard-title">Resumen operativo</h2>
-      <p>Consulta los datos disponibles y su fecha de actualización.</p></div>
-      {canRead && <button onClick={() => { setCursor(''); setReload(n => n + 1); }}>Actualizar resumen</button>}</div>
+  return <section id={view === 'resumen' ? 'overview' : 'activity'} className="dashboard" aria-label={view === 'resumen' ? 'Resumen operativo' : 'Actividad'}>
+    <div className="section-heading"><div />
+      {canRead && <button onClick={() => { setCursor(''); setReload(n => n + 1); }}>{view === 'resumen' ? 'Actualizar resumen' : 'Actualizar actividad'}</button>}</div>
     {!canRead ? <p role="status">No tienes permiso para consultar el resumen. Solicita acceso a tu administrador.</p> : <>
       <form className="dashboard-filters" onSubmit={apply}>
         <label>Desde (UTC)<input ref={fromInput} type="datetime-local" step="1" required value={draft.from} aria-invalid={!!validation} aria-describedby="range-help range-error" onChange={e => setDraft({ ...draft, from: e.target.value })} /></label>
@@ -80,7 +79,7 @@ export function Dashboard({ identity, onAccessError }: { identity: Identity; onA
       </form>
       <p id="range-help" className="muted">Intervalo UTC: incluye el inicio y excluye el fin. Máximo 31 días. Los conteos de estado actual no se filtran por periodo.</p>
       <p id="range-error" className="field-error" role={validation ? 'alert' : undefined}>{validation}</p>
-      <div aria-busy={loading.overview}>
+      {view === 'resumen' && <div aria-busy={loading.overview}>
         {loading.overview && <p role="status">Cargando resumen…</p>}
         {errors.overview && <p role="alert">{errors.overview} Usa Actualizar resumen para reintentar.</p>}
         {overview && <><p className="muted">Generado: {date(overview.generatedAt)} · Periodo: {date(overview.window.from)} — {date(overview.window.to)}</p>
@@ -93,19 +92,28 @@ export function Dashboard({ identity, onAccessError }: { identity: Identity; onA
               {section.state === 'stale' && <span className="metric-detail">Puede haber cambios posteriores a esta fecha.</span>}
             </dd></div>;
           })}</dl></>}
-      </div>
+      </div>}
       <section className="dashboard-activity" aria-labelledby="activity-title" aria-busy={loading.activity}>
-        <h3 id="activity-title" ref={activityHeading} tabIndex={-1}>Actividad reciente</h3>
+        <h2 id="activity-title" ref={activityHeading} tabIndex={-1}>{view === 'resumen' ? 'Actividad reciente' : 'Eventos de la organización'}</h2>
         {!canAudit ? <p role="status">No tienes permiso para consultar la actividad.</p> : <>
           {loading.activity && <p role="status">Cargando actividad…</p>}
           {errors.activity && <p role="alert">{errors.activity}</p>}
           {activity && <><p className="muted">Datos al {date(activity.asOf)} · Generado: {date(activity.generatedAt)}</p>
-            {!activity.items.length ? <p role="status">No hay actividad en este periodo. Prueba otro rango.</p> : <ol className="activity-list">{activity.items.map(item => <li key={item.eventId}>
-              <div><strong>{actionNames[item.action] ?? 'Actividad registrada'}</strong> <span className="badge">{item.outcome === 'success' ? 'Correcto' : item.outcome === 'denied' ? 'Denegado' : item.outcome === 'failure' ? 'Fallido' : 'Registrado'}</span></div>
-              <time dateTime={item.occurredAt}>{date(item.occurredAt)}</time><span className="muted metric-detail">Referencia: {item.targetId}</span>
-            </li>)}</ol>}</>}
-          <div className="actions"><button disabled={loading.activity} onClick={() => { setCursor(''); setActivityReload(n => n + 1); }}>Reiniciar actividad</button>
-            {activity?.nextCursor && <button disabled={loading.activity} onClick={() => { activityHeading.current?.focus(); setActivity(null); setCursor(activity.nextCursor!); }}>Siguiente página de actividad</button>}</div>
+            {!activity.items.length ? <p role="status">No hay actividad en este periodo. Prueba otro rango.</p> : view === 'resumen' ?
+              <ol className="activity-list">{activity.items.map(item => <li key={item.eventId}>
+                <div><strong>{actionNames[item.action] ?? 'Actividad registrada'}</strong> <span className="badge">{outcomeNames[item.outcome] ?? 'Registrado'}</span></div>
+                <time dateTime={item.occurredAt}>{date(item.occurredAt)}</time><span className="muted metric-detail">Referencia: {item.targetId}</span>
+              </li>)}</ol> :
+              <div className="table-wrap"><table className="data-table"><caption className="sr-only">Actividad de la organización en el periodo seleccionado</caption>
+                <thead><tr><th scope="col">Acción</th><th scope="col">Resultado</th><th scope="col">Fecha (UTC)</th><th scope="col">Referencia</th></tr></thead>
+                <tbody>{activity.items.map(item => <tr key={item.eventId}>
+                  <td>{actionNames[item.action] ?? 'Actividad registrada'}</td>
+                  <td><span className="badge">{outcomeNames[item.outcome] ?? 'Registrado'}</span></td>
+                  <td><time dateTime={item.occurredAt}>{date(item.occurredAt)}</time></td>
+                  <td className="record-id">{item.targetId}</td></tr>)}</tbody></table></div>}</>}
+          {view === 'resumen' ? <div className="actions"><a className="link" href="#actividad">Ver toda la actividad</a></div> :
+            <div className="actions"><button disabled={loading.activity} onClick={() => { setCursor(''); setActivityReload(n => n + 1); }}>{cursor ? 'Volver al inicio' : 'Reiniciar actividad'}</button>
+              {activity?.nextCursor && <button disabled={loading.activity} onClick={() => { activityHeading.current?.focus(); setActivity(null); setCursor(activity.nextCursor!); }}>Siguiente página de actividad</button>}</div>}
         </>}
       </section>
     </>}

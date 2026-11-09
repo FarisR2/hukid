@@ -9,6 +9,8 @@
 
 Un operador autorizado inicia sesión, cumple MFA, selecciona un tenant permitido y accede a la consola. La identidad OIDC es el par issuer/subject; el correo no es clave de identidad ni autoriza una membresía.
 
+El [perfil Keycloak local](../../03-design/console-local-keycloak.md) concreta AC01–AC10 para factores reales en loopback, según [ADR-0026](../../decisions/ADR-0026.md). Enrolar TOTP no concede por sí solo MFA: se exige completar password/OTP antes de una sesión operativa. La evidencia de este perfil se registra separada de los gates sintéticos históricos.
+
 Actores: operador, IdP, BFF de consola, Management API y repositorio de tenants/memberships. Un usuario autenticado sin membresías activas sólo puede ver acceso pendiente, cerrar sesión o aceptar su invitación válida cuando FEAT-002 esté disponible.
 
 ## Alcance

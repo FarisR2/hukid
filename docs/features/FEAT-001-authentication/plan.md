@@ -2,6 +2,8 @@
 
 Referencia: [spec](spec.md), [tareas](tasks.md), [decisión propuesta](../../decisions/ADR-0002.md).
 
+Extensión local 2026-11-09: [perfil Keycloak reproducible](../../03-design/console-local-keycloak.md), [ADR-0026](../../decisions/ADR-0026.md) y seguimiento LOC en [tareas](tasks.md). Conserva contrato operator y regresión sintética; añade pruebas de factores reales y configuración de módulos locales.
+
 ## Evidencia y decisiones
 
 AUTH-T01 incorpora bootstrap Go y entry point React/TypeScript con Vite; ver [desarrollo local](../../04-engineering/local-development.md). El owner acordó `src/platform` y `src/console`. AUTH-T02 añade [contrato y política](../../03-design/console-auth-contract.md) según ADR-0003 y AUTH-T03 [persistencia con RLS](../../03-design/console-persistence.md) según ADR-0004. AUTH-T04 implementa [login/callback y sesión inicial](../../03-design/console-oidc-login.md) según ADR-0005; AUTH-T05/T06 añaden lecturas y ciclo de sesión; AUTH-T07 implementa [step-up y tenant-context](../../03-design/console-reauthentication.md). No se heredan sesiones/claims de Events.

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { request } from '../authentication/client';
 import type { Identity } from '../authentication/client';
@@ -9,6 +9,32 @@ function FormHeading({ id, children }: { id: string; children: ReactNode }) {
   const heading = useRef<HTMLHeadingElement>(null);
   useEffect(() => { heading.current?.focus(); }, []);
   return <h3 id={id} tabIndex={-1} ref={heading}>{children}</h3>;
+}
+
+// Edit panel: a native modal dialog docked to the right, so focus trapping, Escape and the
+// backdrop come from the platform. Focus returns to the control that opened it.
+export function SidePanel({ label, onClose, children }: { label: string; onClose: () => void; children: ReactNode }) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  useLayoutEffect(() => {
+    const opener = document.activeElement as HTMLElement | null;
+    dialog.current?.showModal();
+    return () => { dialog.current?.close(); if (opener?.isConnected) opener.focus(); };
+  }, []);
+  return <dialog ref={dialog} className="side-panel" aria-label={label}
+    onCancel={e => { e.preventDefault(); onClose(); }}
+    onClick={e => { if (e.target === dialog.current) onClose(); }}>{children}</dialog>;
+}
+
+// Short forms (invite, accept) open as a native modal dialog centered over the page.
+export function FormDialog({ label, onClose, children }: { label: string; onClose: () => void; children: ReactNode }) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  useLayoutEffect(() => {
+    const opener = document.activeElement as HTMLElement | null;
+    dialog.current?.showModal();
+    return () => { dialog.current?.close(); if (opener?.isConnected) opener.focus(); };
+  }, []);
+  return <dialog ref={dialog} className="form-dialog" aria-label={label}
+    onCancel={e => { e.preventDefault(); onClose(); }}>{children}</dialog>;
 }
 
 export function useCommand() {
@@ -110,12 +136,15 @@ export function EditForm({ identity, item, kind, onDone, onCancel }: {
   const [reloading, setReloading] = useState(false);
   const [comparison, setComparison] = useState('');
   const [unavailable, setUnavailable] = useState(false);
+  const [lastAdmin, setLastAdmin] = useState('');
   const controller = useRef(new AbortController());
   useEffect(() => { controller.current = new AbortController(); return () => controller.current.abort(); }, []);
   const command = useCommand();
   const rolesChanged = [...selected].sort().join() !== [...base.roles].sort().join();
   const destructive = kind === 'invitations' || state !== 'active' || rolesChanged;
   const target = itemId(item);
+  const proposal = JSON.stringify([selected, state, reason]);
+  const blocked = kind === 'memberships' && lastAdmin === proposal;
 
   async function reload() {
     setReloading(true);
@@ -155,6 +184,7 @@ export function EditForm({ identity, item, kind, onDone, onCancel }: {
       if (await command.send(path, identity, body, kind === 'invitations' ? 'POST' : 'PATCH', base.revision)) onDone();
     } catch (cause) {
       if (cause instanceof Error && 'status' in cause && cause.status === 412) setConflict(true);
+      if (cause instanceof Error && 'code' in cause && cause.code === 'last_admin_required') setLastAdmin(proposal);
       setConfirm(false);
     }
   }
@@ -172,9 +202,10 @@ export function EditForm({ identity, item, kind, onDone, onCancel }: {
         </select></label></>}
       <ReasonField value={reason} onChange={setReason} />
     </fieldset>
-    {command.error && <p role="alert" className="field-error">{command.error}</p>}
+    {command.error && <p role="alert" className="banner banner-err">{command.error}</p>}
+    {blocked && <p id="last-admin-help" className="muted">Este cambio dejaría la organización sin administrador activo. Modifica los roles, el estado o la razón, o asigna antes otro administrador.</p>}
     <div className="actions">
-      {!unavailable && !conflict && <button className={destructive ? 'danger' : 'primary'} disabled={command.busy || reloading}>Revisar cambio</button>}
+      {!unavailable && !conflict && <button className={destructive ? 'danger' : 'primary'} disabled={command.busy || reloading || blocked} aria-describedby={blocked ? 'last-admin-help' : undefined}>Revisar cambio</button>}
       {conflict && <button type="button" onClick={() => void reload()} disabled={reloading}>{reloading ? 'Cargando…' : 'Cargar versión actual'}</button>}
       <button type="button" onClick={onCancel} disabled={command.busy}>Volver al listado</button>
     </div>

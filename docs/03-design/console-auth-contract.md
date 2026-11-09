@@ -76,6 +76,10 @@ Fuentes externas para el diseño: [OpenAPI 3.1](https://spec.openapis.org/oas/v3
 
 El callback test exige también `iss` igual al issuer de la transacción, además de state/binding. El AS anuncia soporte para identificación de issuer de [RFC 9207](https://www.rfc-editor.org/rfc/rfc9207.html); se comprueba el valor también en respuestas OAuth de error. HTTP loopback es una excepción exclusiva del laboratorio, no evidencia de cumplimiento de los requisitos HTTPS productivos de esa RFC.
 
+## Adaptación local de Keycloak
+
+El [perfil local implementado](console-local-keycloak.md), según [ADR-0026](../decisions/ADR-0026.md), produce las exigencias operator existentes sin cambiar el validador ni heredar contratos Events. Clase/cliente/procedencia se vinculan al cliente exclusivo Code+refresh; MFA y auth_time proceden de autenticación real. El primer enrolamiento TOTP puede requerir un ingreso posterior completo antes de crear sesión. Las afirmaciones históricas de entorno test-only anteriores conservan el alcance de su incremento; el loader actual también admite el perfil loopback local explícito. El perfil local no habilita producción.
+
 ## Revalidación integrada USR-T07
 
 [ADR-0017](../decisions/ADR-0017.md) concreta AUTH-FR07/09 y USR-FR08: [revalidación/reconciliación de contexto](console-authorization-revalidation.md). /console/api/me devuelve selección/contexto null tras retirar acceso, con tenants restantes y sin cerrar la identidad global. Roles/scopes/revisión actuales se consultan por petición; la sesión nunca es autoridad cacheada. Se conserva el schema HTTP y se actualiza la descripción OpenAPI de ambos endpoints de contexto.

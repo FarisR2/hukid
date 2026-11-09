@@ -1,4 +1,6 @@
 import { defineConfig } from 'vite';
+import tailwindcss from '@tailwindcss/vite';
+import { fileURLToPath } from 'node:url';
 
 // A single browser origin keeps cookies and Origin/CSRF checks intact. Never rewrite Origin.
 const target = process.env.HUKID_CONSOLE_API_TARGET || 'http://127.0.0.1:8080';
@@ -8,4 +10,9 @@ if (address.protocol !== 'http:' || address.hostname !== '127.0.0.1' || address.
 }
 const proxy = { '/console/': { target, changeOrigin: false } };
 const headers = { 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' };
-export default defineConfig({ server: { proxy, headers }, preview: { proxy, headers } });
+export default defineConfig({
+  plugins: [tailwindcss()],
+  resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
+  server: { proxy, headers },
+  preview: { proxy, headers },
+});

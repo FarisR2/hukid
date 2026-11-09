@@ -29,7 +29,8 @@
     "db:invalidate-auth:test": "node scripts/platform.mjs invalidate-auth:test",
     "test:auth:gate": "node scripts/auth-gate.mjs",
     "test:members:gate": "node scripts/auth-gate.mjs --members",
-    "test:dashboard:gate": "node scripts/auth-gate.mjs --dashboard"
+    "test:dashboard:gate": "node scripts/auth-gate.mjs --dashboard",
+    "test:keycloak": "node scripts/test-keycloak.mjs"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "13.1.0",

@@ -44,9 +44,8 @@ def run_members(page, context, browser, config, authorize, database, heading, lo
     guest.route(config['issuer'] + '/auth?*', lambda route: authorize(route, guest, 'operator-test-b'))
     recipient = guest.new_page()
     recipient.goto(origin + '/#invitation=' + token)
-    heading(recipient, 'Accede a HukID')
-    assert recipient.url == origin + '/'
     login(recipient)
+    assert recipient.url == origin + '/'
     heading(recipient, 'Acceso pendiente')
     expect(recipient.get_by_label('Código de invitación')).to_have_value('')
     recipient.goto(origin + '/#invitation=' + token)

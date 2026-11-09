@@ -10,10 +10,10 @@ Alcance aprobado: conservar la identidad visual actual y corregir F-001–F-006 
 
 ## Stack y componentes existentes
 
-- React/TypeScript y CSS propio; fuentes del sistema. Sin dependencia nueva.
+- React/TypeScript y CSS propio; fuentes del sistema. La infraestructura Tailwind v4/shadcn Base UI se incorpora según [ADR-0024](../decisions/ADR-0024.md), sin sustituir componentes en las fases 1 y 2.
 - Tokens base en [styles.css](../../src/console/src/styles.css); extensiones de [USR](../../src/console/src/user-management/styles.css) y [DASH](../../src/console/src/dashboard/styles.css).
 - Elementos nativos: botones, inputs, selectores, fieldsets y diálogo modal. Componentes existentes: AuthConsole, WorkspaceNavigation, Dashboard, MemberManagement, InviteForm, EditForm, Acceptance y Confirm.
-- No hay shadcn ni `components.json`: `05-shadcn-base-ui` no aplica a este incremento.
+- `src/console/components.json` configura `base-nova`, TSX y variables CSS. Las fases 1/2 dejaron preparada la infraestructura; el incremento de [acceso shadcn](../03-design/console-auth-interface.md#adaptación-shadcnbase-ui--2026-11-08) añade Button, Field, Native Select y sus dependencias Label/Separator por CLI. AUTH usa estas primitivas; USR/DASH conservan sus controles. No mezclar APIs Radix con Base UI.
 
 ## Color semántico existente
 
@@ -22,7 +22,7 @@ Alcance aprobado: conservar la identidad visual actual y corregir F-001–F-006 
 | `--bg` | Fondo | `#f4f7fa` | `#11212d` |
 | `--surface` | Superficie | `#fff` | `#182e3b` |
 | `--text` | Texto | `#142d3d` | `#e6eff5` |
-| `--muted` | Texto secundario | `#4e6270` | `#b6c6d0` |
+| `--muted-foreground` | Texto secundario (antes `--muted`) | `#4e6270` | `#b6c6d0` |
 | `--border` | Divisores | `#d0dbe2` | `#3f5968` |
 | `--control-border` | Controles | `#687f8c` | `#819caa` |
 | `--primary` | Acción principal/enlaces | `#075e67` | `#87d5d1` |
@@ -34,6 +34,18 @@ Alcance aprobado: conservar la identidad visual actual y corregir F-001–F-006 
 | `--danger` | Error/destructivo | `#a12435` | `#ffacb4` |
 
 El backdrop `#0009` usa el token `--backdrop`, con el mismo valor en ambos temas. Los colores no se redefinen en componentes. Contraste objetivo: 4,5:1 texto normal y 3:1 componentes/texto grande; medir los pares afectados al verificar.
+
+### Puente semántico shadcn — fases 1 y 2
+
+El CSS global sigue siendo la fuente única. `background/foreground` referencia `bg/text`; `card` y `popover`, `surface/text`; `primary-foreground`, `on-primary`; `secondary` y `accent`, `badge-bg/badge-text`; `input`, `control-border`; `ring`, `focus`; `destructive`, `danger`. `--muted` ahora representa la superficie `--bg`; su texto usa `--muted-foreground`. La clase `.muted` mantiene su apariencia. Colores, radios y fuentes generados por el preset se adaptan a esta referencia, sin imponer su paleta neutral ni Geist.
+
+Tailwind usa imports separados de tema/utilidades sin Preflight. El CSS previo vive en la capa `legacy`, anterior a utilidades, y sus selectores por elemento excluyen `data-slot`. Se mantiene el tema automático del sistema con `prefers-color-scheme`, también para `dark:`. La incorporación de cada componente verificará sus bases CSS locales, altura de controles de 3rem, contraste y foco: la infraestructura no acredita esos futuros componentes. Detalle, limitaciones del detector CLI y dependencias en [ADR-0024](../decisions/ADR-0024.md); resultados en la [evidencia](audits/2026-11-08-shadcn-infraestructura.md).
+
+### Primitivas de acceso adaptadas
+
+Button mantiene nombres de variante shadcn: `default` para primaria, `outline` para secundaria y `ghost` para salida/terciaria. `secondary`, `destructive` y `link` quedan coherentes con la misma paleta. Tamaños default/lg e icon de 48 px como mínimo; compactos de 44 px como mínimo. Tipografía de cuerpo, radio existente, hover primario mediante `--hover`, outline de foco de 3 px/offset 4 px. No animar ni trasladar el botón al pulsar. Las variantes compartidas viven en el componente; no duplicar wrappers de botones.
+
+Native Select conserva el control del sistema y opciones, ocupa el ancho disponible y usa altura mínima de 48 px. Field agrupa etiqueta, selector y error, con data-invalid y aria-invalid vinculados. Las bases de foco/cursor se aplican a data-slot en la capa components, sin reset global. Label usa 16 px y peso de énfasis. El panel lateral muestra la secuencia del acceso con una lista ordenada, sin convertirla en un indicador de progreso activo.
 
 ## Espaciado, forma y layout
 
@@ -65,7 +77,7 @@ Deshabilitar el envío sólo durante su operación, con texto que indique progre
 | Hallazgo | Resultado esperado | Validación prevista |
 | --- | --- | --- |
 | F-001 | Esta referencia consolida tokens, variantes y estados; enlazarla desde las referencias de interfaz. | Enlaces y correspondencia documento/CSS. |
-| F-002 | Acceso anónimo en una columna dentro de su panel, explicación seguida de Iniciar sesión; contexto lateral en desktop y apilado en móvil. Reservar el layout de trabajo para los estados que lo necesitan. | Capturas 390/1280, teclado y CLS durante transición; no imponer altura vacía al acceso. |
+| F-002 | (Sustituido el 2026-11-08: ya no existe acceso anónimo; sin sesión se redirige al proveedor.) Acceso en una columna dentro de su panel; contexto lateral en desktop y apilado en móvil. Reservar el layout de trabajo para los estados que lo necesitan. | Capturas 390/1280, teclado y CLS durante transición; no imponer altura vacía al acceso. |
 | F-003 | Conservar únicamente anclas de navegación reconocidas al iniciar; retirar fragmentos de invitación antes de renderizar. Restaurar sección y foco sólo cuando el contexto autorizado esté disponible. | Recarga a anclas, destino no autorizado y regresión de custodia del código. |
 | F-004 | Si una edición retira alcances issuer existentes, enumerar los alcances afectados y explicar que se perderá ese acceso antes de confirmar. | Caso específico con alcances existentes; cancelación y confirmación, sin habilitar asignaciones nuevas. |
 | F-005 | Código de formato inválido conserva valor, recibe foco y error asociado. Un fallo de red permanece global y no marca el formato inválido. | Validación por teclado, atributos accesibles y recuperación tras fallo de red. |
@@ -86,6 +98,17 @@ HukID
 [ Explicación del acceso       ]
 [ [[ Iniciar sesión ]]         ]
 Contexto de organizaciones.
+```
+
+**Ajuste 2026-11-08 (pendiente de aprobación del owner).** Se elimina por completo el estado anónimo y su tarjeta: sin sesión la consola redirige al proveedor de acceso (ADR-0025). Error, carga, selección y workspace conservan el layout anterior; el estado de recuperación «Acceso no completado» usa el layout de error. Con sesión activa, Cerrar sesión vive en el encabezado, junto a la etiqueta fija "Consola de operadores", y deja de estar al final del panel. Detalle en [AUTH interfaz](../03-design/console-auth-interface.md#encabezado-de-sesión-y-acceso-centrado--2026-11-08).
+
+```text
+Anónimo (desktop y móvil)            Con sesión
+HukID          Consola de operadores HukID      Consola de operadores <Cerrar sesión>
+      [ Accede a HukID        ]      [ contenido de trabajo ]
+      [ Explicación           ]
+      [ [[ Iniciar sesión ]]  ]
+        Así accedes a tu espacio
 ```
 
 La carga conserva mensaje status; el error conserva explicación y recuperación explícita. Acceso pendiente y selección siguen siendo estados AUTH existentes. El ancho exterior común y la conservación de la geometría durante revalidación mantienen el CLS medido bajo el límite existente, sin añadir esperas artificiales ni conservar contenido privado.

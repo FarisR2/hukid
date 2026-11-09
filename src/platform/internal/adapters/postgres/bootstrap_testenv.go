@@ -31,6 +31,23 @@ func testTarget(config *pgx.ConnConfig) bool {
 	return ip != nil && ip.IsLoopback() && strings.HasPrefix(config.Database, "hukid_test_") && config.TLSConfig == nil && len(config.Fallbacks) == 0
 }
 
+// LocalDatabase is the single persistent single-machine database accepted by the
+// "local" profile. It must be loopback, non-TLS and without connection fallbacks.
+const LocalDatabase = "hukid_local"
+
+func localTarget(config *pgx.ConnConfig) bool {
+	ip := net.ParseIP(config.Host)
+	return ip != nil && ip.IsLoopback() && config.Database == LocalDatabase && config.TLSConfig == nil && len(config.Fallbacks) == 0
+}
+
+// runtimeTarget picks the database rule from the explicit process environment.
+func runtimeTarget(config *pgx.ConnConfig) bool {
+	if os.Getenv("HUKID_ENV") == "local" {
+		return localTarget(config)
+	}
+	return testTarget(config)
+}
+
 const (
 	TestTenantA      = "10000000-0000-4000-8000-000000000001"
 	TestTenantB      = "10000000-0000-4000-8000-000000000002"

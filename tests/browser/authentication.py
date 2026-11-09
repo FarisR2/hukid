@@ -11,7 +11,7 @@ from urllib.parse import urlsplit, urljoin
 from playwright.sync_api import sync_playwright, expect
 from members import run_members
 from dashboard import run_dashboard
-from frontend_audit import run_frontend_audit
+from frontend_audit import capture, run_frontend_audit
 
 config = json.loads(sys.stdin.readline())
 origin = config['origin']
@@ -34,15 +34,40 @@ def heading(page, name):
         raise
 
 
-def login(page):
-    with page.expect_navigation(wait_until='networkidle'):
-        page.get_by_role('button', name='Iniciar sesión', exact=True).click()
-    try:
-        page.wait_for_url(origin + '/', timeout=5000)
-    except Exception:
-        print('Navigation did not return to console; headings: ' + repr(page.locator('h1').all_text_contents()), file=sys.stderr)
-        raise
+def session_cookie(context):
+    return next((c['value'] for c in context.cookies() if c['name'] == 'hukid_test_session'), None)
+
+
+def wait_new_session(page, before):
+    """The console has no access page: without a valid session it goes straight to the
+    provider and must come back with a different session cookie."""
+    for _ in range(150):
+        page.wait_for_timeout(100)
+        now = session_cookie(page.context)
+        if now and now != before:
+            break
+    else:
+        print('No new session; headings: ' + repr(page.locator('h1').all_text_contents()), file=sys.stderr)
+        raise AssertionError('Expected an automatic provider login')
+    page.wait_for_url(origin + '/', timeout=5000)
     page.wait_for_load_state('networkidle')
+
+
+def login(page):
+    """Opening the console signs in at the synthetic provider; no button is involved.
+    With a session already present the page simply settles on the console."""
+    if session_cookie(page.context):
+        page.wait_for_url(origin + '/', timeout=5000)
+        page.wait_for_load_state('networkidle')
+    else:
+        wait_new_session(page, None)
+
+
+def sign_out(page):
+    """Logout is local; the console immediately starts a new provider login."""
+    before = session_cookie(page.context)
+    page.get_by_role('button', name='Cerrar sesión', exact=True).click()
+    wait_new_session(page, before)
 
 
 def private_storage(page, context):
@@ -93,23 +118,22 @@ with sync_playwright() as playwright:
     errors = []
     page.on('pageerror', lambda _: errors.append('uncaught browser error'))
     page.goto(origin)
-    page.wait_for_load_state('networkidle')
-    heading(page, 'Accede a HukID')
-    expect(page.locator('h1')).to_be_focused()
-    page.screenshot(path=str(artifacts / 'login-desktop.png'), full_page=True)
     login(page)
     heading(page, 'Acceso pendiente')
+    capture(page, artifacts, 'access-pending')
     expect(page.get_by_label('Organización', exact=True)).to_have_count(0)
     private_storage(page, context)
-    page.get_by_role('button', name='Cerrar sesión', exact=True).click()
-    heading(page, 'Sesión cerrada')
+    sign_out(page)
+    heading(page, 'Acceso pendiente')
     database('seed')
-    login(page)
+    page.get_by_role('button', name='Comprobar acceso', exact=True).click()
     heading(page, 'Elige una organización')
     expect(page.locator('h1')).to_be_focused()
     page.get_by_role('button', name='Continuar', exact=True).click()
     expect(page.get_by_role('alert')).to_have_text('Elige una organización para continuar.')
     expect(page.get_by_label('Organización', exact=True)).to_be_focused()
+    expect(page.get_by_label('Organización', exact=True)).to_have_attribute('data-slot', 'native-select')
+    capture(page, artifacts, 'organization-selection')
     select = page.get_by_label('Organización', exact=True)
     select.press('ArrowDown')
     select.press('Tab')
@@ -187,31 +211,37 @@ with sync_playwright() as playwright:
     page.get_by_role('button', name='Comprobar acceso', exact=True).click()
     heading(page, 'Organización de prueba A')
 
+    # Settle dashboard/context reads before expiring the session out of band;
+    # otherwise an earlier 401 can remove the refresh button before the click.
+    page.wait_for_load_state('networkidle')
     database('expire')
+    expired = session_cookie(context)
     page.get_by_role('button', name='Renovar sesión', exact=True).click()
-    heading(page, 'Vuelve a iniciar sesión')
+    # An expired session sends the browser straight back to the provider: no stale view remains.
+    wait_new_session(page, expired)
+    heading(page, 'Elige una organización')
     expect(page.get_by_role('heading', name='Organización de prueba A', exact=True)).to_have_count(0)
     assert page.url == origin + '/'
-    login(page)
+    sign_out(page)
     heading(page, 'Elige una organización')
-    page.get_by_role('button', name='Cerrar sesión', exact=True).click()
-    heading(page, 'Sesión cerrada')
     # Browser history cannot restore an authorized view without a new /me.
     page.goto(origin + '/?history-test=1')
     page.go_back()
-    heading(page, 'Accede a HukID')
-    assert not any(c['name'] == 'hukid_test_session' for c in context.cookies())
+    heading(page, 'Elige una organización')
 
-    # Failures before redirect are presented in the SPA; no retry loop.
+    # Failures before the redirect are presented in the SPA; no retry loop.
+    context.clear_cookies()
     page.route('**/console/auth/login**', unavailable)
-    page.get_by_role('button', name='Iniciar sesión', exact=True).click()
+    page.reload()
     heading(page, 'No pudimos conectar')
     page.unroute('**/console/auth/login**', unavailable)
     page.goto(origin + '/console/auth/callback?state=private-state&code=private-code&iss=invalid')
     heading(page, 'No se pudo completar el acceso')
     assert 'private-state' not in page.content() and 'private-code' not in page.content()
     page.get_by_role('link', name='Volver a HukID').click()
-    heading(page, 'Accede a HukID')
+    # A second automatic attempt right after a failure is refused: recovery view, no loop.
+    heading(page, 'Acceso no completado')
+    assert session_cookie(context) is None
 
     def forbidden(route):
         route.fulfill(status=403, content_type='application/problem+json', body=json.dumps({'code': 'mfa_required'}))
@@ -224,8 +254,10 @@ with sync_playwright() as playwright:
     page.get_by_role('button', name='Comprobar acceso', exact=True).click()
     heading(page, 'No pudimos conectar')
     page.unroute('**/console/api/me')
+    # Pin the one-attempt window so this check does not depend on elapsed time.
+    page.evaluate("sessionStorage.setItem('hukid-auto-login', String(Date.now()))")
     page.get_by_role('button', name='Comprobar acceso', exact=True).click()
-    heading(page, 'Accede a HukID')
+    heading(page, 'Acceso no completado')
     assert not errors
 
     # A response belonging to an aborted page generation must never restore

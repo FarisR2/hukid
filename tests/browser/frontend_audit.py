@@ -15,8 +15,8 @@ def capture(page, artifacts, state):
 
 
 def check_palette(page, artifacts):
-    pairs = [('text', 'bg', 4.5), ('text', 'surface', 4.5), ('muted', 'bg', 4.5),
-             ('muted', 'surface', 4.5), ('primary', 'surface', 4.5), ('on-primary', 'primary', 4.5),
+    pairs = [('text', 'bg', 4.5), ('text', 'surface', 4.5), ('muted-foreground', 'bg', 4.5),
+             ('muted-foreground', 'surface', 4.5), ('primary', 'surface', 4.5), ('on-primary', 'primary', 4.5),
              ('on-primary', 'hover', 4.5), ('badge-text', 'badge-bg', 4.5), ('danger', 'surface', 4.5),
              ('control-border', 'surface', 3), ('focus', 'bg', 3), ('focus', 'surface', 3)]
     results = {}
@@ -24,7 +24,7 @@ def check_palette(page, artifacts):
         page.emulate_media(color_scheme=scheme)
         colors = page.evaluate('''() => {
           const style = getComputedStyle(document.documentElement);
-          return Object.fromEntries(['text', 'bg', 'surface', 'muted', 'primary', 'on-primary', 'hover',
+          return Object.fromEntries(['text', 'bg', 'surface', 'muted-foreground', 'primary', 'on-primary', 'hover',
             'badge-text', 'badge-bg', 'danger', 'control-border', 'focus'].map(name =>
             [name, style.getPropertyValue('--' + name).trim()]));
         }''')
@@ -70,6 +70,10 @@ def run_frontend_audit(browser, origin, artifacts):
                 route.fulfill(json=identity)
             else:
                 route.fulfill(status=401, json={'code': 'invalid_session'})
+        elif path == '/console/auth/login':
+            # No access page: an unauthenticated visit starts the provider login at once.
+            # Keep the provider unreachable so the recovery state is what stays on screen.
+            route.fulfill(status=503, json={'code': 'unavailable'})
         elif path.endswith('/memberships'):
             route.fulfill(json={'items': [{
                 'tenantId': tenant, 'membershipId': member, 'operatorIdentityId': 'audit-target',
@@ -98,12 +102,21 @@ def run_frontend_audit(browser, origin, artifacts):
     session['loading'] = False
     for pending in session['pending']:
         pending.fulfill(status=401, json={'code': 'invalid_session'})
-    expect(page.get_by_role('heading', name='Accede a HukID', exact=True)).to_be_focused()
-    capture(page, artifacts, 'login')
+    expect(page.get_by_role('heading', name='No pudimos conectar', exact=True)).to_be_focused()
+    expect(page.get_by_role('complementary', name='Así accedes a tu espacio').get_by_role('listitem')).to_have_count(3)
+    expect(page.locator('input[type=password]')).to_have_count(0)
+    login = page.get_by_role('button', name='Comprobar acceso', exact=True)
+    expect(login).to_have_attribute('data-slot', 'button')
+    page.keyboard.press('Tab')
+    expect(login).to_be_focused()
+    focus = login.evaluate('(el) => ({style: getComputedStyle(el).outlineStyle, width: getComputedStyle(el).outlineWidth})')
+    assert focus == {'style': 'solid', 'width': '3px'}, focus
+    assert login.bounding_box()['height'] >= 48
+    capture(page, artifacts, 'recovery')
     check_palette(page, artifacts)
     panel = page.locator('.access-panel').bounding_box()
     paragraph = page.locator('.access-panel > p').bounding_box()
-    button = page.get_by_role('button', name='Iniciar sesión', exact=True).bounding_box()
+    button = login.bounding_box()
     assert panel['height'] < 450
     assert abs(button['x'] - paragraph['x']) < 1
     assert button['y'] >= paragraph['y'] + paragraph['height']

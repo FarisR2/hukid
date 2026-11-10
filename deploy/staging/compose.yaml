@@ -18,6 +18,14 @@ services:
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
     networks: [dokploy-network]
+    # Distroless has no shell or wget, so the check is a subcommand of the binary itself. It only
+    # asks /healthz on the loopback listener (liveness, no DB or IdP) and reads HUKID_LISTEN_ADDR.
+    healthcheck:
+      test: ["CMD", "/app/hukid-api", "healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     environment:
       HUKID_ENV: staging
       HUKID_LISTEN_ADDR: 127.0.0.1:8080
@@ -44,7 +52,12 @@ services:
     image: hukid-web:staging
     restart: unless-stopped
     network_mode: "service:api"
-    depends_on: [api]
+    # `web` joins the namespace of the running `api` container, so it must not start before
+    # `api` is healthy. This orders `compose up`; it does not re-attach `web` if `api` is
+    # recreated later (see docs/05-delivery/staging-operations.md).
+    depends_on:
+      api:
+        condition: service_healthy
     read_only: true
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]

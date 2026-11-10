@@ -76,3 +76,7 @@ El [informe DASH-T07](../05-delivery/reviews/dashboard-t07-laboratory.md) regist
 ## Gate D4 base DASH-T08
 
 npm run test:dashboard:gate agrupa las suites existentes y conserva un informe propio con HEAD, dirty, digest de fuentes, tiempos y resultado. El workflow acumulado usa este comando. [Matriz DoD y límites](../05-delivery/dashboard-gate.md); [runbook](console-dashboard-runbook.md). D1/D2 se entregan en laboratorio; D3/DASH-T05 sigue abierto. Fuentes futuras requieren ampliar matriz/gate; no se acredita CI remoto, carga ni producción por una ejecución local.
+
+## Gate adicional con Keycloak real
+
+`npm run test:keycloak` usa el [perfil nativo de operador](../03-design/console-local-keycloak.md) y recursos propios: realm aleatorio, clúster PostgreSQL, API y consola. Incluye contraseña/TOTP reales, JWT verificados, refresh/step-up/logout y operaciones autorizadas de miembros/dashboard. No sustituye el gate sintético acumulado. Requiere Keycloak local activo y build previo; no usa la DB persistente de la aplicación ni modifica factores del operador existente. El informe ignorado registra digest/escenarios/limpieza. La evidencia vigente se mantiene en [tareas AUTH](../features/FEAT-001-authentication/tasks.md); aceptación/entrega real de invitaciones, matriz completa de caídas, carga y producción conservan su alcance propio.

@@ -10,6 +10,7 @@ import (
 	"hukid.local/platform/internal/adapters/postgres"
 	"hukid.local/platform/internal/adapters/privateapi"
 	"hukid.local/platform/internal/adapters/secretbox"
+	"hukid.local/platform/internal/authentication"
 	"hukid.local/platform/internal/tenancy"
 	"net/http"
 	"os"
@@ -36,7 +37,7 @@ func loadDirectoryConfiguration() (*directoryConfig, error) {
 		return nil, nil
 	}
 	invalid := errors.New("complete isolated members configuration required")
-	if dsn == "" || path == "" || raw == "" || os.Getenv("HUKID_ENV") != "test" || os.Getenv("HUKID_AUTH_POLICY") == "" || postgres.ValidateLoginDatabase(dsn) != nil {
+	if dsn == "" || path == "" || raw == "" || !authentication.SupportedEnvironment(os.Getenv("HUKID_ENV")) || os.Getenv("HUKID_AUTH_POLICY") == "" || postgres.ValidateLoginDatabase(dsn) != nil {
 		return nil, invalid
 	}
 	key, err := base64.StdEncoding.Strict().DecodeString(raw)

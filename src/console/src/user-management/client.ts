@@ -1,5 +1,6 @@
 import { AuthError, request } from '../authentication/client';
 import type { Identity } from '../authentication/client';
+import { isSectionHash } from '../navigation';
 
 export const roles = { tenant_admin: 'Administración de organización', security_admin: 'Administración de seguridad',
   support_readonly: 'Soporte de consulta', issuer_operator: 'Operación de emisores' };
@@ -63,11 +64,12 @@ export function errorMessage(error: unknown): string {
 // Called before React renders or any navigation. Only an in-memory, one-use
 // handoff survives; never retain an invitation in URL/history or web storage.
 let incomingToken = '';
+export const isInvitationCode = (value: string) => /^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$/.test(value);
 export function captureInvitation() {
-  if (!window.location.hash) return;
+  if (!window.location.hash || isSectionHash(window.location.hash)) return;
   const token = new URLSearchParams(window.location.hash.slice(1)).get('invitation') ?? '';
   window.history.replaceState(null, '', window.location.pathname + window.location.search);
-  if (/^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$/.test(token)) incomingToken = token;
+  if (isInvitationCode(token)) incomingToken = token;
 }
 export function takeInvitation() { const token = incomingToken; incomingToken = ''; return token; }
 export function discardInvitation() { incomingToken = ''; }

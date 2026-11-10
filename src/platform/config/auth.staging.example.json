@@ -1,0 +1,23 @@
+{
+  "environment": "staging",
+  "issuer": "https://id.example.com/realms/hukid",
+  "clientId": "hukid-console",
+  "audience": "https://api.hukid.pe/operator",
+  "consoleOrigin": "https://app.example.com",
+  "redirectUri": "https://app.example.com/console/auth/callback",
+  "cookieName": "__Host-hukid_session",
+  "cookieSecure": true,
+  "cookieSameSite": "Lax",
+  "clockSkewSeconds": 30,
+  "accessTokenSeconds": 300,
+  "sessionIdleSeconds": 1800,
+  "sessionAbsoluteSeconds": 28800,
+  "transactionSeconds": 300,
+  "refreshTokenSeconds": 28800,
+  "stepUpSeconds": 300,
+  "loginRateLimit": { "windowSeconds": 60, "maxAttempts": 10 },
+  "requiredAmr": ["pwd", "otp"],
+  "acceptedAcr": ["2"],
+  "allowedReturnTo": ["/"],
+  "scopes": ["openid", "email", "offline_access", "operator:read"]
+}

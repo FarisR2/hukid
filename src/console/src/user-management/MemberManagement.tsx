@@ -1,12 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import type { Identity } from '../authentication/client';
 import { date, errorMessage, itemId, list, roleNames, roles, states } from './client';
 import type { Kind, Page, RecordItem, Role } from './client';
-import { EditForm, InviteForm } from './forms';
+import { EditForm, FormDialog, InviteForm, SidePanel } from './forms';
 
-export function MemberManagement({ identity, onChanged }: { identity: Identity; onChanged: () => void }) {
-  const [kind, setKind] = useState<Kind>('memberships');
+export function MemberManagement({ identity, kind, onChanged }: { identity: Identity; kind: Kind; onChanged: () => void }) {
   const [page, setPage] = useState<Page | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -17,7 +16,8 @@ export function MemberManagement({ identity, onChanged }: { identity: Identity; 
   const [refresh, setRefresh] = useState(0);
   const [editing, setEditing] = useState<RecordItem | null>(null);
   const [inviting, setInviting] = useState(false);
-  const heading = useRef<HTMLHeadingElement>(null);
+  // The shell owns the single h1 of the view; focus returns there.
+  const heading = { current: { focus: () => document.getElementById('page-title')?.focus() } };
   const caps = identity.context?.capabilities ?? [];
   const canRead = caps.includes(kind === 'memberships' ? 'members:read' : 'invitations:read');
 
@@ -35,8 +35,8 @@ export function MemberManagement({ identity, onChanged }: { identity: Identity; 
     return () => controller.abort();
   }, [kind, applied, cursor, refresh, canRead, identity]);
 
-  function changeKind(value: Kind) {
-    setKind(value); setCursor(''); setPage(null); setError(''); setNotice('');
+  function resetFilters() {
+    setCursor(''); setPage(null); setError(''); setNotice('');
     setEditing(null); setInviting(false); setFilters({ state: '', role: '', query: '', deliveryState: '' });
     setApplied(new URLSearchParams({ limit: '25' }));
   }
@@ -51,18 +51,11 @@ export function MemberManagement({ identity, onChanged }: { identity: Identity; 
     close(); setNotice('Cambio confirmado. El listado se actualizará con los datos actuales.');
     setCursor(''); setRefresh(value => value + 1); onChanged();
   }
-  const edit = editing || inviting;
-  return <section className="management" aria-labelledby="members-title">
-    <div className="section-heading"><div><span className="eyebrow">Control de acceso</span>
-      <h2 id="members-title" tabIndex={-1} ref={heading}>Miembros e invitaciones</h2>
-      <p>Gestiona el acceso a esta organización. Los cambios se comprueban al guardar.</p></div>
-      {!edit && kind === 'invitations' && caps.includes('members:invite') && <button className="primary" onClick={() => setInviting(true)}>Invitar persona</button>}
-    </div>
-    {notice && <p role="status">{notice}</p>}
-    {!edit && <><div className="actions" role="group" aria-label="Directorio de acceso">
-      <button aria-pressed={kind === 'memberships'} onClick={() => changeKind('memberships')}>Miembros</button>
-      <button aria-pressed={kind === 'invitations'} onClick={() => changeKind('invitations')}>Invitaciones</button>
-    </div>
+  return <section className="management" aria-label={kind === 'memberships' ? 'Miembros' : 'Invitaciones'}>
+    {!inviting && kind === 'invitations' && caps.includes('members:invite') && <div className="section-heading"><div />
+      <button className="primary" onClick={() => setInviting(true)}>Invitar persona</button></div>}
+    {notice && <p role="status" className="banner banner-ok">{notice}</p>}
+    {<>
     {!canRead ? <p role="status" className="data-feedback">No tienes permiso para consultar {kind === 'memberships' ? 'miembros' : 'invitaciones'}. Contacta con el administrador si necesitas acceso.</p> : <>
       <form className="filters" onSubmit={filter}>
         <label>Filtrar por estado<select value={filters.state} onChange={e => setFilters({ ...filters, state: e.target.value })}>
@@ -80,25 +73,28 @@ export function MemberManagement({ identity, onChanged }: { identity: Identity; 
         <button>Aplicar filtros</button>
       </form>
       <div className="actions"><button onClick={() => { setCursor(''); setRefresh(v => v + 1); }}>Actualizar listado</button>
-        <button onClick={() => changeKind(kind)}>Limpiar filtros</button></div>
+        <button onClick={() => resetFilters()}>Limpiar filtros</button></div>
       <div className="directory" aria-busy={busy}>
         {busy && <p role="status" className="data-feedback">Cargando {kind === 'memberships' ? 'miembros' : 'invitaciones'}…</p>}
-        {error && <p role="alert" className="field-error data-feedback">{error}</p>}
+        {error && <p role="alert" className="banner banner-err">{error}</p>}
         {page && <><p role="status">{page.items.length} registros en esta página. {page.nextCursor ? 'Hay más resultados.' : 'Fin de los resultados.'}</p>
           {!page.items.length ? <p className="data-feedback">No hay {kind === 'memberships' ? 'miembros' : 'invitaciones'} con estos filtros. Limpia los filtros para ver todos los registros.</p> :
-            <ul className="record-list">{page.items.map(item => <li key={itemId(item)}>
-              <div className="record-summary"><span className="record-id">{itemId(item)}</span>
-                <span className="badge">{states[item.state]}</span>
-                {'deliveryState' in item && <span className="badge">{states[item.deliveryState]}</span>}</div>
-              <p>{roleNames(item.roles)}</p>
-              {'operatorIdentityId' in item ? <p className="muted record-id">Identidad: {item.operatorIdentityId}</p> : <>
-                <p className="muted">Destinatario protegido · Vence: {date(item.expiresAt)}</p>
-                <p className="muted">Una entrega enviada no acredita aceptación. Si falló o expiró, crea una invitación nueva con el correo autorizado.</p></>}
-              {item.issuerIds.length > 0 && <p className="muted record-id">Emisores asignados: {item.issuerIds.join(', ')}</p>}
-              <div className="record-footer"><span className="muted">Revisión {item.revision}</span>
-                {kind === 'memberships' && item.state !== 'revoked' && caps.includes('members:update') && <button aria-label={`Editar acceso ${itemId(item)}`} onClick={() => setEditing(item)}>Editar acceso</button>}
-                {kind === 'invitations' && item.state === 'pending' && caps.includes('invitations:revoke') && <button className="danger" aria-label={`Revocar invitación ${itemId(item)}`} onClick={() => setEditing(item)}>Revocar invitación</button>}
-              </div></li>)}</ul>}
+            <>{kind === 'invitations' && <p className="muted">Una entrega enviada no acredita aceptación. Si falló o expiró, crea una invitación nueva con el correo autorizado.</p>}
+            <div className="table-wrap"><table className="data-table"><caption className="sr-only">{kind === 'memberships' ? 'Miembros de la organización' : 'Invitaciones de la organización'}</caption>
+              <thead><tr><th scope="col">{kind === 'memberships' ? 'Miembro' : 'Invitación'}</th><th scope="col">Roles</th><th scope="col">Estado</th>
+                {kind === 'invitations' && <th scope="col">Vence</th>}<th scope="col">Revisión</th><th scope="col"><span className="sr-only">Acciones</span></th></tr></thead>
+              <tbody>{page.items.map(item => <tr key={itemId(item)}>
+                <td><span className="record-id">{itemId(item)}</span>
+                  {'operatorIdentityId' in item ? <span className="muted record-id cell-note">Identidad: {item.operatorIdentityId}</span> : <span className="muted cell-note">Destinatario protegido</span>}
+                  {item.issuerIds.length > 0 && <span className="muted record-id cell-note">Emisores asignados: {item.issuerIds.join(', ')}</span>}</td>
+                <td>{roleNames(item.roles)}</td>
+                <td><span className="badge">{states[item.state]}</span>{'deliveryState' in item && <span className="badge">{states[item.deliveryState]}</span>}</td>
+                {'expiresAt' in item && <td>{date(item.expiresAt)}</td>}
+                <td className="muted">{item.revision}</td>
+                <td className="row-actions">
+                  {kind === 'memberships' && item.state !== 'revoked' && caps.includes('members:update') && <button aria-label={`Editar acceso ${itemId(item)}`} onClick={() => setEditing(item)}>Editar acceso</button>}
+                  {kind === 'invitations' && item.state === 'pending' && caps.includes('invitations:revoke') && <button className="danger" aria-label={`Revocar invitación ${itemId(item)}`} onClick={() => setEditing(item)}>Revocar invitación</button>}
+                </td></tr>)}</tbody></table></div></>}
           <div className="actions">{cursor && <button onClick={() => setCursor('')}>Volver al inicio</button>}
             {page.nextCursor && <button onClick={() => { setCursor(page.nextCursor!); heading.current?.focus(); }}>Siguiente página</button>}</div>
         </>}
@@ -106,7 +102,8 @@ export function MemberManagement({ identity, onChanged }: { identity: Identity; 
       </div>
     </>}
     </>}
-    {inviting && <InviteForm identity={identity} onDone={done} onCancel={close} />}
-    {editing && <EditForm identity={identity} item={editing} kind={kind} onDone={done} onCancel={close} />}
+    {inviting && <FormDialog label="Invitar persona" onClose={close}><InviteForm identity={identity} onDone={done} onCancel={close} /></FormDialog>}
+    {editing && <SidePanel label={kind === 'memberships' ? 'Editar acceso' : 'Revocar invitación'} onClose={close}>
+      <EditForm identity={identity} item={editing} kind={kind} onDone={done} onCancel={close} /></SidePanel>}
   </section>;
 }

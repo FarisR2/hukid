@@ -9,6 +9,7 @@ import (
 	"hukid.local/platform/internal/adapters/memberconfig"
 	"hukid.local/platform/internal/adapters/postgres"
 	"hukid.local/platform/internal/adapters/secretbox"
+	"hukid.local/platform/internal/authentication"
 	"hukid.local/platform/internal/tenancy"
 	"os"
 	"time"
@@ -22,7 +23,7 @@ func main() {
 }
 func run() error {
 	invalid := errors.New("isolated invitation worker configuration required")
-	if len(os.Args) != 3 || os.Getenv("HUKID_ENV") != "test" {
+	if len(os.Args) != 3 || !authentication.SupportedEnvironment(os.Getenv("HUKID_ENV")) {
 		return invalid
 	}
 	actor, tenant := os.Args[1], os.Args[2]

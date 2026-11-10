@@ -1,14 +1,40 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { request } from '../authentication/client';
 import type { Identity } from '../authentication/client';
-import { directoryPath, errorMessage, itemId, list, reasons, roleNames, roles, states } from './client';
+import { directoryPath, errorMessage, isInvitationCode, itemId, list, reasons, roleNames, roles, states } from './client';
 import type { Kind, Membership, Reason, RecordItem, Role } from './client';
 
 function FormHeading({ id, children }: { id: string; children: ReactNode }) {
   const heading = useRef<HTMLHeadingElement>(null);
   useEffect(() => { heading.current?.focus(); }, []);
   return <h3 id={id} tabIndex={-1} ref={heading}>{children}</h3>;
+}
+
+// Edit panel: a native modal dialog docked to the right, so focus trapping, Escape and the
+// backdrop come from the platform. Focus returns to the control that opened it.
+export function SidePanel({ label, onClose, children }: { label: string; onClose: () => void; children: ReactNode }) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  useLayoutEffect(() => {
+    const opener = document.activeElement as HTMLElement | null;
+    dialog.current?.showModal();
+    return () => { dialog.current?.close(); if (opener?.isConnected) opener.focus(); };
+  }, []);
+  return <dialog ref={dialog} className="side-panel" aria-label={label}
+    onCancel={e => { e.preventDefault(); onClose(); }}
+    onClick={e => { if (e.target === dialog.current) onClose(); }}>{children}</dialog>;
+}
+
+// Short forms (invite, accept) open as a native modal dialog centered over the page.
+export function FormDialog({ label, onClose, children }: { label: string; onClose: () => void; children: ReactNode }) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  useLayoutEffect(() => {
+    const opener = document.activeElement as HTMLElement | null;
+    dialog.current?.showModal();
+    return () => { dialog.current?.close(); if (opener?.isConnected) opener.focus(); };
+  }, []);
+  return <dialog ref={dialog} className="form-dialog" aria-label={label}
+    onCancel={e => { e.preventDefault(); onClose(); }}>{children}</dialog>;
 }
 
 export function useCommand() {
@@ -60,12 +86,16 @@ export function Confirm({ children, busy, onCancel, onConfirm, destructive = fal
   children: ReactNode; busy: boolean; onCancel: () => void; onConfirm: () => void; destructive?: boolean;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
+  // Captured during render: by the time an effect runs, autoFocus has already moved focus to
+  // "Volver a editar", which would make that button its own opener.
+  const [opener] = useState(() => document.activeElement as HTMLElement | null);
   useEffect(() => {
-    const opener = document.activeElement as HTMLElement | null;
     dialog.current?.showModal();
     return () => { dialog.current?.close(); if (opener?.isConnected) opener.focus(); };
-  }, []);
-  return <dialog ref={dialog} aria-labelledby="confirm-title" onCancel={e => { e.preventDefault(); if (!busy) onCancel(); }}>
+  }, [opener]);
+  // React bubbles `cancel` through the component tree, so without stopPropagation Escape here would
+  // also reach the SidePanel that hosts this confirmation and discard the whole edit draft.
+  return <dialog ref={dialog} aria-labelledby="confirm-title" onCancel={e => { e.preventDefault(); e.stopPropagation(); if (!busy) onCancel(); }}>
     <h2 id="confirm-title">Confirmar cambio de acceso</h2>{children}
     <div className="actions"><button type="button" autoFocus onClick={onCancel} disabled={busy}>Volver a editar</button>
       <button type="button" className={destructive ? 'danger' : 'primary'} onClick={onConfirm} disabled={busy}>{busy ? 'Guardando…' : 'Confirmar cambio'}</button></div>
@@ -110,12 +140,15 @@ export function EditForm({ identity, item, kind, onDone, onCancel }: {
   const [reloading, setReloading] = useState(false);
   const [comparison, setComparison] = useState('');
   const [unavailable, setUnavailable] = useState(false);
+  const [lastAdmin, setLastAdmin] = useState('');
   const controller = useRef(new AbortController());
   useEffect(() => { controller.current = new AbortController(); return () => controller.current.abort(); }, []);
   const command = useCommand();
   const rolesChanged = [...selected].sort().join() !== [...base.roles].sort().join();
   const destructive = kind === 'invitations' || state !== 'active' || rolesChanged;
   const target = itemId(item);
+  const proposal = JSON.stringify([selected, state, reason]);
+  const blocked = kind === 'memberships' && lastAdmin === proposal;
 
   async function reload() {
     setReloading(true);
@@ -155,6 +188,7 @@ export function EditForm({ identity, item, kind, onDone, onCancel }: {
       if (await command.send(path, identity, body, kind === 'invitations' ? 'POST' : 'PATCH', base.revision)) onDone();
     } catch (cause) {
       if (cause instanceof Error && 'status' in cause && cause.status === 412) setConflict(true);
+      if (cause instanceof Error && 'code' in cause && cause.code === 'last_admin_required') setLastAdmin(proposal);
       setConfirm(false);
     }
   }
@@ -172,15 +206,20 @@ export function EditForm({ identity, item, kind, onDone, onCancel }: {
         </select></label></>}
       <ReasonField value={reason} onChange={setReason} />
     </fieldset>
-    {command.error && <p role="alert" className="field-error">{command.error}</p>}
+    {command.error && <p role="alert" className="banner banner-err">{command.error}</p>}
+    {blocked && <p id="last-admin-help" className="muted">Este cambio dejaría la organización sin administrador activo. Modifica los roles, el estado o la razón, o asigna antes otro administrador.</p>}
     <div className="actions">
-      {!unavailable && !conflict && <button className={destructive ? 'danger' : 'primary'} disabled={command.busy || reloading}>Revisar cambio</button>}
+      {!unavailable && !conflict && <button className={destructive ? 'danger' : 'primary'} disabled={command.busy || reloading || blocked} aria-describedby={blocked ? 'last-admin-help' : undefined}>Revisar cambio</button>}
       {conflict && <button type="button" onClick={() => void reload()} disabled={reloading}>{reloading ? 'Cargando…' : 'Cargar versión actual'}</button>}
       <button type="button" onClick={onCancel} disabled={command.busy}>Volver al listado</button>
     </div>
     {confirm && <Confirm busy={command.busy} onCancel={() => setConfirm(false)} onConfirm={() => void save()} destructive={destructive}>
       <p className="record-id">Objetivo: {target}</p><p>Razón: {reasons[reason]}.</p>
       <p>{kind === 'invitations' ? 'La invitación dejará de permitir el acceso.' : `Estado propuesto: ${states[state]}. Roles: ${roleNames(selected)}.`}</p>
+      {kind === 'memberships' && rolesChanged && base.issuerIds.length > 0 && <>
+        <p>Este cambio retirará los alcances de emisores existentes. La persona perderá el acceso de operación a estos emisores:</p>
+        <ul>{base.issuerIds.map(id => <li className="record-id" key={id}>{id}</li>)}</ul>
+      </>}
       {state === 'revoked' && <p>La revocación es definitiva. Para volver a acceder necesitará una invitación nueva.</p>}
     </Confirm>}
   </form>;
@@ -190,11 +229,18 @@ export function Acceptance({ identity, initialToken, onDone }: { identity: Ident
   const input = useRef<HTMLInputElement>(null);
   useEffect(() => { if (input.current) input.current.value = initialToken; }, [initialToken]);
   const [success, setSuccess] = useState(false);
+  const [codeError, setCodeError] = useState('');
   const command = useCommand();
+  function validateCode(): boolean {
+    const valid = isInvitationCode(input.current?.value ?? '');
+    setCodeError(valid ? '' : 'Introduce el código completo de la invitación.');
+    return valid;
+  }
   async function submit(event: FormEvent) {
     event.preventDefault();
+    command.setError('');
+    if (!validateCode()) { input.current?.focus(); return; }
     const token = input.current?.value ?? '';
-    if (!/^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$/.test(token)) { command.setError('Introduce el código completo de la invitación.'); return; }
     try {
       if (await command.send('/console/api/invitation-acceptances', identity, { token }, 'POST')) {
         if (input.current) input.current.value = '';
@@ -204,10 +250,13 @@ export function Acceptance({ identity, initialToken, onDone }: { identity: Ident
   }
   return <section className="acceptance" aria-labelledby="accept-title"><h2 id="accept-title">Aceptar una invitación</h2>
     <p>Usa la cuenta cuyo correo recibió la invitación. Si necesitas iniciar sesión o verificar tu identidad, vuelve a abrirla después.</p>
-    {success ? <p role="status">Invitación aceptada. Elige la organización para continuar.</p> : <form onSubmit={e => void submit(e)}>
+    {success ? <p role="status">Invitación aceptada. Elige la organización para continuar.</p> : <form onSubmit={e => void submit(e)} noValidate>
       <label htmlFor="invitation-code">Código de invitación</label><input ref={input} id="invitation-code" type="password" autoComplete="off" maxLength={43}
-        spellCheck={false} required aria-describedby="accept-help" />
+        spellCheck={false} required aria-invalid={!!codeError} aria-describedby={codeError ? 'accept-help accept-error' : 'accept-help'}
+        onBlur={() => { if (input.current?.value) validateCode(); }}
+        onChange={() => { if (codeError) validateCode(); }} />
       <p id="accept-help" className="muted">El código permanece sólo mientras esta página esté abierta.</p>
+      {codeError && <p id="accept-error" role="alert" className="field-error">{codeError}</p>}
       {command.error && <p role="alert" className="field-error">{command.error}</p>}
       <button disabled={command.busy}>{command.busy ? 'Aceptando…' : 'Aceptar invitación'}</button>
     </form>}

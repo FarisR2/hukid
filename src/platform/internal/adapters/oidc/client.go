@@ -53,7 +53,7 @@ func (t confinedTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 }
 
 func New(ctx context.Context, p authentication.Policy, secret string, now func() time.Time) (*Client, error) {
-	if p.Validate("test") != nil || secret == "" || now == nil {
+	if p.Validate(p.Environment) != nil || secret == "" || now == nil {
 		return nil, authentication.ErrDependency
 	}
 	u, _ := url.Parse(p.Issuer)
@@ -92,7 +92,7 @@ func New(ctx context.Context, p authentication.Policy, secret string, now func()
 }
 
 func (c *Client) AuthorizationURL(state, nonce, challenge string) string {
-	return c.oauth.AuthCodeURL(state, coreoidc.Nonce(nonce), oauth2.SetAuthURLParam("code_challenge", challenge), oauth2.SetAuthURLParam("code_challenge_method", "S256"), oauth2.SetAuthURLParam("resource", c.policy.Audience), oauth2.SetAuthURLParam("prompt", "consent"), oauth2.SetAuthURLParam("acr_values", strings.Join(c.policy.AcceptedACR, " ")))
+	return c.oauth.AuthCodeURL(state, coreoidc.Nonce(nonce), oauth2.SetAuthURLParam("code_challenge", challenge), oauth2.SetAuthURLParam("code_challenge_method", "S256"), oauth2.SetAuthURLParam("resource", c.policy.Audience), oauth2.SetAuthURLParam("prompt", "login consent"), oauth2.SetAuthURLParam("acr_values", strings.Join(c.policy.AcceptedACR, " ")))
 }
 
 func (c *Client) Exchange(ctx context.Context, code, verifier string, nonceHash []byte) (authentication.VerifiedLogin, error) {

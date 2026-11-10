@@ -133,7 +133,7 @@ build genera también .cache/build/hukid-worker(.exe). Para retirar el increment
 
 Sin configuración sólo se expone liveness. Con configuración test completa se habilitan las nueve operaciones del OpenAPI de consola/operator. No contiene credenciales, no carga `.env` automáticamente y no tiene modo productivo. Los cuatro comandos refresh/logout/step-up/tenant-context están implementados para laboratorio desde AUTH-T06/T07. El endpoint operativo `/healthz` no sustituye el OpenAPI de AUTH-T02.
 
-AUTH-T02 configura un fixture `oidc-provider` en `tests/fixtures`, ligado a `127.0.0.1:19090` durante `npm run test:auth`. Requiere ese puerto libre. El runner establece explícitamente `NODE_ENV=test` y `HUKID_TEST_IDP=1`; el fixture rechaza flags productivos, genera claves y secreto de cliente en memoria y termina al finalizar. El cliente confidencial usa `client_secret_basic` con secreto efímero; esto no selecciona autenticación de cliente productiva. El fixture usa adapter en memoria y emite una advertencia esperada. Las interacciones automáticas del harness no autentican a personas ni comprueban OTP reales.
+AUTH-T02 configura un fixture `oidc-provider` en `tests/fixtures`. La configuración base usa `127.0.0.1:19090`; desde la corrección de frontend del 2026-11-08, `npm run test:auth` sustituye únicamente en su copia de política el issuer por un puerto loopback libre propio, para no interferir con un laboratorio manual. El runner establece explícitamente `NODE_ENV=test` y `HUKID_TEST_IDP=1`; el fixture rechaza flags productivos, genera claves y secreto de cliente en memoria y termina al finalizar. El cliente confidencial usa `client_secret_basic` con secreto efímero; esto no selecciona autenticación de cliente productiva. El fixture usa adapter en memoria y emite una advertencia esperada. Las interacciones automáticas del harness no autentican a personas ni comprueban OTP reales.
 
 Las dependencias Node de laboratorio son únicamente de desarrollo y están fijadas en package/lock: `oidc-provider` 9.13.3, `jose` 6.2.15, `@apidevtools/swagger-parser` 13.1.0, `ajv` 8.20.0 y `ajv-formats` 3.0.1. No forman parte del binario Go ni del bundle React. Las librerías OIDC Go seleccionadas en AUTH-T04 sí forman parte del backend.
 
@@ -253,3 +253,22 @@ Aplicar migraciones hasta 0011 y suministrar la configuración AUTH completa. Ha
 ## Gate dashboard DASH-T08
 
 npm run test:dashboard:gate ejecuta check, build, PostgreSQL, smoke y Chromium incluyendo regresión AUTH/USR, matriz DASH base y medición de consultas. Guarda metadata y digest de fuentes en .cache/dashboard-gate/latest.json. [Matriz D4 y límites](../05-delivery/dashboard-gate.md); [fuentes, rollout y retirada](console-dashboard-runbook.md). No deja un entorno manual persistente ni acredita CI remoto o producción.
+
+## Entorno local persistente (perfil `local`, ADR-0025)
+
+Alternativa al laboratorio descartable: PostgreSQL 18.6 persistente (puerto 54329, base `hukid_local`), Keycloak 26.8.2 como IdP y un operador real. Estado y secretos en `.cache/local/` (ignorado por git). Requiere JDK y los toolchains de `.cache/toolchains`.
+
+```
+node scripts/local-env.mjs init           # crear o actualizar clúster, migraciones, cinco roles y claves
+node scripts/local-env.mjs keycloak-init  # crear o reconciliar realm, cliente, flujo MFA y mappers
+node scripts/local-env.mjs start          # PostgreSQL + Keycloak + API + consola; Ctrl+C detiene los procesos
+node scripts/local-env.mjs bootstrap      # con Keycloak activo: vincula operador.local a un tenant (idempotente)
+```
+
+Orden recomendado tras `init` y `keycloak-init`: `start`, `bootstrap` en otra terminal y abrir `http://127.0.0.1:5173/`. En el primer login Keycloak pedirá configurar TOTP; tras el enrolamiento puede ser necesario volver a HukID e iniciar sesión de nuevo con contraseña y OTP para completar la evidencia requerida. Los puertos 8080, 5173 y 8081 deben estar libres (detener el demo sintético antes).
+
+Acceso en la raíz: la consola no tiene pantalla de acceso (ADR-0025). Abrir `/` sin sesión redirige directamente al formulario de Keycloak, que siempre pide credenciales (`prompt=login consent`); cerrar sesión vuelve a ese formulario. Se intenta un login automático por minuto y pestaña; si la ida y vuelta falla, aparece «Acceso no completado» con «Iniciar sesión de nuevo» en lugar de un bucle. `start` compila la consola en `.cache/local/console-dist`, separada de `dist/`. Diagramas de piezas, arranque y login en [flujo global](flujo-global.md).
+
+El [perfil Keycloak implementado](../03-design/console-local-keycloak.md), según [ADR-0026](../decisions/ADR-0026.md), conserva las validaciones operator y configura ES256/at+jwt, clase/grant y MFA por ejecuciones reales. `bootstrap` autentica cada operación administrativa, sin sesión kcadm previa. `start` conecta AUTH, miembros/invitaciones y dashboard con cinco credenciales runtime separadas. Actualizar instalaciones existentes repitiendo `init` y `keycloak-init`, sin borrar `.cache/local`.
+
+`npm run test:keycloak` añade un gate real separado, con realm, clúster, API y consola propios; requiere Keycloak activo, build previo y Python/Playwright. Metadatos en `.cache/keycloak-tests/latest.json`; alcance y evidencia vigente en [tareas AUTH](../features/FEAT-001-authentication/tasks.md). Límites: HTTP sin cookie `Secure`, correo sintético, sin rotación operativa, backup/restore ni producción. Los snapshots históricos anteriores no acreditan estas correcciones.

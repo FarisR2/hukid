@@ -15,7 +15,7 @@ type LoginStore struct{ Pool *pgxpool.Pool }
 // ValidateLoginDatabase confines this increment to an explicit laboratory DB.
 func ValidateLoginDatabase(dsn string) error {
 	config, err := pgx.ParseConfig(dsn)
-	if err != nil || dsn == "" || !testTarget(config) {
+	if err != nil || dsn == "" || !runtimeTarget(config) {
 		return errors.New("invalid laboratory database target")
 	}
 	return nil

@@ -1,5 +1,17 @@
 # Artefactos pendientes y diferencias documentales
 
+## Infraestructura shadcn — 2026-11-08
+
+Las fases 1 y 2 incorporan únicamente infraestructura Tailwind v4/Base UI según [ADR-0024](../decisions/ADR-0024.md) y su [evidencia](../frontend/audits/2026-11-08-shadcn-infraestructura.md). El incremento posterior adapta [acceso y selección de organización](../frontend/audits/2026-11-08-login-shadcn.md); USR/DASH mantienen sus componentes previos. Preflight se omite deliberadamente para conservar estilos nativos; cada componente futuro debe verificar bases locales, tamaño, contraste, foco y dependencias reales. Las limitaciones de lector de pantalla, otros motores/dispositivos y métricas de campo permanecen abiertas.
+
+## Perfil staging remoto — 2026-11-09
+
+[ADR-0028](../decisions/ADR-0028.md) prepara el backend para un Keycloak publicado por HTTPS (política, secretos y destino de base `hukid_staging`); no autoriza producción. Pendientes: procedimiento de alta del primer administrador y herramienta de migración para `staging` (hoy `cmd/localdb` solo sirve a `local`); ejecutar en esta máquina los tests nuevos de `internal/authentication` y `memberconfig` (bloqueados por Application Control); despliegue real, HTTPS y login contra el Keycloak publicado; [brief de despliegue](dokploy-deployment-brief.md) como borrador sin decisión.
+
+## Correcciones de auditoría frontend — 2026-11-08
+
+La [reauditoría](../frontend/audits/2026-11-08-consola-correcciones.md) cierra F-001–F-006 del frontend base y consolida el [design system aprobado](../frontend/design-system.md). Mantiene abiertos lector de pantalla, zoom nativo, dispositivos/motores alternativos, axe/Lighthouse y métricas de campo. La prueba de confirmación con scopes issuer es UI-only y no demuestra ownership ni asignaciones reales. Sin cambio de contratos/DDL, cierre de DASH-T05, CI remoto nuevo ni aprobación productiva. Los informes y pruebas se versionan; capturas y métricas generadas se conservan localmente.
+
 Fecha: 2026-11-03. Inventario del paquete recibido; no significa que los artefactos no existan en otro repositorio. Los diez Markdown HukID incorporados sustituyen referencias personales para arquitectura, perfil y modelo conceptual, pero no adjuntan los archivos ejecutables citados.
 
 Estado de ejecución actualizado al 2026-11-06: AUTH-T01–T10 y USR-T01–T09 entregadas en laboratorio; dashboard D1/D2 y [gate D4 base DASH-T08](dashboard-gate.md) completados. D3/DASH-T05 sigue abierto por módulos propietarios futuros. La [ruta vigente](implementation-plan.md) distingue el panel web del negocio de credenciales. Este inventario conserva procedencia y evidencia histórica; un artefacto nuevo de consola no sustituye al artefacto histórico ausente de emisión/wallet/verificación.
@@ -197,3 +209,13 @@ La cobertura de desired/published, unavailable y parciales de dominios futuros e
 ## Incremento DASH-T08
 
 [Operación/gate D4 base](dashboard-gate.md) y [runbook](../04-engineering/console-dashboard-runbook.md) identifican fuentes activas tenancy/audit, permisos, diagnóstico, activación y retirada por configuración de proceso. El gate acumulado tiene comando/informe propio y entrada CI; no cambia contratos, grants, UI ni DDL. D1/D2 quedan entregados en laboratorio con evidencia en tareas; D3/DASH-T05 sigue pendiente. Sin flag por tenant, entorno manual persistente desde checkout ni ensayo completo manual de retirada/reactivación. Permanecen abiertos CI remoto de este incremento, ownership issuer, módulos futuros, factores reales, HTTPS, secretos/rotación operativa, retención institucional, rate limiting, observabilidad/on-call, carga/SLO, rollback binario, restore/DR, conformance del perfil y producción.
+
+## Validación local con Keycloak — 2026-11-09
+
+El [informe de ejecución del flujo local](reviews/local-flow-2026-11-09.md) registra gate acumulado sintético aprobado y login real bloqueado: Keycloak emite RS256, amr vacío y acr 1; el access token tiene tipo JWT y carece de clase/grant operator, frente a las exigencias del adaptador y la política local. El BFF rechaza el callback y /me responde 401 sin crear sesión. Queda pendiente resolver la compatibilidad del proveedor y repetir el recorrido autenticado real, sin relajar MFA ni fabricar evidencia.
+
+Arranque/parada, persistencia y bootstrap repetido se comprobaron; bootstrap falla con sesión administrativa kcadm caducada y funciona tras autenticarla explícitamente. El script local no habilita por sí solo miembros/dashboard. Refresh/logout/step-up, aislamiento y recuperación con sesión Keycloak, y ambos módulos habilitados en perfil local, siguen pendientes aunque sus suites sintéticas pasen. El informe detalla revisión/digest, limitaciones y artefactos ignorados.
+
+### Corrección posterior del perfil local
+
+El [perfil Keycloak implementado](../03-design/console-local-keycloak.md) y [ADR-0026](../decisions/ADR-0026.md) corrigen provisioning, autenticación administrativa y configuración de los módulos locales. El estado de validación final se mantiene en [tareas AUTH/LOC](../features/FEAT-001-authentication/tasks.md); el párrafo y el informe anteriores describen el diagnóstico previo, no sustituyen esa evidencia posterior. Enrolamiento TOTP sin ejecución OTP sigue denegado por diseño y requiere completar un login posterior. Correo real, matriz completa de caídas, rotación/restore, CI remoto y producción siguen fuera de la evidencia local.

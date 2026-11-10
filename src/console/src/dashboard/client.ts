@@ -22,6 +22,7 @@ export interface Activity extends Envelope {
   items: { eventId: string; action: string; outcome: string; occurredAt: string; actorId: string | null; targetId: string }[];
 }
 export interface Filters { from: string; to: string; issuerId: string }
+export const outcomeNames: Record<string, string> = { success: 'Correcto', denied: 'Denegado', failure: 'Fallido' };
 export const actionNames: Record<string, string> = {
   'auth.step_up.completed': 'Identidad verificada', 'auth.context.changed': 'Organización seleccionada',
   'auth.refresh.completed': 'Sesión renovada', 'auth.logout.completed': 'Sesión cerrada', 'auth.family.revoked': 'Acceso de sesión retirado',
@@ -39,10 +40,10 @@ const timestamp = (v: unknown): v is string => typeof v === 'string' && v.endsWi
 const nullableText = (v: unknown) => v === null || typeof v === 'string';
 
 export async function readDashboard<K extends 'overview' | 'activity'>(identity: Identity, kind: K, filters: Filters,
-  signal: AbortSignal, cursor = ''): Promise<K extends 'overview' ? Overview : Activity> {
+  signal: AbortSignal, cursor = '', limit = 25): Promise<K extends 'overview' ? Overview : Activity> {
   const params = new URLSearchParams({ from: new Date(`${filters.from}Z`).toISOString(), to: new Date(`${filters.to}Z`).toISOString() });
   if (filters.issuerId) params.set('issuerId', filters.issuerId);
-  if (kind === 'activity') params.set('limit', '25');
+  if (kind === 'activity') params.set('limit', String(limit));
   if (cursor) params.set('cursor', cursor);
   const value = await (await request(`/console/api/tenants/${encodeURIComponent(identity.activeTenantId!)}/${kind}?${params}`, signal)).json();
   const invalid = () => { throw new AuthError(503, 'invalid_response'); };
@@ -56,7 +57,7 @@ export async function readDashboard<K extends 'overview' | 'activity'>(identity:
       return s && ['available', 'unavailable', 'stale', 'error', 'notAuthorized'].includes(s.state) && nullableText(s.reasonCode) &&
         (['available', 'stale'].includes(s.state) ? Number.isSafeInteger(s.value) && s.value >= 0 && timestamp(s.asOf) : s.value === null && s.asOf === null);
     })) invalid();
-  } else if (!timestamp(value.asOf) || !nullableText(value.nextCursor) || !Array.isArray(value.items) || value.items.length > 25 ||
+  } else if (!timestamp(value.asOf) || !nullableText(value.nextCursor) || !Array.isArray(value.items) || value.items.length > limit ||
     !value.items.every((e: Activity['items'][number]) => e && typeof e.eventId === 'string' && typeof e.action === 'string' &&
       typeof e.outcome === 'string' && timestamp(e.occurredAt) && nullableText(e.actorId) && typeof e.targetId === 'string')) invalid();
   return value;

@@ -53,7 +53,7 @@ func loadAuthConfiguration() (*authConfig, error) {
 		return nil, nil
 	}
 	invalid := errors.New("complete isolated auth configuration is required")
-	if path == "" || environment != "test" {
+	if path == "" || !authentication.SupportedEnvironment(environment) {
 		return nil, invalid
 	}
 	for _, v := range values {

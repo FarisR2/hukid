@@ -1,5 +1,9 @@
 # FEAT-003 — Tareas
 
+## Seguimiento de auditoría frontend — 2026-11-08
+
+- [x] F-003: conservar anclas públicas al recargar y restaurar sección/foco sólo tras validar contexto/capacidad. Destino sin permiso vuelve al título. Evidencia en la [reauditoría](../../frontend/audits/2026-11-08-consola-correcciones.md). Conserva la custodia de invitaciones y la autorización server-side; DASH-T05 sigue pendiente.
+
 Estado: DASH-T01–T04 y DASH-T06–T08 completadas para la base de laboratorio (contrato, lectura autorizada, API/BFF/cursor, interfaz, matriz negativa y E2E/medición). D1/D2 y gate D4 base entregados; D3/DASH-T05 pendiente por módulos propietarios futuros. Owner: Team 5, backend/lecturas y consola; cada dominio mantiene sus datos.
 
 | Estado / ID | Objetivo y artefacto | Depende de | Componentes | Aceptación / verificación | Riesgo |

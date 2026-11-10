@@ -25,4 +25,4 @@ La [correspondencia de documentos](docs/05-delivery/documentation-map.md) permit
 
 ## Trabajo en el repositorio
 
-Leer [AGENTS.md](AGENTS.md). El código inicial vive en [src](src/README.md); las versiones, checks y comandos de arranque están en [desarrollo local](docs/04-engineering/local-development.md).
+Leer [AGENTS.md](AGENTS.md). El código inicial vive en [src](src/README.md); las versiones, checks y comandos de arranque están en [desarrollo local](docs/04-engineering/local-development.md). Para ver qué piezas hay y qué llama a qué, leer el [flujo global](docs/04-engineering/flujo-global.md). Para prototipar la consola, usar el [brief del prototipo](docs/frontend/prototype-brief.md).

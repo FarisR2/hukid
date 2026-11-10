@@ -1,5 +1,18 @@
 # FEAT-001 — Tareas
 
+## Seguimiento de auditoría frontend — 2026-11-08
+
+- [x] F-001/F-002/F-006: consolidar design system aprobado, acceso compacto y tokens compartidos; mantener estabilidad de layout y retirada del contenido privado al revalidar. Evidencia y límites en la [reauditoría](../../frontend/audits/2026-11-08-consola-correcciones.md). No cambia el alcance histórico de AUTH-T01–T10 ni habilita producción.
+
+## Corrección del perfil local — 2026-11-09
+
+Solicitud: resolver las incompatibilidades de la [auditoría real](../../05-delivery/reviews/local-flow-2026-11-09.md). Diseño y operación: [perfil Keycloak](../../03-design/console-local-keycloak.md), [ADR-0026](../../decisions/ADR-0026.md).
+
+- [x] LOC-T01: reconciliar firma/tipo/audience/cliente/clase/grant operator con configuración nativa y flujo real password/OTP/LoA 2; sin relajar el validador.
+- [x] LOC-T02: autenticar administración por operación, bootstrap exacto/idempotente y actualización local sin regenerar claves ni factores.
+- [x] LOC-T03: provisionar cinco credenciales runtime y habilitar miembros/invitaciones/dashboard en start; conservar proveedor de correo sintético.
+- [ ] LOC-T04: cerrar regresión acumulada y gate Keycloak real con digest estable, recursos propios y limpieza; registrar evidencia final.
+
 Estado: AUTH-T01–T05 completadas para bootstrap, contratos, PostgreSQL, login/callback y lecturas autorizadas /me de laboratorio; AUTH-T06 completa [ciclo de sesión, refresh/logout y purga](../../03-design/console-session-lifecycle.md); AUTH-T07 completa [MFA/step-up y cambio de tenant](../../03-design/console-reauthentication.md); AUTH-T08 completa [interfaz y navegador](../../03-design/console-auth-interface.md); AUTH-T09 completa [auditoría integrada](../../03-design/console-auth-audit.md); AUTH-T10 completa [runbook y gate de laboratorio](../../05-delivery/authentication-gate.md). Owner: Team 5; backend/seguridad, consola y plataforma coordinan contratos y migraciones. Hay autenticación visual de laboratorio; miembros/dashboard y evidencia productiva siguen pendientes.
 
 | Estado / ID | Objetivo y artefacto | Depende de | Componentes | Aceptación / verificación | Riesgo |

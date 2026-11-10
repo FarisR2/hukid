@@ -1,0 +1,24 @@
+# HukID API, worker and staging provisioning tool. Build context: the repository root.
+#   docker build -f deploy/staging/Dockerfile.api -t hukid-api:staging .
+FROM golang:1.27.3 AS build
+ENV CGO_ENABLED=0 GOTOOLCHAIN=local
+WORKDIR /src
+COPY src/platform/go.mod src/platform/go.sum ./
+RUN go mod download
+COPY src/platform ./
+RUN mkdir /out \
+ && go build -trimpath -ldflags="-s -w" -o /out/hukid-api ./cmd/api \
+ && go build -trimpath -ldflags="-s -w" -o /out/hukid-worker ./cmd/worker \
+ && go build -trimpath -ldflags="-s -w" -o /out/stagingdb ./cmd/stagingdb
+
+FROM gcr.io/distroless/static-debian12:nonroot
+WORKDIR /app
+COPY --from=build /out/ /app/
+# Policies carry no secrets. The members policy only supports the synthetic profile today
+# (membership_rules.go requires environment "test"), so staging reuses the same files as local.
+COPY src/platform/config/auth.staging.json src/platform/config/user-management.test.json src/platform/config/dashboard.test.json /app/config/
+# The API must listen on loopback only (bootstrap.ListenAddress); the web sidecar shares its
+# network namespace and is the only listener Traefik reaches.
+ENV HUKID_ENV=staging HUKID_LISTEN_ADDR=127.0.0.1:8080
+USER nonroot:nonroot
+ENTRYPOINT ["/app/hukid-api"]

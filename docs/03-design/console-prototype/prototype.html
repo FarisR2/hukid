@@ -1,0 +1,822 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"></head><body>
+<title>HukID Consola</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: sidebar fija por categorías + barra superior + vista única por sección; edición en panel lateral; sin sombras, solo bordes de 1px */
+:root{
+  --bg:#f4f7fa; --surface:#ffffff; --subtle:#f8fafb; --hover:#eef3f6;
+  --fg:#142d3d; --muted:#4f6573; --faint:#7d919d;
+  --border:#dde5eb; --border-strong:#c8d4dc;
+  --primary:#075e67; --primary-hover:#034650; --on-primary:#ffffff; --badge:#e1f0ef;
+  --focus:#1265b3; --danger:#a12435; --danger-bg:#fbebed; --on-danger:#ffffff;
+  --warn:#8a5300; --warn-bg:#fdf3e1; --scrim:rgba(9,22,31,.42); --inverse:#142d3d; --on-inverse:#f4f7fa;
+  --font:"Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
+  --mono:ui-monospace,"Cascadia Mono","SF Mono",Menlo,Consolas,monospace;
+  --ctl:2.5rem; --r:8px; --sbw:252px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#11212d; --surface:#182e3b; --subtle:#1b3341; --hover:#213b4a;
+  --fg:#e6eff5; --muted:#a7bac6; --faint:#7f97a6; --border:#29424f; --border-strong:#36525f;
+  --primary:#87d5d1; --primary-hover:#abe9e5; --on-primary:#0b2a2e; --badge:#25454a;
+  --focus:#8bc1ff; --danger:#ffacb4; --danger-bg:#3b2229; --on-danger:#2a0d12;
+  --warn:#f0c36b; --warn-bg:#3a3121; --scrim:rgba(0,0,0,.55); --inverse:#e6eff5; --on-inverse:#11212d; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#11212d; --surface:#182e3b; --subtle:#1b3341; --hover:#213b4a;
+  --fg:#e6eff5; --muted:#a7bac6; --faint:#7f97a6; --border:#29424f; --border-strong:#36525f;
+  --primary:#87d5d1; --primary-hover:#abe9e5; --on-primary:#0b2a2e; --badge:#25454a;
+  --focus:#8bc1ff; --danger:#ffacb4; --danger-bg:#3b2229; --on-danger:#2a0d12;
+  --warn:#f0c36b; --warn-bg:#3a3121; --scrim:rgba(0,0,0,.55); --inverse:#e6eff5; --on-inverse:#11212d; color-scheme:dark}
+
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+.opt-t .role{justify-self:start}
+html,body{height:100%}
+body{background:var(--bg);color:var(--fg);font:14px/1.5 var(--font);-webkit-font-smoothing:antialiased}
+#root{height:100%}
+h1,h2,h3{margin:0;text-wrap:balance}
+p{margin:0}
+a{color:inherit}
+svg.i{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.mono{font-family:var(--mono);font-size:12.5px}
+.muted{color:var(--muted)}
+.faint{color:var(--faint)}
+.tnum{font-variant-numeric:tabular-nums}
+
+/* App shell */
+.app{display:grid;grid-template-columns:var(--sbw) minmax(0,1fr);min-height:100%}
+.sidebar{position:sticky;top:0;height:100vh;height:100dvh;display:flex;flex-direction:column;gap:2px;background:var(--bg);border-right:1px solid var(--border);padding:14px 10px 10px;overflow-y:auto}
+.brand{display:flex;align-items:center;gap:9px;padding:2px 8px 14px}
+.mark{width:22px;height:22px;border-radius:6px;background:var(--primary);display:grid;place-items:center}
+.mark span{width:10px;height:10px;border:2px solid var(--on-primary);border-radius:3px;border-top-color:transparent}
+.brand b{font-weight:600;letter-spacing:-.01em}
+.brand small{color:var(--faint);font-size:12px;margin-left:auto}
+.org{position:relative;display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface);margin-bottom:6px}
+.org:hover{border-color:var(--border-strong)}
+.org:has(select:focus-visible){outline:2px solid var(--focus);outline-offset:2px}
+.org-av{width:28px;height:28px;border-radius:6px;background:var(--badge);color:var(--primary);display:grid;place-items:center;font-size:11.5px;font-weight:600;flex:none}
+.org-txt{display:grid;min-width:0;line-height:1.25}
+.org-name{font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.org-ref{font-size:11px;color:var(--faint)}
+.org svg{margin-left:auto;color:var(--faint)}
+.org select{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%}
+.nav-g{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--faint);padding:16px 10px 6px}
+.nav{display:flex;align-items:center;gap:10px;height:34px;padding:0 10px;border-radius:var(--r);color:var(--muted);text-decoration:none;font-weight:500;border:1px solid transparent}
+.nav:hover{background:var(--hover);color:var(--fg)}
+.nav[aria-current="page"]{background:var(--surface);color:var(--fg);border-color:var(--border)}
+.nav[aria-current="page"] svg{color:var(--primary)}
+.nav .cnt{margin-left:auto;font-family:var(--mono);font-size:11.5px;color:var(--faint)}
+.nav .soon{margin-left:auto;font-size:10.5px;font-weight:500;color:var(--faint);border:1px solid var(--border);border-radius:5px;padding:0 5px;line-height:17px}
+.sb-foot{margin-top:auto;padding-top:10px;position:relative}
+.user{display:flex;align-items:center;gap:10px;width:100%;padding:8px;border-radius:var(--r);border:1px solid transparent;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.user:hover,.user[aria-expanded="true"]{background:var(--hover)}
+.av{width:28px;height:28px;border-radius:50%;background:var(--inverse);color:var(--on-inverse);display:grid;place-items:center;font-size:11px;font-weight:600;flex:none}
+.user-txt{display:grid;min-width:0;line-height:1.3}
+.user-txt span:first-child{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.user-txt span:last-child{font-family:var(--mono);font-size:11px;color:var(--faint)}
+.user svg{margin-left:auto;color:var(--faint)}
+.menu{position:absolute;left:0;right:0;bottom:calc(100% + 6px);background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:6px;z-index:20}
+.menu-sec{padding:8px 8px 10px;display:grid;gap:6px;border-bottom:1px solid var(--border);margin-bottom:6px}
+.menu-sec h4{margin:0;font-size:11px;font-weight:600;color:var(--faint);text-transform:uppercase;letter-spacing:.06em}
+.menu-item{display:flex;align-items:center;gap:10px;width:100%;height:34px;padding:0 8px;border:0;background:none;border-radius:6px;color:var(--fg);font:inherit;cursor:pointer;text-align:left}
+.menu-item:hover{background:var(--hover)}
+.wrap{display:flex;flex-wrap:wrap;gap:4px}
+
+.main{min-width:0;background:var(--surface);display:flex;flex-direction:column}
+.topbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:10;height:56px;display:flex;align-items:center;gap:12px;padding:0 max(24px,env(safe-area-inset-right,0px)) 0 max(24px,env(safe-area-inset-left,0px));background:var(--surface);border-bottom:1px solid var(--border)}
+.crumbs{display:flex;align-items:center;gap:8px;min-width:0;font-size:13.5px;color:var(--faint);white-space:nowrap}
+.crumbs .cur{color:var(--fg);font-weight:500}
+.crumbs .org-c{overflow:hidden;text-overflow:ellipsis}
+.tb-right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.menu-btn{display:none}
+.page{width:100%;max-width:1200px;margin:0 auto;padding-block:28px 96px;padding-left:max(24px,env(safe-area-inset-left,0px));padding-right:max(24px,env(safe-area-inset-right,0px))}
+.scrim{display:none}
+
+/* Page header */
+.ph{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:22px}
+.ph h1{font-size:clamp(1.375rem,1.1rem + .8vw,1.625rem);font-weight:600;letter-spacing:-.015em;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.ph p{margin-top:4px;color:var(--muted);max-width:62ch}
+.ph-act{display:flex;gap:8px;flex-wrap:wrap}
+.sec{display:grid;gap:12px;margin-top:28px}
+.sec-h{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.sec-h h2{font-size:15px;font-weight:600}
+
+/* Controls */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:var(--ctl);padding:0 14px;border-radius:var(--r);border:1px solid transparent;font:inherit;font-weight:500;cursor:pointer;white-space:nowrap;text-decoration:none;background:none;color:var(--fg)}
+.btn-primary{background:var(--primary);color:var(--on-primary)}
+.btn-primary:hover{background:var(--primary-hover)}
+.btn-outline{background:var(--surface);border-color:var(--border-strong)}
+.btn-outline:hover,.btn-ghost:hover{background:var(--hover)}
+.btn-danger{background:var(--danger);color:var(--on-danger)}
+.btn-danger:hover{filter:brightness(.92)}
+.btn-danger-outline{border-color:color-mix(in srgb,var(--danger) 45%,transparent);color:var(--danger);background:var(--surface)}
+.btn-danger-outline:hover{background:var(--danger-bg)}
+.btn-danger-ghost{color:var(--danger)}
+.btn-danger-ghost:hover{background:var(--danger-bg)}
+.btn-sm{height:32px;padding:0 10px;font-size:13px}
+.btn-icon{width:var(--ctl);padding:0}
+.btn-sm.btn-icon{width:32px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.link{color:var(--primary);font-weight:500;text-decoration:none;display:inline-flex;align-items:center;gap:6px;font-size:13.5px}
+.link:hover{text-decoration:underline}
+.field{display:grid;gap:6px;min-width:0}
+.field>label,.lbl{font-size:13px;font-weight:500}
+.help{font-size:12px;color:var(--faint)}
+.err{font-size:12.5px;color:var(--danger);display:flex;align-items:center;gap:6px}
+.input,.select{height:var(--ctl);width:100%;border:1px solid var(--border-strong);border-radius:var(--r);background:var(--surface);color:var(--fg);padding:0 12px;font:inherit}
+.input::placeholder{color:var(--faint)}
+.input:hover,.select:hover{border-color:var(--faint)}
+[aria-invalid="true"]{border-color:var(--danger)!important}
+.sel{position:relative}
+.sel .select{appearance:none;padding-right:34px;cursor:pointer}
+.sel svg{position:absolute;right:11px;top:50%;transform:translateY(-50%);pointer-events:none;color:var(--faint)}
+.search{position:relative}
+.search svg{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--faint);pointer-events:none}
+.search .input{padding-left:34px}
+input[type=checkbox]{accent-color:var(--primary);width:16px;height:16px;margin:2px 0 0;flex:none}
+fieldset.fs{border:0;padding:0;margin:0;display:grid;gap:8px;min-width:0}
+fieldset.fs legend{font-size:13px;font-weight:500;padding:0;margin-bottom:8px}
+.opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px}
+.opt{display:flex;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--r);cursor:pointer;align-items:flex-start}
+.opt:hover{border-color:var(--border-strong)}
+.opt:has(input:checked){border-color:var(--primary);background:color-mix(in srgb,var(--badge) 55%,var(--surface))}
+.opt-t{display:grid;gap:3px}
+.opt-d{font-size:12.5px;color:var(--muted);line-height:1.4}
+
+/* Chips & badges */
+.chip{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 8px;border-radius:6px;font-size:12px;font-weight:500;border:1px solid var(--border);color:var(--muted);background:var(--surface);white-space:nowrap}
+.chip .dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+.chip svg.i{width:12px;height:12px}
+.chip-ok{color:var(--primary);background:var(--badge);border-color:transparent}
+.chip-warn{color:var(--warn);background:var(--warn-bg);border-color:transparent}
+.chip-danger{color:var(--danger);background:var(--danger-bg);border-color:transparent}
+.role{display:inline-block;font-family:var(--mono);font-size:11.5px;line-height:18px;padding:0 6px;border-radius:5px;background:var(--subtle);border:1px solid var(--border);color:var(--fg)}
+.cap{font-family:var(--mono);font-size:11.5px;color:var(--muted)}
+
+/* Banners */
+.banner{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:var(--r);border:1px solid;font-size:13.5px;margin-bottom:16px}
+.banner>svg{margin-top:2px}
+.banner-ok{background:var(--badge);border-color:color-mix(in srgb,var(--primary) 22%,transparent)}
+.banner-ok>svg{color:var(--primary)}
+.banner-err{background:var(--danger-bg);border-color:color-mix(in srgb,var(--danger) 30%,transparent)}
+.banner-err>svg{color:var(--danger)}
+.banner-info{background:var(--subtle);border-color:var(--border)}
+.banner .b-body{display:grid;gap:8px;flex:1;min-width:0}
+.banner .b-x{margin-left:auto;margin-top:-4px;margin-right:-4px}
+
+/* Cards, metrics */
+.card{border:1px solid var(--border);border-radius:var(--r);background:var(--surface)}
+.filters{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:16px}
+.filters .field{flex:1 1 160px;max-width:220px}
+.filters .grow{flex:2 1 240px;max-width:340px}
+.metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.metric{padding:16px;display:flex;flex-direction:column;gap:10px}
+.metric-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.metric-k{font-size:13px;font-weight:500;color:var(--muted)}
+.metric-v{font-size:28px;font-weight:600;letter-spacing:-.02em;line-height:1.1;font-variant-numeric:tabular-nums}
+.metric-v.none{color:var(--faint);font-weight:400}
+.metric-f{margin-top:auto;display:grid;gap:2px;font-size:12px;color:var(--faint);padding-top:10px;border-top:1px solid var(--border)}
+.metric-f .warn{color:var(--warn)}
+.metric-f .danger{color:var(--danger)}
+
+/* Tables */
+.tcard{border:1px solid var(--border);border-radius:var(--r);overflow:hidden;background:var(--surface)}
+.tscroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{text-align:left;font-weight:500;font-size:12px;color:var(--muted);padding:9px 14px;border-bottom:1px solid var(--border);background:var(--subtle);white-space:nowrap}
+td{padding:11px 14px;border-bottom:1px solid var(--border);vertical-align:middle}
+tbody tr:last-child td{border-bottom:0}
+tbody tr:hover td{background:var(--subtle)}
+.t-right{text-align:right}
+.who{display:flex;align-items:center;gap:10px;min-width:220px}
+.who .av{background:var(--badge);color:var(--primary)}
+.who-t{display:grid;line-height:1.35}
+.who-t span:last-child{font-size:12.5px;color:var(--faint)}
+.tfoot{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 14px;border-top:1px solid var(--border);font-size:13px;color:var(--muted)}
+.tfoot .btns{display:flex;gap:8px}
+.empty{padding:48px 16px;text-align:center;display:grid;justify-items:center;gap:8px;color:var(--muted)}
+.empty .e-ic{width:40px;height:40px;border-radius:10px;border:1px solid var(--border);display:grid;place-items:center;color:var(--faint);margin-bottom:4px}
+.empty h2,.empty h3{font-size:15px;font-weight:600;color:var(--fg)}
+.empty p{max-width:46ch}
+
+/* Explore pages */
+.explore{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
+.explore .card{padding:18px;display:grid;gap:10px;align-content:start}
+.explore h2{font-size:14px;font-weight:600}
+.explore ul{margin:0;padding-left:18px;display:grid;gap:6px;color:var(--muted)}
+.skel{padding:16px;display:grid;gap:10px}
+.skel div{height:12px;border-radius:4px;background:var(--hover)}
+
+/* Dialogs */
+dialog{color:var(--fg);background:var(--surface)}
+dialog::backdrop{background:var(--scrim)}
+dialog.modal{border:1px solid var(--border);border-radius:12px;padding:0;width:min(500px,calc(100vw - 32px))}
+.m-b{padding:20px;display:grid;gap:16px}
+.m-b h2{font-size:16px;font-weight:600}
+.m-b .sub{color:var(--muted);margin-top:4px}
+.m-f{display:flex;justify-content:flex-end;gap:8px;padding:14px 20px;border-top:1px solid var(--border);background:var(--subtle);flex-wrap:wrap}
+dialog.sheet{margin:0 0 0 auto;height:100%;max-height:100%;width:min(480px,100vw);max-width:100vw;border:0;border-left:1px solid var(--border);border-radius:0;padding:0}
+dialog.sheet[open]{display:flex;flex-direction:column}
+.s-h{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:calc(18px + env(safe-area-inset-top,0px)) 20px 16px;border-bottom:1px solid var(--border)}
+.s-h h2{font-size:16px;font-weight:600}
+.s-b{flex:1;overflow-y:auto;padding:20px;display:grid;gap:20px;align-content:start}
+.s-f{display:flex;justify-content:flex-end;gap:8px;padding:14px 20px calc(14px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--border)}
+.dz{border:1px solid color-mix(in srgb,var(--danger) 35%,transparent);border-radius:var(--r);padding:14px;display:grid;gap:8px;justify-items:start}
+.dz h3{font-size:14px;font-weight:600;color:var(--danger)}
+.dz p{color:var(--muted);font-size:13px}
+.diff{width:100%;border:1px solid var(--border);border-radius:var(--r);border-collapse:separate;border-spacing:0;overflow:hidden}
+.diff th,.diff td{padding:10px 12px;border-bottom:1px solid var(--border);font-size:13px;text-align:left;vertical-align:top}
+.diff tr:last-child th,.diff tr:last-child td{border-bottom:0}
+.diff tbody th{color:var(--muted);font-weight:500;background:var(--subtle);width:84px}
+.diff td.chg{background:color-mix(in srgb,var(--badge) 60%,var(--surface))}
+.kv{display:flex;justify-content:space-between;gap:12px;font-size:13px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--r)}
+.kv span{color:var(--muted)}
+
+/* Session screens */
+.center{min-height:100%;display:grid;place-items:center;padding-block:40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.sess{width:min(420px,100%);display:grid;gap:20px}
+.sess .brand{justify-content:center;padding:0}
+.sess .card{padding:28px;display:grid;gap:14px}
+.sess h1{font-size:20px;font-weight:600;letter-spacing:-.01em;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.sess .msg{color:var(--muted)}
+.sess .acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.sess .foot{text-align:center;font-size:12px;color:var(--faint)}
+.s-ic{width:36px;height:36px;border-radius:9px;display:grid;place-items:center;border:1px solid var(--border);color:var(--muted)}
+.s-ic.danger{color:var(--danger);background:var(--danger-bg);border-color:transparent}
+.s-ic.warn{color:var(--warn);background:var(--warn-bg);border-color:transparent}
+.spin{width:18px;height:18px;border-radius:50%;border:2px solid var(--border-strong);border-top-color:var(--primary);animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Prototype controls */
+.proto{position:fixed;right:calc(16px + env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:60;display:grid;justify-items:end;gap:8px}
+.proto-btn{display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 12px;border-radius:var(--r);border:1px dashed var(--border-strong);background:var(--inverse);color:var(--on-inverse);font:inherit;font-size:13px;font-weight:500;cursor:pointer}
+.proto-panel{width:min(290px,calc(100vw - 32px));background:var(--surface);border:1px dashed var(--border-strong);border-radius:10px;padding:14px;display:grid;gap:12px}
+.proto-panel header{display:grid;gap:2px}
+.proto-panel header span{font-size:12px;color:var(--faint)}
+.proto-panel .select{height:34px;font-size:13px}
+.chk{display:flex;gap:8px;font-size:13px;align-items:flex-start;cursor:pointer}
+
+@media (max-width:1000px){.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:900px){
+  .app{grid-template-columns:minmax(0,1fr)}
+  .sidebar{position:fixed;left:0;top:0;bottom:0;width:min(280px,86vw);z-index:40;transform:translateX(-102%);transition:transform .2s ease;padding-top:calc(14px + env(safe-area-inset-top,0px));padding-left:max(10px,env(safe-area-inset-left,0px))}
+  .app.nav-open .sidebar{transform:none}
+  .app.nav-open .scrim{display:block;position:fixed;inset:0;background:var(--scrim);z-index:30}
+  .menu-btn{display:inline-flex}
+  .crumbs .org-c,.crumbs .sep1,.tb-session{display:none}
+  .topbar{padding:0 max(16px,env(safe-area-inset-right,0px)) 0 max(16px,env(safe-area-inset-left,0px))}
+  .page{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+  .explore{grid-template-columns:minmax(0,1fr)}
+}
+@media (max-width:600px){.metrics{grid-template-columns:minmax(0,1fr)}.filters .field{max-width:none}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<div id="root"></div>
+<dialog class="modal" id="modal" aria-labelledby="m-title"></dialog>
+<dialog class="sheet" id="sheet" aria-labelledby="s-title"></dialog>
+
+<div class="proto" id="proto">
+  <div class="proto-panel" id="proto-panel" hidden>
+    <header><strong>Controles del prototipo</strong><span>No forman parte del producto</span></header>
+    <div class="field"><label for="p-role">Rol del usuario</label><div class="sel"><select class="select" id="p-role">
+      <option value="tenant_admin">tenant_admin</option><option value="security_admin">security_admin</option>
+      <option value="issuer_operator">issuer_operator</option><option value="support_readonly">support_readonly</option></select>
+      <svg class="i" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></div></div>
+    <div class="field"><label for="p-session">Estado de sesión</label><div class="sel"><select class="select" id="p-session">
+      <option value="active">Espacio de trabajo</option><option value="checking">Comprobando sesión</option>
+      <option value="orgselect">Selección de organización</option><option value="pending">Acceso pendiente</option>
+      <option value="denied">Acceso no completado</option><option value="network">No pudimos conectar</option>
+      <option value="ratelimit">Demasiados intentos</option><option value="unauthorized">No se pudo autorizar</option>
+      <option value="orgunavailable">Organización no disponible</option><option value="stepup">Verifica tu identidad</option>
+      <option value="signedout">Sesión cerrada</option></select>
+      <svg class="i" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></div></div>
+    <label class="chk"><input type="checkbox" id="p-conflict"> Simular conflicto de versión (412) al confirmar un cambio</label>
+    <div class="field"><label for="p-theme">Tema</label><div class="sel"><select class="select" id="p-theme">
+      <option value="system">Según el sistema</option><option value="light">Claro</option><option value="dark">Oscuro</option></select>
+      <svg class="i" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></div></div>
+  </div>
+  <button class="proto-btn" data-act="proto" aria-expanded="false" aria-controls="proto-panel">
+    <svg class="i" viewBox="0 0 24 24"><path d="M10 2v7.3L4.6 18.5A2.3 2.3 0 0 0 6.6 22h10.8a2.3 2.3 0 0 0 2-3.5L14 9.3V2"/><path d="M8.5 2h7"/><path d="M7 16h10"/></svg>
+    Prototipo
+  </button>
+</div>
+
+<script>
+(function(){
+/* ---------- Iconos ---------- */
+const P={
+ grid:'<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
+ activity:'<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
+ users:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+ mail:'<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 5L2 7"/>',
+ building:'<rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01M12 6h.01M16 6h.01M8 10h.01M12 10h.01M16 10h.01M8 14h.01M12 14h.01M16 14h.01"/>',
+ file:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8M16 17H8"/>',
+ inbox:'<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>',
+ shield:'<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/>',
+ sliders:'<path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/>',
+ down:'<path d="m6 9 6 6 6-6"/>',
+ updown:'<path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/>',
+ x:'<path d="M18 6 6 18M6 6l12 12"/>',
+ plus:'<path d="M12 5v14M5 12h14"/>',
+ sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>',
+ moon:'<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
+ logout:'<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/>',
+ menu:'<path d="M4 6h16M4 12h16M4 18h16"/>',
+ lock:'<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+ alert:'<circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/>',
+ check:'<path d="M20 6 9 17l-5-5"/>',
+ checkc:'<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>',
+ arrow:'<path d="M5 12h14M12 5l7 7-7 7"/>',
+ search:'<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
+ ticket:'<path d="M3 9a3 3 0 0 0 0 6v2a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2Z"/><path d="M13 5v2M13 17v2M13 11v2"/>',
+ wifi:'<path d="M2 2l20 20"/><path d="M8.5 16.5a5 5 0 0 1 7 0"/><path d="M5 12.86a10 10 0 0 1 5.17-2.69"/><path d="M19 12.86a10 10 0 0 0-2.01-1.52"/><path d="M12 20h.01"/>',
+ clock:'<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+ key:'<circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6M15.5 7.5l3 3L22 7l-3-3"/>',
+ refresh:'<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
+ edit:'<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>'
+};
+const ic=(n,cls)=>`<svg class="i${cls?' '+cls:''}" viewBox="0 0 24 24" aria-hidden="true">${P[n]||''}</svg>`;
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const $=s=>document.querySelector(s);
+
+/* ---------- Datos de ejemplo ---------- */
+const ORGS=[
+ {id:'uae',name:'Universidad Andina de Ejemplo',ref:'ref·7f3a9c'},
+ {id:'its',name:'Instituto Técnico del Sur',ref:'ref·2b81e4'},
+ {id:'crn',name:'Colegio Regional del Norte',ref:'ref·c90d17'}];
+const ROLE_LIST=['tenant_admin','security_admin','issuer_operator','support_readonly'];
+const ROLE_DESC={
+ tenant_admin:'Administra miembros, invitaciones y la organización.',
+ security_admin:'Consulta miembros y la actividad de seguridad.',
+ issuer_operator:'Opera la emisión de credenciales.',
+ support_readonly:'Consulta indicadores en modo lectura.'};
+const CAPS={
+ tenant_admin:['dashboard:read','audit:read','members:read','members:write','invitations:read','invitations:write'],
+ security_admin:['dashboard:read','audit:read','members:read'],
+ issuer_operator:['dashboard:read'],
+ support_readonly:['dashboard:read']};
+const USERS={
+ tenant_admin:{email:'ana.quispe@uae.edu.pe',name:'Ana Quispe'},
+ security_admin:{email:'claudia.morales@uae.edu.pe',name:'Claudia Morales'},
+ issuer_operator:{email:'jorge.arce@uae.edu.pe',name:'Jorge Arce'},
+ support_readonly:{email:'rodrigo.vega@uae.edu.pe',name:'Rodrigo Vega'}};
+const REASONS=[['cambio_funciones','Cambio de funciones'],['solicitud_titular','Solicitud del titular'],['incidente','Incidente de seguridad'],['fin_relacion','Fin de relación']];
+const reasonLabel=v=>(REASONS.find(r=>r[0]===v)||['',''])[1];
+
+let MEMBERS=[
+ ['ana.quispe','Ana Quispe','Vicerrectorado Académico',['tenant_admin'],'Activo','2026-11-08 16:20'],
+ ['miguel.condori','Miguel Condori','Rectorado',['security_admin'],'Activo','2026-11-07 14:10'],
+ ['claudia.morales','Claudia Morales','Seguridad Digital',['security_admin'],'Activo','2026-11-06 09:32'],
+ ['jorge.arce','Jorge Arce','Oficina de Matrícula',['issuer_operator'],'Activo','2026-11-05 18:45'],
+ ['patricia.salazar','Patricia Salazar','Centro de Cómputo',['issuer_operator'],'Suspendido','2026-11-04 11:14'],
+ ['rodrigo.vega','Rodrigo Vega','Mesa de Ayuda TI',['support_readonly'],'Activo','2026-11-03 16:20'],
+ ['elena.barrios','Elena Barrios','Registros Académicos',['issuer_operator'],'Activo','2026-11-02 10:05'],
+ ['carlos.tello','Carlos Tello','Secretaría Técnica',['security_admin','support_readonly'],'Activo','2026-10-30 13:40'],
+ ['mario.bocanegra','Mario Bocanegra','Soporte',[],'Retirado','2026-10-28 08:12'],
+ ['diana.paucar','Diana Páucar','Validación Documental',['issuer_operator'],'Activo','2026-10-27 17:55'],
+ ['alberto.guzman','Alberto Guzmán','Centro de Datos',['support_readonly'],'Activo','2026-10-25 12:00'],
+ ['lucia.huaman','Lucía Huamán','Facultad de Ingeniería',['issuer_operator'],'Activo','2026-11-08 18:02']
+].map((r,i)=>({id:r[0],email:r[0]+'@uae.edu.pe',name:r[1],area:r[2],roles:r[3],status:r[4],updated:r[5],version:3+i}));
+
+let INVITES=[
+ ['sofia.ramos@uae.edu.pe',['issuer_operator'],'Pendiente','2026-11-09 13:58','2026-11-16 13:58'],
+ ['luis.mamani@uae.edu.pe',['support_readonly'],'Entregada','2026-11-08 11:27','2026-11-15 11:27'],
+ ['karen.flores@uae.edu.pe',['issuer_operator'],'Fallida','2026-11-07 10:02','2026-11-14 10:02'],
+ ['lucia.huaman@uae.edu.pe',['issuer_operator'],'Aceptada','2026-11-06 09:15',null],
+ ['pedro.choque@uae.edu.pe',['security_admin'],'Revocada','2026-11-02 15:40',null]
+].map((r,i)=>({id:'inv'+i,email:r[0],roles:r[1],delivery:r[2],created:r[3],expires:r[4]}));
+
+let ACTIVITY=[
+ ['Invitación enviada','ana.quispe@uae.edu.pe','Correcto','2026-11-09 13:58','ref·7f3a9c'],
+ ['Rol actualizado','ana.quispe@uae.edu.pe','Correcto','2026-11-09 13:42','ref·4b81e2'],
+ ['Inicio de sesión','claudia.morales@uae.edu.pe','Correcto','2026-11-09 12:15','ref·99c1a0'],
+ ['Invitación revocada','ana.quispe@uae.edu.pe','Correcto','2026-11-09 11:30','ref·0a3d4f'],
+ ['Acceso retirado','miguel.condori@uae.edu.pe','Denegado','2026-11-09 10:14','ref·e5b881'],
+ ['Inicio de sesión',null,'Fallido','2026-11-09 09:05','ref·1c77aa'],
+ ['Estado actualizado','ana.quispe@uae.edu.pe','Correcto','2026-11-09 08:20','ref·88b2f9'],
+ ['Inicio de sesión','jorge.arce@uae.edu.pe','Correcto','2026-11-09 07:45','ref·d3e114'],
+ ['Invitación aceptada','lucia.huaman@uae.edu.pe','Correcto','2026-11-08 18:02','ref·5e0b37'],
+ ['Rol actualizado','ana.quispe@uae.edu.pe','Fallido','2026-11-08 16:40','ref·a91c02'],
+ ['Inicio de sesión','rodrigo.vega@uae.edu.pe','Correcto','2026-11-08 15:12','ref·3f6d88'],
+ ['Invitación enviada','ana.quispe@uae.edu.pe','Correcto','2026-11-08 11:27','ref·b27e45'],
+ ['Inicio de sesión',null,'Denegado','2026-11-08 09:58','ref·6c40f1'],
+ ['Estado actualizado','ana.quispe@uae.edu.pe','Correcto','2026-11-07 17:33','ref·0e9a5d']
+].map(r=>({action:r[0],actor:r[1],result:r[2],time:r[3],ref:r[4]}));
+
+/* ---------- Estado ---------- */
+const S={session:'active',role:'tenant_admin',org:'uae',conflict:false,flash:null,navOpen:false,userMenu:false,
+ mf:{q:'',estado:'',rol:''},mPage:0,inf:'',af:{res:'',acc:''},aPage:0,
+ period:{from:'2026-10-10',to:'2026-11-09',issuer:'all'},periodMsg:null};
+const PAGE=8;
+const caps=()=>CAPS[S.role];
+const can=c=>caps().includes(c);
+const org=()=>ORGS.find(o=>o.id===S.org)||ORGS[0];
+const user=()=>USERS[S.role];
+const initials=s=>s.split(/[\s.@]+/).filter(w=>w&&w[0]===w[0].toUpperCase()&&/[A-ZÁÉÍÓÚ]/.test(w[0])).slice(0,2).map(w=>w[0]).join('')||s.slice(0,2).toUpperCase();
+const nameInitials=n=>n.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
+const activeAdmins=()=>MEMBERS.filter(m=>m.status==='Activo'&&m.roles.includes('tenant_admin'));
+const now=()=>'2026-11-09 14:07';
+
+/* ---------- Navegación ---------- */
+const NAV=[
+ {g:'General',items:[{id:'resumen',label:'Resumen',icon:'grid',cap:'dashboard:read'},{id:'actividad',label:'Actividad',icon:'activity',cap:'audit:read'}]},
+ {g:'Acceso',items:[{id:'miembros',label:'Miembros',icon:'users',cap:'members:read',count:()=>MEMBERS.filter(m=>m.status!=='Retirado').length},{id:'invitaciones',label:'Invitaciones',icon:'mail',cap:'invitations:read',count:()=>INVITES.filter(i=>['Pendiente','Entregada','Fallida'].includes(i.delivery)).length}]},
+ {g:'Emisión',items:[{id:'emisores',label:'Emisores',icon:'building',soon:1},{id:'definiciones',label:'Definiciones',icon:'file',soon:1},{id:'solicitudes',label:'Solicitudes',icon:'inbox',soon:1},{id:'credenciales',label:'Credenciales',icon:'shield',soon:1}]},
+ {g:'Organización',items:[{id:'ajustes',label:'Ajustes',icon:'sliders',soon:1}]}];
+const ALL=NAV.flatMap(g=>g.items.map(i=>({...i,group:g.g})));
+const route=()=>{const r=location.hash.slice(1);return ALL.find(i=>i.id===r)?r:'resumen'};
+
+/* ---------- Componentes ---------- */
+const sel=(id,opts,val,extra)=>`<div class="sel"><select class="select" id="${id}" ${extra||''}>${opts.map(o=>`<option value="${esc(o[0])}"${o[0]===val?' selected':''}>${esc(o[1])}</option>`).join('')}</select>${ic('down')}</div>`;
+const chip=(kind,text,icon)=>`<span class="chip${kind?' chip-'+kind:''}">${icon?ic(icon):'<i class="dot"></i>'}${esc(text)}</span>`;
+const roles=list=>list.length?`<div class="wrap">${list.map(r=>`<span class="role">${esc(r)}</span>`).join('')}</div>`:'<span class="faint">Sin roles</span>';
+const memberChip=s=>s==='Activo'?chip('ok','Activo'):s==='Suspendido'?chip('warn','Suspendido'):chip('','Retirado');
+const deliveryChip=d=>({Pendiente:chip('','Pendiente','clock'),Entregada:chip('ok','Entregada'),Fallida:chip('danger','Fallida','alert'),Aceptada:chip('ok','Aceptada','check'),Revocada:chip('','Revocada')})[d];
+const resultChip=r=>r==='Correcto'?chip('ok','Correcto'):r==='Denegado'?chip('warn','Denegado'):chip('danger','Fallido','alert');
+const roleOpts=(name,selected)=>`<div class="opts">${ROLE_LIST.map(r=>`<label class="opt"><input type="checkbox" name="${name}" value="${r}"${selected.includes(r)?' checked':''}><span class="opt-t"><span class="role">${r}</span><span class="opt-d">${ROLE_DESC[r]}</span></span></label>`).join('')}</div>`;
+const banner=(kind,html,closable)=>`<div class="banner banner-${kind}" role="${kind==='err'?'alert':'status'}">${ic(kind==='err'?'alert':kind==='ok'?'checkc':'alert')}<div class="b-body">${html}</div>${closable?`<button class="btn btn-ghost btn-sm btn-icon b-x" data-act="flash-x" aria-label="Cerrar aviso">${ic('x')}</button>`:''}</div>`;
+const flash=()=>S.flash&&S.flash.route===route()?banner(S.flash.kind,esc(S.flash.text),true):'';
+const ph=(title,desc,actions,badge)=>`<div class="ph"><div><h1 id="page-title">${esc(title)}${badge||''}</h1>${desc?`<p>${desc}</p>`:''}</div>${actions?`<div class="ph-act">${actions}</div>`:''}</div>`;
+
+/* ---------- Shell ---------- */
+function shell(){
+ const r=route(),cur=ALL.find(i=>i.id===r),o=org(),u=user();
+ const nav=NAV.map(g=>{
+   const items=g.items.filter(i=>i.soon?S.role==='tenant_admin':can(i.cap));
+   if(!items.length)return'';
+   return `<div class="nav-g">${g.g}</div>`+items.map(i=>`<a class="nav" href="#${i.id}"${i.id===r?' aria-current="page"':''}>${ic(i.icon)}<span>${i.label}</span>${i.soon?'<span class="soon">Pronto</span>':i.count?`<span class="cnt">${i.count()}</span>`:''}</a>`).join('');
+ }).join('');
+ const dark=isDark();
+ return `<div class="app${S.navOpen?' nav-open':''}">
+ <aside class="sidebar" aria-label="Navegación principal">
+  <div class="brand"><span class="mark"><span></span></span><b>HukID</b><small>Consola de operadores</small></div>
+  <div class="org"><span class="org-av">${initials(o.name)}</span><span class="org-txt"><span class="org-name">${esc(o.name)}</span><span class="org-ref mono">${o.ref}</span></span>${ic('updown')}
+   <select id="org-switch" aria-label="Cambiar de organización">${ORGS.map(x=>`<option value="${x.id}"${x.id===o.id?' selected':''}>${esc(x.name)}</option>`).join('')}</select></div>
+  <nav aria-label="Secciones">${nav}</nav>
+  <div class="sb-foot">
+   ${S.userMenu?`<div class="menu" id="user-menu">
+     <div class="menu-sec"><h4>Roles</h4>${roles([S.role])}</div>
+     <div class="menu-sec"><h4>Capacidades</h4><div class="wrap">${caps().map(c=>`<span class="cap">${c}</span>`).join('<span class="faint">·</span>')}</div></div>
+     <button class="menu-item" data-act="accept">${ic('ticket')}Aceptar una invitación</button>
+     <button class="menu-item" data-act="logout">${ic('logout')}Cerrar sesión</button></div>`:''}
+   <button class="user" data-act="user-menu" aria-expanded="${S.userMenu}" aria-controls="user-menu"><span class="av">${nameInitials(u.name)}</span><span class="user-txt"><span>${esc(u.email)}</span><span>${S.role}</span></span>${ic('updown')}</button>
+  </div>
+ </aside>
+ <div class="scrim" data-act="close-nav"></div>
+ <div class="main">
+  <header class="topbar">
+   <button class="btn btn-ghost btn-sm btn-icon menu-btn" data-act="nav-toggle" aria-label="Abrir menú">${ic('menu')}</button>
+   <div class="crumbs"><span class="org-c">${esc(o.name)}</span><span class="sep1">/</span><span>${cur.group}</span><span>/</span><span class="cur">${cur.label}</span></div>
+   <div class="tb-right"><span class="tb-session">${chip('ok','Sesión activa')}</span>
+    <button class="btn btn-ghost btn-sm btn-icon" data-act="theme" aria-label="${dark?'Usar tema claro':'Usar tema oscuro'}">${ic(dark?'sun':'moon')}</button></div>
+  </header>
+  <main class="page" id="page" aria-labelledby="page-title">${view(r)}</main>
+ </div></div>`;
+}
+
+function view(r){
+ const it=ALL.find(i=>i.id===r);
+ if(it.soon)return vSoon(it);
+ if(!can(it.cap))return vDeny(it);
+ return ({resumen:vResumen,actividad:vActividad,miembros:vMiembros,invitaciones:vInvitaciones})[r]();
+}
+
+/* ---------- Vistas ---------- */
+function vResumen(){
+ const p=S.period,activeCount=MEMBERS.filter(m=>m.status==='Activo').length;
+ const M=[
+  {k:'Miembros activos',v:can('members:read')?String(activeCount):null,st:can('members:read')?'ok':'lock',scope:'Toda la organización'},
+  {k:'Emisores activos',v:null,st:'na',scope:'Toda la organización'},
+  {k:'Versiones publicadas',v:null,st:'na',scope:'Toda la organización'},
+  {k:'Solicitudes creadas',v:'312',st:'stale',scope:'Emisor: Facultad de Ingeniería'},
+  {k:'Credenciales emitidas',v:null,st:'err',scope:'Toda la organización'},
+  {k:'Cambios de estado pendientes',v:null,st:'lock',scope:'Toda la organización'}];
+ const ST={ok:['ok','Disponible',null],stale:['warn','Dato antiguo','clock'],na:['','Fuente no disponible',null],err:['danger','Error de la fuente','alert'],lock:['','Sin permiso','lock']};
+ const foot=m=>({ok:`<span>Datos al 2026-11-09 14:00 UTC</span>`,stale:`<span class="warn">Datos al 2026-11-08 09:30 UTC · más de 4 h</span>`,na:`<span>La fuente aún no está conectada</span>`,err:`<span class="danger">No se pudo leer la fuente</span>`,lock:`<span>Tu rol no incluye este indicador</span>`})[m.st];
+ const metrics=M.map(m=>{const s=ST[m.st];return `<article class="card metric"><div class="metric-top"><span class="metric-k">${m.k}</span>${chip(s[0],s[1],s[2])}</div>
+  <div class="metric-v${m.v==null?' none':''}">${m.v==null?'—':m.v}</div><div class="metric-f"><span>${esc(m.scope)}</span>${foot(m)}</div></article>`}).join('');
+ const act=can('audit:read')?`<div class="tcard"><div class="tscroll"><table><thead><tr><th>Acción</th><th>Resultado</th><th>Hora (UTC)</th><th>Referencia</th></tr></thead><tbody>
+   ${ACTIVITY.slice(0,5).map(a=>`<tr><td>${esc(a.action)}</td><td>${resultChip(a.result)}</td><td class="mono muted">${a.time}</td><td class="mono muted">${a.ref}</td></tr>`).join('')}</tbody></table></div></div>`
+   :`<div class="card empty"><span class="e-ic">${ic('lock')}</span><h3>Actividad no disponible para tu rol</h3><p>Tu rol no incluye la lectura de auditoría. Si la necesitas, solicítala a un administrador de la organización.</p></div>`;
+ return flash()+ph('Resumen operativo','Indicadores de la organización para el periodo seleccionado. Fechas y horas en UTC.')+
+ `<form class="filters" id="period" novalidate aria-label="Periodo">
+   <div class="field"><label for="p-from">Desde</label><input class="input tnum" type="date" id="p-from" value="${p.from}"></div>
+   <div class="field"><label for="p-to">Hasta</label><input class="input tnum" type="date" id="p-to" value="${p.to}" aria-describedby="p-help p-err"></div>
+   <div class="field grow"><label for="p-issuer">Emisor autorizado</label>${sel('p-issuer',[['all','Todos los emisores'],['fi','Facultad de Ingeniería'],['ora','Oficina de Registro Académico']],p.issuer)}</div>
+   <button class="btn btn-outline" type="submit">Aplicar periodo</button>
+   <p class="help" id="p-help" style="flex-basis:100%;margin-top:-6px">Máximo 31 días.</p>
+   <p class="err" id="p-err" role="alert" hidden style="flex-basis:100%;margin-top:-8px"></p>
+ </form>
+ ${S.periodMsg?banner('ok',esc(S.periodMsg)):''}
+ <div class="metrics">${metrics}</div>
+ <section class="sec" aria-labelledby="act-h"><div class="sec-h"><h2 id="act-h">Actividad reciente</h2>${can('audit:read')?`<a class="link" href="#actividad">Ver toda la actividad ${ic('arrow')}</a>`:''}</div>${act}</section>`;
+}
+
+function vActividad(){
+ const acts=[...new Set(ACTIVITY.map(a=>a.action))].sort();
+ return ph('Actividad','Registro de auditoría de la organización. Cada evento tiene una referencia para soporte.')+
+ `<div class="filters">
+  <div class="field"><label for="a-res">Resultado</label>${sel('a-res',[['','Todos'],['Correcto','Correcto'],['Denegado','Denegado'],['Fallido','Fallido']],S.af.res)}</div>
+  <div class="field grow"><label for="a-acc">Acción</label>${sel('a-acc',[['','Todas las acciones'],...acts.map(a=>[a,a])],S.af.acc)}</div>
+ </div><div id="a-table">${activityTable()}</div>`;
+}
+function activityTable(){
+ const list=ACTIVITY.filter(a=>(!S.af.res||a.result===S.af.res)&&(!S.af.acc||a.action===S.af.acc));
+ const start=S.aPage*PAGE,rows=list.slice(start,start+PAGE),more=start+PAGE<list.length;
+ if(!list.length)return `<div class="card empty"><span class="e-ic">${ic('activity')}</span><h2>No hay actividad en este periodo.</h2><p>Prueba con otro resultado o acción.</p></div>`;
+ return `<div class="tcard"><div class="tscroll"><table><thead><tr><th>Acción</th><th>Actor</th><th>Resultado</th><th>Hora (UTC)</th><th>Referencia</th></tr></thead><tbody>
+ ${rows.map(a=>`<tr><td>${esc(a.action)}</td><td class="${a.actor?'':'faint'}">${a.actor?esc(a.actor):'—'}</td><td>${resultChip(a.result)}</td><td class="mono muted">${a.time}</td><td class="mono muted">${a.ref}</td></tr>`).join('')}
+ </tbody></table></div><div class="tfoot"><span class="tnum">Eventos ${start+1}–${start+rows.length}</span><div class="btns">
+ ${S.aPage>0?`<button class="btn btn-ghost btn-sm" data-act="a-reset">${ic('refresh')}Reiniciar actividad</button>`:''}
+ ${more?`<button class="btn btn-outline btn-sm" data-act="a-next">Siguiente página de actividad</button>`:'<span class="faint">No hay más eventos</span>'}</div></div></div>`;
+}
+
+function vMiembros(){
+ const w=can('members:write');
+ return flash()+ph('Miembros','Personas con acceso a la consola de esta organización.',
+  w?`<button class="btn btn-primary" data-act="invite">${ic('plus')}Invitar persona</button>`:'',
+  w?'':` ${chip('','Solo lectura','lock')}`)+
+ `<div class="filters">
+  <div class="field grow"><label for="m-q">Identificador empieza por</label><div class="search">${ic('search')}<input class="input" id="m-q" type="search" autocomplete="off" placeholder="p. ej. ana." value="${esc(S.mf.q)}"></div></div>
+  <div class="field"><label for="m-estado">Estado</label>${sel('m-estado',[['','Todos'],['Activo','Activo'],['Suspendido','Suspendido'],['Retirado','Retirado']],S.mf.estado)}</div>
+  <div class="field"><label for="m-rol">Rol</label>${sel('m-rol',[['','Todos'],...ROLE_LIST.map(r=>[r,r])],S.mf.rol)}</div>
+ </div><div id="m-table">${membersTable()}</div>`;
+}
+function membersTable(){
+ const {q,estado,rol}=S.mf,w=can('members:write');
+ const list=MEMBERS.filter(m=>(!q||m.email.toLowerCase().startsWith(q.toLowerCase()))&&(!estado||m.status===estado)&&(!rol||m.roles.includes(rol)));
+ const start=S.mPage*PAGE,rows=list.slice(start,start+PAGE),more=start+PAGE<list.length,filtered=q||estado||rol;
+ if(!list.length)return `<div class="card empty"><span class="e-ic">${ic('users')}</span><h2>Ningún miembro coincide</h2><p>Revisa el identificador o quita algún filtro.</p><button class="btn btn-outline btn-sm" data-act="m-clear">Quitar filtros</button></div>`;
+ return `<div class="tcard"><div class="tscroll"><table><thead><tr><th>Persona</th><th>Roles</th><th>Estado</th><th>Última actualización (UTC)</th>${w?'<th class="t-right"><span class="faint">Acciones</span></th>':''}</tr></thead><tbody>
+ ${rows.map(m=>`<tr><td><div class="who"><span class="av">${nameInitials(m.name)}</span><span class="who-t"><span>${esc(m.email)}</span><span>${esc(m.name)} · ${esc(m.area)}</span></span></div></td>
+  <td>${roles(m.roles)}</td><td>${memberChip(m.status)}</td><td class="mono muted">${m.updated}</td>
+  ${w?`<td class="t-right">${m.status==='Retirado'?'<span class="faint">Acceso retirado</span>':`<button class="btn btn-ghost btn-sm" data-act="edit" data-id="${m.id}">${ic('edit')}Editar acceso</button>`}</td>`:''}</tr>`).join('')}
+ </tbody></table></div><div class="tfoot"><span class="tnum">Mostrando ${start+1}–${start+rows.length} de ${list.length}${filtered?' · con filtros':''}</span><div class="btns">
+ ${filtered?`<button class="btn btn-ghost btn-sm" data-act="m-clear">Quitar filtros</button>`:''}
+ ${S.mPage>0?`<button class="btn btn-ghost btn-sm" data-act="m-reset">Volver al inicio</button>`:''}
+ ${more?`<button class="btn btn-outline btn-sm" data-act="m-next">Siguiente página</button>`:''}</div></div></div>`;
+}
+
+function vInvitaciones(){
+ const w=can('invitations:write');
+ return flash()+ph('Invitaciones','Invitaciones enviadas para unirse a esta organización. Caducan a los 7 días.',
+  `<button class="btn btn-outline" data-act="accept">${ic('ticket')}Aceptar una invitación</button>${w?`<button class="btn btn-primary" data-act="invite">${ic('plus')}Invitar persona</button>`:''}`)+
+ `<div class="filters"><div class="field"><label for="i-f">Entrega</label>${sel('i-f',[['','Todas'],['Pendiente','Pendiente'],['Entregada','Entregada'],['Fallida','Fallida'],['Aceptada','Aceptada'],['Revocada','Revocada']],S.inf)}</div></div>
+ <div id="i-table">${invTable()}</div>`;
+}
+function invTable(){
+ const w=can('invitations:write'),list=INVITES.filter(i=>!S.inf||i.delivery===S.inf);
+ if(!list.length)return `<div class="card empty"><span class="e-ic">${ic('mail')}</span><h2>No hay invitaciones con esa entrega</h2><p>Elige otra opción en Entrega.</p></div>`;
+ return `<div class="tcard"><div class="tscroll"><table><thead><tr><th>Correo</th><th>Roles</th><th>Entrega</th><th>Creada (UTC)</th><th>Caduca (UTC)</th>${w?'<th class="t-right"><span class="faint">Acciones</span></th>':''}</tr></thead><tbody>
+ ${list.map(i=>`<tr><td>${esc(i.email)}</td><td>${roles(i.roles)}</td><td>${deliveryChip(i.delivery)}</td><td class="mono muted">${i.created}</td><td class="mono ${i.expires?'muted':'faint'}">${i.expires||'—'}</td>
+ ${w?`<td class="t-right">${['Pendiente','Entregada','Fallida'].includes(i.delivery)?`<button class="btn btn-danger-ghost btn-sm" data-act="revoke" data-id="${i.id}">Revocar</button>`:''}</td>`:''}</tr>`).join('')}
+ </tbody></table></div></div>`;
+}
+
+function vDeny(it){
+ return ph(it.label,null)+`<div class="card empty"><span class="e-ic">${ic('lock')}</span><h2>Tu rol no permite ver ${it.label.toLowerCase()}</h2>
+ <p>No tienes permiso para ver ${it.id==='miembros'?'el directorio de miembros':'las invitaciones de la organización'}. Si lo necesitas, solicítalo a un administrador de la organización.</p>
+ <a class="btn btn-outline btn-sm" href="#resumen">Ir al resumen</a></div>`;
+}
+
+const SOON={
+ emisores:['Dependencias autorizadas para emitir credenciales en nombre de la organización.',['Lista de emisores con estado y credenciales emitidas','Detalle de cada emisor y sus operadores','Alta de un emisor nuevo'],'Emisores activos'],
+ definiciones:['Tipos de credencial y sus versiones.',['Tipos de credencial con versiones Borrador, Publicada y Retirada','Editor de campos del esquema','Publicar una versión, con confirmación'],'Versiones publicadas'],
+ solicitudes:['Pedidos de emisión pendientes de revisar.',['Bandeja con filtros por estado','Detalle de cada solicitud','Emitir la credencial desde la solicitud'],'Solicitudes creadas'],
+ credenciales:['Credenciales emitidas y su estado.',['Búsqueda por referencia o por titular','Historial de estado de cada credencial','Suspender, reactivar o revocar (definitivo)'],'Credenciales emitidas'],
+ ajustes:['Datos institucionales y políticas de acceso.',['Datos institucionales y logotipo','Política de sesión y verificación TOTP','Zona de peligro'],null]};
+function vSoon(it){
+ const s=SOON[it.id];
+ return ph(it.label,s[0],null,` ${chip('','En exploración')}`)+
+ `<div class="explore"><div class="card"><h2>Qué incluirá</h2><ul>${s[1].map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>
+ <div class="card"><h2>Estado actual</h2><p class="muted">Esta sección todavía no está conectada al backend.${s[2]?` Su indicador en el resumen, «${s[2]}», muestra «Fuente no disponible».`:''}</p>${s[2]?`<a class="link" href="#resumen">Ver el resumen ${ic('arrow')}</a>`:''}</div></div>
+ <div class="tcard" style="margin-top:12px" aria-hidden="true"><div class="skel"><div style="width:30%"></div><div></div><div style="width:85%"></div><div style="width:92%"></div><div style="width:70%"></div></div></div>`;
+}
+
+/* ---------- Pantallas de sesión ---------- */
+const SESS={
+ checking:{t:'Comprobando sesión…',m:'Un momento, estamos validando tu acceso.',spin:1},
+ denied:{t:'Acceso no completado',m:'No se completó el inicio de sesión en el proveedor de identidad. Puede que lo hayas cancelado o que el enlace haya caducado.',ic:'alert',k:'danger',a:[['primary','Iniciar sesión de nuevo','checking']]},
+ network:{t:'No pudimos conectar',m:'Revisa tu conexión e inténtalo de nuevo. Si el problema sigue, avisa a soporte de tu institución.',ic:'wifi',k:'warn',a:[['primary','Comprobar acceso','checking']]},
+ ratelimit:{t:'Demasiados intentos',m:'Espera unos minutos antes de volver a intentarlo.',ic:'clock',k:'warn',a:[['primary','Comprobar acceso','checking']]},
+ unauthorized:{t:'No se pudo autorizar el acceso',m:'Tu sesión expiró o no tiene permisos válidos para esta consola.',ic:'lock',k:'danger',a:[['primary','Renovar sesión','checking'],['outline','Iniciar sesión de nuevo','checking']]},
+ orgunavailable:{t:'Organización no disponible',m:'La organización seleccionada no está disponible en este momento. Inténtalo más tarde o elige otra.',ic:'building',k:'warn',a:[['primary','Comprobar acceso','checking'],['outline','Elegir otra organización','orgselect']]},
+ stepup:{t:'Verifica tu identidad',m:'Para continuar, confirma tu identidad con el código de tu aplicación de autenticación.',ic:'key',a:[['primary','Verificar identidad','checking']]},
+ signedout:{t:'Sesión cerrada',m:'Cerraste sesión en la consola de operadores.',ic:'logout',a:[['primary','Iniciar sesión','checking']]}
+};
+function sessionScreen(){
+ const brand=`<div class="brand"><span class="mark"><span></span></span><b>HukID</b><span class="faint">Consola de operadores</span></div>`;
+ let body;
+ if(S.session==='orgselect'){
+  body=`<span class="s-ic">${ic('building')}</span><h1>Elige una organización ${chip('warn','Selección requerida')}</h1>
+  <p class="msg">Tienes acceso a varias organizaciones. Elige con cuál vas a trabajar; puedes cambiarla después desde el menú lateral.</p>
+  <div class="field"><label for="os-org">Organización</label>${sel('os-org',ORGS.map(o=>[o.id,o.name]),S.org)}</div>
+  <div class="acts"><button class="btn btn-primary" data-act="org-continue">Continuar</button></div>`;
+ }else if(S.session==='pending'){
+  body=`<span class="s-ic">${ic('clock')}</span><h1>Acceso pendiente</h1>${chip('','Sin organización asignada')}
+  <p class="msg">Tu cuenta aún no pertenece a ninguna organización. Contacta a un administrador de tu institución para que te invite.</p>
+  <div class="acts"><button class="btn btn-outline" data-act="logout">Cerrar sesión</button><button class="btn btn-ghost" data-act="accept">${ic('ticket')}Tengo un código de invitación</button></div>`;
+ }else{
+  const s=SESS[S.session];
+  body=`${s.spin?'<span class="s-ic"><span class="spin" aria-hidden="true"></span></span>':`<span class="s-ic ${s.k||''}">${ic(s.ic)}</span>`}
+  <h1>${s.t}</h1><p class="msg" ${s.spin?'role="status"':''}>${s.m}</p>
+  ${s.a?`<div class="acts">${s.a.map(a=>`<button class="btn btn-${a[0]}" data-act="sess" data-to="${a[2]}">${a[1]}</button>`).join('')}</div>`:''}`;
+ }
+ return `<div class="center"><div class="sess">${brand}<main class="card" ${S.session==='denied'||SESS[S.session]&&SESS[S.session].k==='danger'?'role="alert"':''}>${body}</main><p class="foot">El inicio de sesión lo gestiona el proveedor de identidad de tu institución.</p></div></div>`;
+}
+
+/* ---------- Render ---------- */
+function render(){
+ $('#root').innerHTML=S.session==='active'?shell():sessionScreen();
+ $('#p-session').value=S.session;$('#p-role').value=S.role;
+}
+function setSession(s){
+ S.session=s;S.userMenu=false;render();
+ if(s==='checking')setTimeout(()=>{if(S.session==='checking'){S.session='orgselect';render()}},1400);
+}
+function go(r,f){S.flash=f?{route:r,...f}:null;if(location.hash.slice(1)===r)render();else location.hash=r}
+
+/* ---------- Diálogos ---------- */
+const modal=$('#modal'),sheet=$('#sheet');
+function openModal(html){modal.innerHTML=html;if(!modal.open)modal.showModal();const f=modal.querySelector('input:not([type=checkbox]),select');if(f)f.focus()}
+const closeModal=()=>modal.open&&modal.close();
+const field=(id,err)=>{const el=$('#'+id),e=$('#'+id+'-err');if(el)el.setAttribute('aria-invalid',err?'true':'false');if(e){e.hidden=!err;e.innerHTML=err?ic('alert')+esc(err):''}};
+
+function openInvite(){
+ openModal(`<form id="invite-form" novalidate><div class="m-b"><div><h2 id="m-title">Invitar persona</h2><p class="sub">Recibirá un enlace para unirse a ${esc(org().name)}.</p></div>
+  <div class="field"><label for="inv-email">Correo electrónico</label><input class="input" id="inv-email" type="email" autocomplete="off" placeholder="nombre@uae.edu.pe" aria-describedby="inv-email-err"><p class="err" id="inv-email-err" hidden></p></div>
+  <fieldset class="fs"><legend>Roles</legend>${roleOpts('inv-role',[])}<p class="err" id="inv-role-err" hidden></p></fieldset></div>
+  <div class="m-f"><button class="btn btn-outline" type="button" data-act="close-modal">Cancelar</button><button class="btn btn-primary" type="submit">Enviar invitación</button></div></form>`);
+}
+function submitInvite(){
+ const email=$('#inv-email').value.trim(),rs=[...modal.querySelectorAll('input[name=inv-role]:checked')].map(i=>i.value);
+ const eErr=!email?'Escribe el correo de la persona.':!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)?'El correo no es válido. Revisa que tenga el formato nombre@dominio.':INVITES.some(i=>i.email===email&&['Pendiente','Entregada'].includes(i.delivery))?'Ya hay una invitación activa para este correo.':null;
+ field('inv-email',eErr);const re=$('#inv-role-err');re.hidden=!!rs.length;re.innerHTML=rs.length?'':ic('alert')+'Elige al menos un rol.';
+ if(eErr){$('#inv-email').focus();return}if(!rs.length)return;
+ INVITES.unshift({id:'inv'+Date.now(),email,roles:rs,delivery:'Pendiente',created:now(),expires:'2026-11-16 14:07'});
+ ACTIVITY.unshift({action:'Invitación enviada',actor:user().email,result:'Correcto',time:now(),ref:'ref·'+Math.random().toString(16).slice(2,8)});
+ closeModal();S.inf='';go('invitaciones',{kind:'ok',text:`Invitación enviada a ${email}.`});
+}
+function openAccept(){
+ S.userMenu=false;
+ openModal(`<form id="accept-form" novalidate><div class="m-b"><div><h2 id="m-title">Aceptar una invitación</h2><p class="sub">Escribe el código que recibiste por correo.</p></div>
+  <div class="field"><label for="acc-code">Código de invitación</label><input class="input mono" id="acc-code" autocomplete="off" placeholder="HUK-XXXX-XXXX" style="text-transform:uppercase" aria-describedby="acc-code-help acc-code-err">
+  <p class="help" id="acc-code-help">Prototipo: HUK-7F3A-9C2B es válido y HUK-0000-EXPI está caducado.</p><p class="err" id="acc-code-err" hidden></p></div></div>
+  <div class="m-f"><button class="btn btn-outline" type="button" data-act="close-modal">Cancelar</button><button class="btn btn-primary" type="submit">Aceptar invitación</button></div></form>`);
+}
+function submitAccept(){
+ const c=$('#acc-code').value.trim().toUpperCase();
+ let e=null;if(!/^HUK-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(c))e='El código no tiene el formato correcto. Revisa que sea HUK-XXXX-XXXX.';else if(c.endsWith('EXPI'))e='Este código caducó. Pide a quien te invitó que envíe una invitación nueva.';
+ field('acc-code',e);if(e){$('#acc-code').focus();return}
+ closeModal();S.org='its';S.session='active';go('resumen',{kind:'ok',text:'Te uniste a Instituto Técnico del Sur.'});render();
+}
+function openRevoke(id){
+ const i=INVITES.find(x=>x.id===id);
+ openModal(`<div class="m-b"><div><h2 id="m-title">¿Revocar la invitación?</h2><p class="sub">El enlace enviado a <strong>${esc(i.email)}</strong> dejará de funcionar. Puedes enviar una invitación nueva después.</p></div></div>
+ <div class="m-f"><button class="btn btn-outline" data-act="close-modal">Cancelar</button><button class="btn btn-danger" data-act="confirm-revoke" data-id="${id}">Revocar invitación</button></div>`);
+}
+
+/* Editar acceso (panel lateral) */
+let ED=null;
+function openEdit(id){
+ const m=MEMBERS.find(x=>x.id===id);
+ ED={id,roles:[...m.roles],status:m.status,reason:'',alert:null,conflictShown:false};
+ renderSheet();sheet.showModal();
+}
+function renderSheet(){
+ const m=MEMBERS.find(x=>x.id===ED.id);
+ sheet.innerHTML=`<div class="s-h"><div><h2 id="s-title">Editar acceso</h2><p class="muted">${esc(m.email)} · <span class="mono">v${m.version}</span></p></div><button class="btn btn-ghost btn-sm btn-icon" data-act="close-sheet" aria-label="Cerrar">${ic('x')}</button></div>
+ <div class="s-b"><div id="sh-alert"></div>
+  <fieldset class="fs"><legend>Roles</legend>${roleOpts('ed-role',ED.roles)}</fieldset>
+  <div class="field"><label for="ed-status">Estado</label>${sel('ed-status',[['Activo','Activo'],['Suspendido','Suspendido']],ED.status)}<p class="help">Una persona suspendida no puede iniciar sesión, pero conserva sus roles.</p></div>
+  <div class="field"><label for="ed-reason">Razón del cambio</label>${sel('ed-reason',[['','Selecciona una razón'],...REASONS],ED.reason,'aria-describedby="ed-reason-help ed-reason-err"')}<p class="help" id="ed-reason-help">Queda registrada en la actividad.</p><p class="err" id="ed-reason-err" hidden></p></div>
+  <section class="dz" aria-labelledby="dz-h"><h3 id="dz-h">Retirar acceso</h3><p>La persona deja de pertenecer a esta organización. No se puede deshacer.</p><button class="btn btn-danger-outline btn-sm" data-act="retire">Retirar acceso</button></section>
+ </div>
+ <div class="s-f"><button class="btn btn-outline" data-act="close-sheet">Cancelar</button><button class="btn btn-primary" id="ed-review" data-act="review">Revisar cambio</button></div>`;
+ updateSheet();
+}
+function lastAdminLoss(rs,st){const m=MEMBERS.find(x=>x.id===ED.id);return m.status==='Activo'&&m.roles.includes('tenant_admin')&&(!rs.includes('tenant_admin')||st!=='Activo')&&activeAdmins().length===1}
+function updateSheet(){
+ ED.roles=[...sheet.querySelectorAll('input[name=ed-role]:checked')].map(i=>i.value);
+ ED.status=$('#ed-status').value;ED.reason=$('#ed-reason').value;
+ const la=lastAdminLoss(ED.roles,ED.status),box=$('#sh-alert');
+ if(ED.alert)box.innerHTML=ED.alert;
+ else box.innerHTML=la?banner('err','<strong>No puedes dejar la organización sin administradores.</strong><span>Asigna tenant_admin a otra persona activa antes de quitárselo a esta.</span>'):'';
+ $('#ed-review').disabled=la||ED.alert&&ED.alert.includes('cambió mientras');
+}
+function review(){
+ const m=MEMBERS.find(x=>x.id===ED.id);
+ const same=ED.status===m.status&&ED.roles.slice().sort().join()===m.roles.slice().sort().join();
+ if(same){ED.alert=banner('info','No hay cambios para revisar. Modifica los roles o el estado.');updateSheet();ED.alert=null;return}
+ if(!ED.reason){field('ed-reason','Elige una razón para registrar el cambio.');$('#ed-reason').focus();return}
+ field('ed-reason',null);
+ const rc=ED.roles.slice().sort().join()!==m.roles.slice().sort().join(),sc=ED.status!==m.status;
+ openModal(`<div class="m-b"><div><h2 id="m-title">Revisar cambio</h2><p class="sub">${esc(m.email)}</p></div>
+ <table class="diff"><thead><tr><th></th><th>Antes</th><th>Después</th></tr></thead><tbody>
+ <tr><th scope="row">Roles</th><td>${roles(m.roles)}</td><td class="${rc?'chg':''}">${roles(ED.roles)}</td></tr>
+ <tr><th scope="row">Estado</th><td>${memberChip(m.status)}</td><td class="${sc?'chg':''}">${memberChip(ED.status)}</td></tr></tbody></table>
+ <div class="kv"><span>Razón</span><strong>${reasonLabel(ED.reason)}</strong></div></div>
+ <div class="m-f"><button class="btn btn-outline" data-act="close-modal">Cancelar</button><button class="btn btn-primary" data-act="confirm-change">Confirmar cambio</button></div>`);
+}
+function confirmChange(){
+ closeModal();const m=MEMBERS.find(x=>x.id===ED.id);
+ if(S.conflict&&!ED.conflictShown){
+  ED.conflictShown=true;
+  ED.alert=banner('err',`<strong>Este miembro cambió mientras lo editabas.</strong><span>No se guardó tu cambio. Carga la versión actual y revísalo de nuevo.</span><div><button class="btn btn-outline btn-sm" data-act="load-current">${ic('refresh')}Cargar versión actual</button></div>`);
+  updateSheet();return;
+ }
+ m.roles=ED.roles.slice();m.status=ED.status;m.updated=now();m.version++;
+ ACTIVITY.unshift({action:'Rol actualizado',actor:user().email,result:'Correcto',time:now(),ref:'ref·'+Math.random().toString(16).slice(2,8)});
+ sheet.close();go('miembros',{kind:'ok',text:`Acceso de ${m.email} actualizado.`});
+}
+function loadCurrent(){
+ const m=MEMBERS.find(x=>x.id===ED.id);m.version++;m.updated=now();
+ const reason=ED.reason;ED={...ED,roles:[...m.roles],status:m.status,reason,alert:banner('info',`Cargaste la versión actual (v${m.version}). Vuelve a aplicar tu cambio y revísalo.`)};
+ renderSheet();ED.alert=null;
+}
+function openRetire(){
+ const m=MEMBERS.find(x=>x.id===ED.id),la=m.roles.includes('tenant_admin')&&m.status==='Activo'&&activeAdmins().length===1;
+ openModal(`<div class="m-b"><div><h2 id="m-title">¿Retirar acceso definitivamente?</h2><p class="sub"><strong>${esc(m.email)}</strong> perderá el acceso a ${esc(org().name)}. Esta acción no se puede deshacer.</p></div>
+ ${la?banner('err','<strong>No puedes dejar la organización sin administradores.</strong><span>Esta persona es la única con tenant_admin activo.</span>'):''}
+ <div class="field"><label for="rt-reason">Razón</label>${sel('rt-reason',[['','Selecciona una razón'],...REASONS],ED.reason)}<p class="err" id="rt-reason-err" hidden></p></div></div>
+ <div class="m-f"><button class="btn btn-outline" data-act="close-modal">Cancelar</button><button class="btn btn-danger" data-act="confirm-retire"${la?' disabled':''}>Retirar acceso definitivamente</button></div>`);
+}
+function confirmRetire(){
+ if(!$('#rt-reason').value){field('rt-reason','Elige una razón para registrar la retirada.');return}
+ const m=MEMBERS.find(x=>x.id===ED.id);m.status='Retirado';m.roles=[];m.updated=now();m.version++;
+ ACTIVITY.unshift({action:'Acceso retirado',actor:user().email,result:'Correcto',time:now(),ref:'ref·'+Math.random().toString(16).slice(2,8)});
+ closeModal();sheet.close();go('miembros',{kind:'ok',text:`Se retiró el acceso de ${m.email}.`});
+}
+
+/* ---------- Tema ---------- */
+const mq=matchMedia('(prefers-color-scheme: dark)');
+function isDark(){const t=document.documentElement.dataset.theme;return t?t==='dark':mq.matches}
+function setTheme(v){if(v==='system')delete document.documentElement.dataset.theme;else document.documentElement.dataset.theme=v;$('#p-theme').value=v;try{localStorage.setItem('hukid-theme',v)}catch(e){}if(S.session==='active')render()}
+try{const t=localStorage.getItem('hukid-theme');if(t&&t!=='system'){document.documentElement.dataset.theme=t;$('#p-theme').value=t}}catch(e){}
+mq.addEventListener&&mq.addEventListener('change',()=>{if(S.session==='active')render()});
+
+/* ---------- Eventos ---------- */
+const ACT={
+ 'nav-toggle':()=>{S.navOpen=!S.navOpen;render()},
+ 'close-nav':()=>{S.navOpen=false;render()},
+ 'user-menu':()=>{S.userMenu=!S.userMenu;render()},
+ theme:()=>setTheme(isDark()?'light':'dark'),
+ logout:()=>{closeModal();setSession('signedout')},
+ sess:t=>setSession(t.dataset.to),
+ 'org-continue':()=>{S.org=$('#os-org').value;if(S.org==='crn'){setSession('orgunavailable');return}S.session='active';go('resumen');render()},
+ invite:openInvite, accept:openAccept,
+ edit:t=>openEdit(t.dataset.id), revoke:t=>openRevoke(t.dataset.id),
+ 'confirm-revoke':t=>{const i=INVITES.find(x=>x.id===t.dataset.id);i.delivery='Revocada';i.expires=null;closeModal();go('invitaciones',{kind:'ok',text:`Invitación a ${i.email} revocada.`})},
+ 'close-modal':closeModal, 'close-sheet':()=>sheet.close(),
+ review, 'confirm-change':confirmChange, 'load-current':loadCurrent, retire:openRetire, 'confirm-retire':confirmRetire,
+ 'm-next':()=>{S.mPage++;$('#m-table').innerHTML=membersTable()},
+ 'm-reset':()=>{S.mPage=0;$('#m-table').innerHTML=membersTable()},
+ 'm-clear':()=>{S.mf={q:'',estado:'',rol:''};S.mPage=0;render()},
+ 'a-next':()=>{S.aPage++;$('#a-table').innerHTML=activityTable()},
+ 'a-reset':()=>{S.aPage=0;$('#a-table').innerHTML=activityTable()},
+ 'flash-x':()=>{S.flash=null;render()},
+ proto:t=>{const p=$('#proto-panel');p.hidden=!p.hidden;t.setAttribute('aria-expanded',String(!p.hidden))}
+};
+document.addEventListener('click',e=>{
+ const t=e.target.closest('[data-act]');
+ if(S.userMenu&&!e.target.closest('.sb-foot')){S.userMenu=false;render();if(!t)return}
+ if(t&&ACT[t.dataset.act]){e.preventDefault();ACT[t.dataset.act](t,e)}
+ if(e.target===sheet)sheet.close();
+});
+document.addEventListener('input',e=>{
+ const id=e.target.id;
+ if(id==='m-q'){S.mf.q=e.target.value;S.mPage=0;$('#m-table').innerHTML=membersTable()}
+});
+document.addEventListener('change',e=>{
+ const id=e.target.id,v=e.target.value;
+ if(id==='m-estado'||id==='m-rol'){S.mf[id.slice(2)]=v;S.mPage=0;$('#m-table').innerHTML=membersTable()}
+ else if(id==='a-res'||id==='a-acc'){S.af[id.slice(2)]=v;S.aPage=0;$('#a-table').innerHTML=activityTable()}
+ else if(id==='i-f'){S.inf=v;$('#i-table').innerHTML=invTable()}
+ else if(id==='org-switch'){if(v==='crn'){S.org=v;setSession('orgunavailable');return}S.org=v;S.mf={q:'',estado:'',rol:''};go('resumen',{kind:'ok',text:`Ahora trabajas en ${org().name}.`})}
+ else if(sheet.contains(e.target))updateSheet();
+ else if(id==='p-role'){S.role=v;S.flash=null;S.userMenu=false;render()}
+ else if(id==='p-session'){setSession(v)}
+ else if(id==='p-conflict'){S.conflict=e.target.checked}
+ else if(id==='p-theme'){setTheme(v)}
+});
+document.addEventListener('submit',e=>{
+ e.preventDefault();const id=e.target.id;
+ if(id==='invite-form')submitInvite();
+ else if(id==='accept-form')submitAccept();
+ else if(id==='period'){
+  const f=$('#p-from').value,t=$('#p-to').value,iss=$('#p-issuer');
+  const days=(new Date(t)-new Date(f))/864e5;
+  const err=!f||!t?'Indica las dos fechas del periodo.':days<0?'La fecha «Desde» debe ser anterior a «Hasta».':days>31?'El periodo puede abarcar como máximo 31 días. Acorta el rango.':null;
+  field('p-to',err);const pe=$('#p-err');pe.hidden=!err;pe.innerHTML=err?ic('alert')+esc(err):'';
+  if(err)return;
+  S.period={from:f,to:t,issuer:iss.value};S.periodMsg=`Periodo aplicado: ${f} a ${t} · ${iss.options[iss.selectedIndex].text}.`;render();
+ }
+});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&S.navOpen){S.navOpen=false;render()}});
+window.addEventListener('hashchange',()=>{if(S.flash&&S.flash.route!==route())S.flash=null;S.periodMsg=null;S.navOpen=false;S.userMenu=false;render();window.scrollTo(0,0)});
+
+render();
+})();
+</script>
+</body></html>

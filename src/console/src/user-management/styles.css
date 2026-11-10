@@ -1,46 +1,59 @@
+@layer legacy {
 /* Extends the AUTH palette and spacing system; access records stay in one page flow. */
-input { font: inherit; min-height: var(--control); padding: var(--s3) var(--s4); color: var(--text); background: var(--surface); border: 1px solid var(--control-border); border-radius: var(--radius); max-width: 100%; width: 100%; }
-input:focus-visible { outline: 3px solid var(--focus); outline-offset: 4px; }
-input[type='checkbox'] { width: var(--s5); height: var(--s5); min-height: var(--s5); accent-color: var(--primary); flex-shrink: 0; }
-fieldset { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; gap: var(--s4); }
-legend { font-weight: 600; padding: 0; margin-bottom: var(--s3); }
-label { display: grid; gap: var(--s2); min-width: 0; }
-h2:focus, h3:focus { outline: none; }
-h3 { font-size: 1.125rem; margin: 0; }
-.workspace { --measure: 82rem; grid-template-columns: minmax(0, 1fr); gap: var(--s6); margin-top: 0; }
+input:where(:not([data-slot])) { font: inherit; min-height: var(--control); padding: var(--s3) var(--s4); color: var(--text); background: var(--surface); border: var(--border-width) solid var(--control-border); border-radius: var(--radius); max-width: 100%; width: 100%; }
+input:where(:not([data-slot])):focus-visible { outline: var(--focus-width) solid var(--focus); outline-offset: var(--focus-offset); }
+input:where(:not([data-slot]))[type='checkbox'] { width: var(--s5); height: var(--s5); min-height: var(--s5); accent-color: var(--primary); flex-shrink: 0; }
+fieldset:where(:not([data-slot])) { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; gap: var(--s4); }
+legend:where(:not([data-slot])) { font-weight: 600; padding: 0; margin-bottom: var(--s3); }
+label:where(:not([data-slot])) { display: grid; gap: var(--s2); min-width: 0; }
+h2:where(:not([data-slot])):focus, h3:where(:not([data-slot])):focus { outline: none; }
+h3:where(:not([data-slot])) { font-size: var(--text-region); margin: 0; }
+.workspace { --measure: var(--measure-workspace); grid-template-columns: minmax(0, 1fr); gap: var(--s6); margin-top: 0; }
 .workspace .access-note { display: none; }
-.workspace .access-panel { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: var(--s6); align-content: start; min-height: 34rem; }
-.workspace .access-panel > h1, .workspace .access-panel > .eyebrow, .workspace .access-panel > .badge { grid-column: 1 / -1; justify-self: start; }
-.management, .acceptance { min-width: 0; grid-column: 1 / -1; background: var(--surface); padding: var(--s6); border: 1px solid var(--border); border-radius: var(--radius); }
+.workspace .access-panel { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: var(--s6); align-content: start; min-height: var(--height-workspace-panel); }
+.workspace .access-panel > h1:where(:not([data-slot])), .workspace .access-panel > .eyebrow, .workspace .access-panel > .badge { grid-column: 1 / -1; justify-self: start; }
+.management { min-width: 0; }
+.acceptance { min-width: 0; grid-column: 1 / -1; background: var(--surface); padding: var(--s6); border: var(--border-width) solid var(--border); border-radius: var(--radius); }
 .section-heading { display: flex; justify-content: space-between; align-items: start; gap: var(--s4); }
-.section-heading h2 { font-size: 1.5rem; margin-top: var(--s2); }
+.section-heading h2:where(:not([data-slot])) { font-size: var(--text-section); margin-top: var(--s2); }
 .filters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; align-items: start; gap: var(--s4); margin-block: var(--s5); }
-.filters > button { align-self: center; }
-.filters .muted { font-weight: 400; font-size: .875rem; }
-.directory { margin-top: var(--s5); min-height: 12rem; }
+.filters > button:where(:not([data-slot])) { align-self: center; }
+.filters .muted { font-weight: var(--weight-body); font-size: var(--text-sm); }
+.directory { margin-top: var(--s5); min-height: var(--height-directory); }
 .data-feedback { padding-block: var(--s5); }
 .record-list { list-style: none; margin: 0 0 var(--s5); padding: 0; }
-.record-list > li { border-top: 1px solid var(--border); padding-block: var(--s5); }
-.record-list p { margin-bottom: var(--s2); }
+.record-list > li { border-top: var(--border-width) solid var(--border); padding-block: var(--s5); }
+.record-list p:where(:not([data-slot])) { margin-bottom: var(--s2); }
 .record-summary { display: flex; gap: var(--s3); align-items: center; flex-wrap: wrap; margin-bottom: var(--s3); }
 .record-summary .badge { margin: 0; }
-.record-id { overflow-wrap: anywhere; font-family: ui-monospace, Consolas, monospace; }
+.record-id { overflow-wrap: anywhere; font-family: var(--font-code); }
 .record-footer { display: flex; gap: var(--s4); justify-content: space-between; align-items: center; margin-top: var(--s3); }
 .danger { color: var(--danger); border-color: var(--danger); }
-[aria-pressed='true'] { background: var(--badge-bg); border-color: var(--primary); }
-.editor { margin-top: var(--s5); max-width: 48rem; }
-.editor > p { margin: 0; }
+[aria-pressed='true']:where(:not([data-slot])) { background: var(--badge-bg); border-color: var(--primary); }
+.editor { margin-top: var(--s5); max-width: var(--measure-editor); }
+.editor > p:where(:not([data-slot])) { margin: 0; }
 .role-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s3); }
-.check { display: flex; align-items: center; gap: var(--s3); min-height: var(--control); font-weight: 400; }
-.acceptance form { max-width: 36rem; }
-.acceptance form > button { align-self: start; }
-.acceptance form > p { margin: 0; }
-dialog { background: var(--surface); color: var(--text); border: 1px solid var(--control-border); border-radius: var(--radius); padding: var(--s6); width: min(calc(100% - var(--s6)), 40rem); max-height: calc(100dvh - var(--s6)); }
-dialog::backdrop { background: #0009; }
+.check { display: flex; align-items: center; gap: var(--s3); min-height: var(--control); font-weight: var(--weight-body); }
+.acceptance form:where(:not([data-slot])) { max-width: var(--measure-acceptance); }
+.acceptance form:where(:not([data-slot])) > button:where(:not([data-slot])) { align-self: start; }
+.acceptance form:where(:not([data-slot])) > p:where(:not([data-slot])) { margin: 0; }
+dialog:where(:not([data-slot])) { background: var(--surface); color: var(--text); border: var(--border-width) solid var(--control-border); border-radius: var(--radius); padding: var(--s6); width: min(calc(100% - var(--s6)), var(--measure-dialog)); max-height: calc(100dvh - var(--s6)); }
+dialog:where(:not([data-slot]))::backdrop { background: var(--backdrop); }
+.banner { margin: var(--s4) 0; padding: var(--s3) var(--s4); border: var(--border-width) solid var(--border); border-left: var(--border-strong) solid var(--primary); border-radius: var(--radius); background: var(--bg); max-width: none; }
+.banner-err { border-left-color: var(--danger); color: var(--text); }
+.cell-note { display: block; font-size: var(--text-sm); }
+.row-actions { text-align: right; white-space: nowrap; }
+dialog.side-panel { margin: 0 0 0 auto; width: min(480px, 100vw); max-width: 100vw; height: 100dvh; max-height: 100dvh; border-radius: 0; border-width: 0 0 0 var(--border-width); overflow-y: auto; }
+dialog.side-panel .editor { margin-top: 0; max-width: none; }
+dialog.form-dialog { width: min(var(--measure-dialog), calc(100vw - var(--s5))); max-height: calc(100dvh - var(--s5)); overflow-y: auto; }
+dialog.form-dialog .editor { margin-top: 0; max-width: none; }
+dialog.form-dialog .acceptance { padding: 0; border: 0; }
+/* Native media queries use the shared 768px breakpoint documented in the design system. */
 @media (max-width: 767px) {
   .workspace .access-panel { display: block; }
-  .management, .acceptance { padding: var(--s4); }
+  .acceptance { padding: var(--s4); }
   .filters, .role-options { grid-template-columns: minmax(0, 1fr); }
   .section-heading { flex-direction: column; }
   .record-footer { flex-wrap: wrap; }
+}
 }

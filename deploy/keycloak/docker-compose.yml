@@ -1,0 +1,65 @@
+# HukID staging identity provider on Dokploy (Keycloak + its own PostgreSQL).
+# This mirrors what runs today; it holds no secrets, only ${VARIABLES} that Dokploy supplies
+# from the service environment. Names only, set them in Dokploy:
+#   KC_DB_PASSWORD                 shared by keycloak-db and keycloak (they must match)
+#   KC_BOOTSTRAP_ADMIN_USERNAME    temporary bootstrap admin (replace with a permanent admin)
+#   KC_BOOTSTRAP_ADMIN_PASSWORD
+# Dokploy adds its own dokploy.* labels at deploy time, so they are not repeated here.
+#
+# Exposure model (ADR-0029):
+#   - Public: only /realms and /resources on hukid-id.zentrycore.com, through one Traefik router.
+#     /admin is not routed, so it answers 404 from Traefik.
+#   - Administration: the admin console is reachable only on the host loopback, 127.0.0.1:8081,
+#     which you reach through an SSH tunnel (ssh -L 18081:127.0.0.1:8081 ...). KC_HOSTNAME_ADMIN
+#     makes Keycloak build admin URLs for that origin instead of the public one.
+#   - Known gap: the router prefix /realms also exposes /realms/master publicly. See
+#     docs/05-delivery/keycloak-master-realm.md for the proposed one-line tightening.
+services:
+  keycloak-db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: ${KC_DB_PASSWORD:?set KC_DB_PASSWORD}
+    volumes:
+      - keycloak-db-data:/var/lib/postgresql/data
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.8.2
+    restart: unless-stopped
+    command: start
+    depends_on:
+      - keycloak-db
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-db:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: ${KC_DB_PASSWORD:?set KC_DB_PASSWORD}
+      KC_HOSTNAME: https://hukid-id.zentrycore.com
+      KC_HOSTNAME_ADMIN: http://127.0.0.1:8081
+      # TLS ends at Cloudflare/Traefik; Keycloak speaks plain HTTP behind it and trusts X-Forwarded-*.
+      KC_HTTP_ENABLED: "true"
+      KC_PROXY_HEADERS: xforwarded
+      KC_HEALTH_ENABLED: "true"
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_BOOTSTRAP_ADMIN_USERNAME:?set KC_BOOTSTRAP_ADMIN_USERNAME}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD:?set KC_BOOTSTRAP_ADMIN_PASSWORD}
+    ports:
+      # Loopback only: never published on a public interface.
+      - 127.0.0.1:8081:8080
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=dokploy-network
+      - traefik.http.routers.hukid-kc.rule=Host(`hukid-id.zentrycore.com`) && (PathPrefix(`/realms`) || PathPrefix(`/resources`))
+      - traefik.http.routers.hukid-kc.entrypoints=web
+      - traefik.http.services.hukid-kc.loadbalancer.server.port=8080
+    networks:
+      - default
+      - dokploy-network
+
+volumes:
+  keycloak-db-data:
+
+networks:
+  dokploy-network:
+    external: true

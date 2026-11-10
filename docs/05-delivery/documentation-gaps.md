@@ -6,7 +6,7 @@ Las fases 1 y 2 incorporan únicamente infraestructura Tailwind v4/Base UI segú
 
 ## Perfil staging remoto — 2026-11-09
 
-[ADR-0028](../decisions/ADR-0028.md) prepara el backend para un Keycloak publicado por HTTPS (política, secretos y destino de base `hukid_staging`); no autoriza producción. Pendientes: procedimiento de alta del primer administrador y herramienta de migración para `staging` (hoy `cmd/localdb` solo sirve a `local`); ejecutar en esta máquina los tests nuevos de `internal/authentication` y `memberconfig` (bloqueados por Application Control); despliegue real, HTTPS y login contra el Keycloak publicado; [brief de despliegue](dokploy-deployment-brief.md) como borrador sin decisión.
+[ADR-0028](../decisions/ADR-0028.md) prepara el backend para un Keycloak publicado por HTTPS (política, secretos y destino de base `hukid_staging`); no autoriza producción. Desde 2026-11-10 staging está desplegado en Dokploy (Keycloak, API y consola; login de punta a punta con `paul.operador`), con `cmd/stagingdb` para migrar, crear los logins de ejecución y dar de alta al primer administrador. Las decisiones y los límites hacia producción están en [ADR-0029](../decisions/ADR-0029.md) (propuesta). Pendientes: [limpieza de la membresía huérfana y mejora de `bootstrap`](staging-operations.md); [restringir el realm `master`](keycloak-master-realm.md) (propuesta, no aplicada); [verificación de punta a punta contra staging](staging-verification.md) (no ejecutada); aceptación de invitaciones en staging, que exige SMTP real; el [brief de despliegue](dokploy-deployment-brief.md) describe el estado previo.
 
 ## Correcciones de auditoría frontend — 2026-11-08
 

@@ -86,12 +86,16 @@ export function Confirm({ children, busy, onCancel, onConfirm, destructive = fal
   children: ReactNode; busy: boolean; onCancel: () => void; onConfirm: () => void; destructive?: boolean;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
+  // Captured during render: by the time an effect runs, autoFocus has already moved focus to
+  // "Volver a editar", which would make that button its own opener.
+  const [opener] = useState(() => document.activeElement as HTMLElement | null);
   useEffect(() => {
-    const opener = document.activeElement as HTMLElement | null;
     dialog.current?.showModal();
     return () => { dialog.current?.close(); if (opener?.isConnected) opener.focus(); };
-  }, []);
-  return <dialog ref={dialog} aria-labelledby="confirm-title" onCancel={e => { e.preventDefault(); if (!busy) onCancel(); }}>
+  }, [opener]);
+  // React bubbles `cancel` through the component tree, so without stopPropagation Escape here would
+  // also reach the SidePanel that hosts this confirmation and discard the whole edit draft.
+  return <dialog ref={dialog} aria-labelledby="confirm-title" onCancel={e => { e.preventDefault(); e.stopPropagation(); if (!busy) onCancel(); }}>
     <h2 id="confirm-title">Confirmar cambio de acceso</h2>{children}
     <div className="actions"><button type="button" autoFocus onClick={onCancel} disabled={busy}>Volver a editar</button>
       <button type="button" className={destructive ? 'danger' : 'primary'} onClick={onConfirm} disabled={busy}>{busy ? 'Guardando…' : 'Confirmar cambio'}</button></div>

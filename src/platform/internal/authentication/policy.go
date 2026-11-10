@@ -63,9 +63,10 @@ func LoadPolicy(reader io.Reader, environment string) (Policy, error) {
 
 // SupportedEnvironment lists the only environments this build accepts. "test" is the
 // isolated automated laboratory; "local" is a persistent single-machine profile that
-// talks to a real IdP and database on loopback. Neither is a production profile.
+// talks to a real IdP and database on loopback; "staging" is a remote pre-production
+// profile behind HTTPS (ADR-0028). None of them is a production profile.
 func SupportedEnvironment(environment string) bool {
-	return environment == "test" || environment == "local"
+	return environment == "test" || environment == "local" || environment == "staging"
 }
 
 func (p Policy) Validate(environment string) error {
@@ -73,18 +74,18 @@ func (p Policy) Validate(environment string) error {
 	if !SupportedEnvironment(environment) || p.Environment != environment {
 		return invalid
 	}
-	issuerOK := loopbackOrigin(p.Issuer)
-	if environment == "local" {
-		issuerOK = loopbackRealmIssuer(p.Issuer)
+	issuerOK, consoleOK, clientID, cookieName, secure := loopbackOrigin(p.Issuer), loopbackOrigin(p.ConsoleOrigin), "hukid-console-test", "hukid_test_session", false
+	switch environment {
+	case "local":
+		issuerOK, clientID, cookieName = loopbackRealmIssuer(p.Issuer), "hukid-console", "hukid_local_session"
+	case "staging":
+		// Remote profile: HTTPS-only public origins and a __Host- cookie (Secure, Path=/, no Domain).
+		issuerOK, consoleOK, clientID, cookieName, secure = publicRealmIssuer(p.Issuer), publicHTTPSOrigin(p.ConsoleOrigin), "hukid-console", "__Host-hukid_session", true
 	}
-	if !issuerOK || !loopbackOrigin(p.ConsoleOrigin) || issuerOrigin(p.Issuer) == p.ConsoleOrigin || p.RedirectURI != p.ConsoleOrigin+"/console/auth/callback" {
+	if !issuerOK || !consoleOK || issuerOrigin(p.Issuer) == p.ConsoleOrigin || p.RedirectURI != p.ConsoleOrigin+"/console/auth/callback" {
 		return invalid
 	}
-	clientID, cookieName := "hukid-console-test", "hukid_test_session"
-	if environment == "local" {
-		clientID, cookieName = "hukid-console", "hukid_local_session"
-	}
-	if p.ClientID != clientID || p.Audience != "https://api.hukid.pe/operator" || p.CookieName != cookieName || p.CookieSecure == nil || *p.CookieSecure || p.CookieSameSite != "Lax" {
+	if p.ClientID != clientID || p.Audience != "https://api.hukid.pe/operator" || p.CookieName != cookieName || p.CookieSecure == nil || *p.CookieSecure != secure || p.CookieSameSite != "Lax" {
 		return invalid
 	}
 	for _, seconds := range []int{p.ClockSkewSeconds, p.AccessTokenSeconds, p.SessionIdleSeconds, p.SessionAbsoluteSeconds, p.TransactionSeconds, p.RefreshTokenSeconds, p.StepUpSeconds, p.LoginRateLimit.WindowSeconds} {
@@ -104,7 +105,7 @@ func (p Policy) Validate(environment string) error {
 		}
 		return nil
 	}
-	// local: the real IdP names its own ACR values, but MFA evidence stays mandatory:
+	// local and staging: the real IdP names its own ACR values, but MFA evidence stays mandatory:
 	// both factors are required and at least one explicit ACR must be accepted.
 	if !slices.Equal(p.RequiredAMR, []string{"pwd", "otp"}) || len(p.AcceptedACR) == 0 || len(p.AcceptedACR) > 8 || slices.Contains(p.AcceptedACR, "") || slices.Contains(p.AcceptedACR, "0") {
 		return invalid
@@ -124,6 +125,41 @@ func loopbackRealmIssuer(value string) bool {
 		return false
 	}
 	return loopbackOrigin(u.Scheme + "://" + u.Host)
+}
+
+// publicRealmIssuer accepts an https issuer on a public DNS name whose only path is a
+// Keycloak-style realm (/realms/<name>).
+func publicRealmIssuer(value string) bool {
+	u, err := url.Parse(value)
+	if err != nil || u.RawQuery != "" || u.Fragment != "" || !strings.HasPrefix(u.Path, "/realms/") || !publicHTTPSOrigin(u.Scheme+"://"+u.Host) {
+		return false
+	}
+	realm := strings.TrimPrefix(u.Path, "/realms/")
+	return realm != "" && len(realm) <= 64 && strings.Trim(realm, "abcdefghijklmnopqrstuvwxyz0123456789_-") == "" && value == u.Scheme+"://"+u.Host+u.Path
+}
+
+// publicHTTPSOrigin accepts scheme://host only: https, default port, a DNS name with at
+// least one dot, never an IP literal, localhost or a reserved test/internal suffix.
+func publicHTTPSOrigin(value string) bool {
+	u, err := url.Parse(value)
+	if err != nil || u.Scheme != "https" || u.User != nil || u.Path != "" || u.RawQuery != "" || u.Fragment != "" || u.Port() != "" || value != "https://"+u.Host {
+		return false
+	}
+	host := u.Hostname()
+	if host == "" || len(host) > 253 || net.ParseIP(host) != nil || host != strings.ToLower(host) || !strings.Contains(host, ".") || strings.HasSuffix(host, ".") {
+		return false
+	}
+	for _, suffix := range []string{".localhost", ".local", ".internal", ".invalid", ".test", ".example"} {
+		if strings.HasSuffix(host, suffix) {
+			return false
+		}
+	}
+	for _, label := range strings.Split(host, ".") {
+		if label == "" || len(label) > 63 || strings.HasPrefix(label, "-") || strings.HasSuffix(label, "-") || strings.Trim(label, "abcdefghijklmnopqrstuvwxyz0123456789-") != "" {
+			return false
+		}
+	}
+	return true
 }
 
 // issuerOrigin is scheme://host of the issuer, so a realm path cannot hide a shared origin.

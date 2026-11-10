@@ -42,8 +42,11 @@ func localTarget(config *pgx.ConnConfig) bool {
 
 // runtimeTarget picks the database rule from the explicit process environment.
 func runtimeTarget(config *pgx.ConnConfig) bool {
-	if os.Getenv("HUKID_ENV") == "local" {
+	switch os.Getenv("HUKID_ENV") {
+	case "local":
 		return localTarget(config)
+	case "staging":
+		return stagingTarget(config)
 	}
 	return testTarget(config)
 }

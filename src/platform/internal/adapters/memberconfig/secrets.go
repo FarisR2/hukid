@@ -19,7 +19,7 @@ func Load() (*Secrets, error) {
 		return nil, nil
 	}
 	invalid := errors.New("complete isolated invitation secrets required")
-	if (os.Getenv("HUKID_ENV") != "test" && os.Getenv("HUKID_ENV") != "local") || version == "" || len(version) > 128 {
+	if (os.Getenv("HUKID_ENV") != "test" && os.Getenv("HUKID_ENV") != "local" && os.Getenv("HUKID_ENV") != "staging") || version == "" || len(version) > 128 {
 		return nil, invalid
 	}
 	key, e := base64.StdEncoding.Strict().DecodeString(raw)

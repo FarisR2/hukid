@@ -29,10 +29,10 @@ La primera suite falló durante la caducidad de sesión forzada por el harness: 
 
 Capturas: 36 a 390 y 1280 px, claro/oscuro, incluyendo carga, acceso, selección inválida, acceso pendiente, contexto autenticado, errores y confirmación. Revisión visual de seis capturas finales: acceso en las cuatro combinaciones y selección en 390 claro/1280 oscuro. Sin regresiones observadas de composición, identidad, legibilidad o foco en esa muestra. Se comprobaron además reflow/objetivos táctiles de la suite existente en 320/360/768/1024/1440 y reflow equivalente al 200%.
 
-- [Acceso móvil claro](2026-11-08-login-shadcn/screens/audit-login-390-light.png).
-- [Acceso escritorio oscuro](2026-11-08-login-shadcn/screens/audit-login-1280-dark.png).
-- [Selección móvil con error y foco](2026-11-08-login-shadcn/screens/audit-organization-selection-390-light.png).
-- [Selección escritorio oscuro](2026-11-08-login-shadcn/screens/audit-organization-selection-1280-dark.png).
+- Acceso móvil claro: `2026-11-08-login-shadcn/screens/audit-login-390-light.png`.
+- Acceso escritorio oscuro: `2026-11-08-login-shadcn/screens/audit-login-1280-dark.png`.
+- Selección móvil con error y foco: `2026-11-08-login-shadcn/screens/audit-organization-selection-390-light.png`.
+- Selección escritorio oscuro: `2026-11-08-login-shadcn/screens/audit-organization-selection-1280-dark.png`.
 
 Capturas conservadas localmente y excluidas de Git, siguiendo la convención del repositorio. No se afirma cobertura visual manual de todos los estados de error HTTP.
 

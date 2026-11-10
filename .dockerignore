@@ -1,0 +1,15 @@
+# Build context hygiene. Secrets and local state must never reach an image layer.
+.git
+.claude
+.cache
+node_modules
+**/node_modules
+dist
+**/dist
+.env
+.env.*
+**/*.env
+docs
+tests
+**/*.test.mjs
+**/*_test.go

@@ -159,10 +159,14 @@ with sync_playwright() as playwright:
         private_storage(page, context)
         sign_out(page)
         heading(page, 'Acceso pendiente')
+        recheck = page.get_by_role('button', name='Comprobar acceso', exact=True)
+        recheck.click()
+        # Nothing was granted yet: the screen stays put, says so, and keeps focus on the button.
+        expect(page.get_by_role('status')).to_have_text('Todavía no tienes una organización asignada.')
+        expect(recheck).to_be_focused()
+        heading(page, 'Acceso pendiente')
         database('seed')
-        # The pending screen offers no re-check button (only sign-out and invitation code);
-        # a reload is the way to re-read access once an administrator grants it.
-        page.reload()
+        recheck.click()
         heading(page, 'Elige una organización')
         expect(page.locator('h1')).to_be_focused()
         page.get_by_role('button', name='Continuar', exact=True).click()

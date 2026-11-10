@@ -75,6 +75,8 @@ export function AuthConsole() {
   const [formError, setFormError] = useState('');
   const [invitation, setInvitation] = useState('');
   const [accepting, setAccepting] = useState(false);
+  const [rechecking, setRechecking] = useState(false);
+  const [recheck, setRecheck] = useState('');
   const proof = useRef<string | undefined>(undefined);
   const current = useRef<AbortController | null>(null);
   const generation = useRef(0);
@@ -96,6 +98,8 @@ export function AuthConsole() {
     setView(loading);
     setSelection('');
     setFormError('');
+    setRecheck('');
+    setRechecking(false);
     return { controller, version: generation.current };
   }
 
@@ -199,6 +203,33 @@ export function AuthConsole() {
     }
   }
 
+  // Re-reads access in place for the pending screen: the view only changes when access was granted,
+  // so focus stays on the button and an unchanged result is announced instead of silently repainted.
+  async function recheckAccess() {
+    const controller = current.current;
+    const version = generation.current;
+    if (!controller || rechecking || locked.current) return;
+    const fresh = () => version === generation.current && !controller.signal.aborted;
+    setRechecking(true);
+    setRecheck('');
+    try {
+      const identity = await readIdentity(AbortSignal.any([controller.signal, AbortSignal.timeout(12000)]));
+      if (!fresh()) return;
+      proof.current = identity.csrfToken;
+      if (identity.tenants.length) {
+        setSelection(identity.activeTenantId ?? (identity.tenants.length === 1 ? identity.tenants[0]!.tenantId : ''));
+        setView({ kind: 'authenticated', identity });
+        channel.current?.postMessage('session-changed');
+      } else setRecheck('Todavía no tienes una organización asignada.');
+    } catch (error) {
+      if (!fresh()) return;
+      if (error instanceof AuthError && error.status === 401) void run('read');
+      else setView(failure(error));
+    } finally {
+      if (fresh()) setRechecking(false);
+    }
+  }
+
   useEffect(() => {
     if (view.kind === 'loading') return;
     if (view.kind === 'authenticated' && view.identity.activeTenantId && restoreSection()) return;
@@ -260,7 +291,9 @@ export function AuthConsole() {
         </> : pending ? <>
           <span className="badge">Sin organización asignada</span>
           <p>Tu cuenta aún no pertenece a ninguna organización. Contacta a un administrador de tu institución para que te invite.</p>
+          <p role="status" className={recheck ? undefined : 'sr-only'}>{recheck}</p>
           <div className="actions">
+            <Button type="button" onClick={() => void recheckAccess()} disabled={busy} aria-disabled={rechecking || undefined}>Comprobar acceso</Button>
             <Button type="button" variant="outline" onClick={() => void run('logout')} disabled={busy}>Cerrar sesión</Button>
             <Button type="button" variant="ghost" className="max-w-full whitespace-normal" onClick={() => setAccepting(true)}><Ticket aria-hidden="true" />Tengo un código de invitación</Button>
           </div>

@@ -313,9 +313,13 @@ with sync_playwright() as playwright:
         page.reload()
         heading(page, 'No se pudo autorizar el acceso')
         assert page.url == origin + '/'
+        # Without a session this view only offers a new login, not a re-check.
+        expect(page.get_by_role('button', name='Iniciar sesión de nuevo', exact=True)).to_be_visible()
+        expect(page.get_by_role('button', name='Comprobar acceso', exact=True)).to_have_count(0)
         page.unroute('**/console/api/me', forbidden)
         page.route('**/console/api/me', lambda route: route.abort())
-        page.get_by_role('button', name='Comprobar acceso', exact=True).click()
+        # A dropped connection is the case that does offer "Comprobar acceso".
+        page.reload()
         heading(page, 'No pudimos conectar')
         page.unroute('**/console/api/me')
         # Pin the one-attempt window so this check does not depend on elapsed time.

@@ -194,7 +194,12 @@ with sync_playwright() as playwright:
         metrics = page.evaluate('window.authMetrics')
         (artifacts / 'layout-shifts.json').write_text(json.dumps(page.evaluate('window.authLayoutShifts'), indent=2), encoding='utf-8')
         (artifacts / 'performance.json').write_text(json.dumps(metrics, indent=2), encoding='utf-8')
-        assert 0 < metrics['lcpMs'] <= 2500 and metrics['cls'] <= .1 and metrics['maxInteractionMs'] <= 200, metrics
+        def worst_shifts():
+            """The budget is for the whole journey, so name the biggest contributors and what moved."""
+            rect = lambda r: [round(r[k]) for k in ('x', 'y', 'width', 'height')]
+            shifts = sorted(page.evaluate('window.authLayoutShifts'), key=lambda s: -s['value'])[:6]
+            return [{'value': round(s['value'], 4), 'moved': [(x['tag'], x['className'][:50], rect(x['previous']), rect(x['current'])) for x in s['sources'][:3]]} for s in shifts]
+        assert 0 < metrics['lcpMs'] <= 2500 and metrics['cls'] <= .1 and metrics['maxInteractionMs'] <= 200, (metrics, worst_shifts())
         for width in [320, 360, 768, 1024, 1440]:
             page.set_viewport_size({'width': width, 'height': 1000})
             assert page.evaluate('document.documentElement.scrollWidth <= window.innerWidth')

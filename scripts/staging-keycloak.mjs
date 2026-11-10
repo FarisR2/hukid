@@ -70,6 +70,20 @@ export async function ensureOperator(api, config) {
   return 'creado';
 }
 
+// Behind the proxy Keycloak resolves the built-in account-console's relative redirect
+// URIs and web origins against the wrong base, so the token endpoint answers 403
+// "Invalid origin" to the browser. Pinning them to the public Keycloak origin fixes it.
+// Only these two fields change; every other client setting is kept as read.
+export async function ensureAccountConsole(api, publicOrigin) {
+  const [client] = await api('GET', `${REALM}/clients?clientId=account-console`);
+  if (!client) throw new Error('Keycloak: el cliente account-console no existe en el realm');
+  const redirectUris = [`${publicOrigin}/realms/${REALM}/account/*`];
+  const webOrigins = [publicOrigin];
+  if (JSON.stringify(client.redirectUris) === JSON.stringify(redirectUris) && JSON.stringify(client.webOrigins) === JSON.stringify(webOrigins)) return 'sin cambios';
+  await api('PUT', `${REALM}/clients/${client.id}`, { ...client, redirectUris, webOrigins });
+  return 'actualizado';
+}
+
 export async function main(command, env = process.env) {
   if (!['reconcile', 'verify'].includes(command)) throw new Error('Uso: node scripts/staging-keycloak.mjs reconcile|verify');
   const config = loadStagingConfig(env);
@@ -83,6 +97,10 @@ export async function main(command, env = process.env) {
   await reconcileKeycloak(api, { ...target, clientSecret: config.clientSecret });
   console.log('OK: realm %s y cliente %s reconciliados y verificados (origen %s).', REALM, CLIENT, config.origin);
   console.log('Usuario operador %s: %s. Contraseña temporal; TOTP y cambio de contraseña se exigen en el primer login.', config.operatorUser, await ensureOperator(api, config));
+  const publicOrigin = env.HUKID_KC_PUBLIC_ORIGIN;
+  if (!publicOrigin) console.log('account-console: omitido (define HUKID_KC_PUBLIC_ORIGIN, el origen público de Keycloak).');
+  else if (!validOrigin(publicOrigin)) throw new Error('HUKID_KC_PUBLIC_ORIGIN debe ser un origen https público en minúsculas, sin puerto ni ruta');
+  else console.log('account-console: %s.', await ensureAccountConsole(api, publicOrigin));
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

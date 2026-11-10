@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { reconcileKeycloak, selectMode, verifyKeycloak } from './local-keycloak.mjs';
-import { VARIABLES, ensureOperator, loadStagingConfig, main } from './staging-keycloak.mjs';
+import { VARIABLES, ensureAccountConsole, ensureOperator, loadStagingConfig, main } from './staging-keycloak.mjs';
 
 const SECRETS = { HUKID_KC_ADMIN_PASSWORD: 'admin-pass-AAAAAAAAAAAA', HUKID_KC_CLIENT_SECRET: 'c'.repeat(40), HUKID_KC_OPERATOR_PASSWORD: 'operator-pass-BBBBBBBB' };
 const valid = () => ({
@@ -121,4 +121,22 @@ test('ensureOperator creates a temporary-password user once and never touches an
   const present = async (method, resource) => { existing.push(method); return [{ username: 'ana.perez' }]; };
   assert.equal(await ensureOperator(present, config), 'existente');
   assert.deepEqual(existing, ['GET']);
+});
+
+test('ensureAccountConsole pins only redirect URIs and web origins, and is idempotent', async () => {
+  const origin = 'https://hukid-id.zentrycore.com';
+  const stored = { id: 'abc', clientId: 'account-console', publicClient: true, redirectUris: ['/realms/hukid/account/*'], webOrigins: ['+'] };
+  const calls = [];
+  const api = async (method, resource, body) => { calls.push({ method, resource, body }); return method === 'GET' ? [stored] : null; };
+  assert.equal(await ensureAccountConsole(api, origin), 'actualizado');
+  const put = calls.find(call => call.method === 'PUT');
+  assert.equal(put.resource, 'hukid/clients/abc');
+  assert.deepEqual(put.body.redirectUris, [origin + '/realms/hukid/account/*']);
+  assert.deepEqual(put.body.webOrigins, [origin]);
+  assert.equal(put.body.publicClient, true);
+  Object.assign(stored, { redirectUris: put.body.redirectUris, webOrigins: put.body.webOrigins });
+  calls.length = 0;
+  assert.equal(await ensureAccountConsole(api, origin), 'sin cambios');
+  assert.deepEqual(calls.map(call => call.method), ['GET']);
+  await assert.rejects(ensureAccountConsole(async () => [], origin), /account-console/);
 });

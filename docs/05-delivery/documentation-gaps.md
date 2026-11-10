@@ -4,6 +4,10 @@
 
 Las fases 1 y 2 incorporan únicamente infraestructura Tailwind v4/Base UI según [ADR-0024](../decisions/ADR-0024.md) y su [evidencia](../frontend/audits/2026-11-08-shadcn-infraestructura.md). El incremento posterior adapta [acceso y selección de organización](../frontend/audits/2026-11-08-login-shadcn.md); USR/DASH mantienen sus componentes previos. Preflight se omite deliberadamente para conservar estilos nativos; cada componente futuro debe verificar bases locales, tamaño, contraste, foco y dependencias reales. Las limitaciones de lector de pantalla, otros motores/dispositivos y métricas de campo permanecen abiertas.
 
+## Perfil staging remoto — 2026-11-09
+
+[ADR-0028](../decisions/ADR-0028.md) prepara el backend para un Keycloak publicado por HTTPS (política, secretos y destino de base `hukid_staging`); no autoriza producción. Pendientes: procedimiento de alta del primer administrador y herramienta de migración para `staging` (hoy `cmd/localdb` solo sirve a `local`); ejecutar en esta máquina los tests nuevos de `internal/authentication` y `memberconfig` (bloqueados por Application Control); despliegue real, HTTPS y login contra el Keycloak publicado; [brief de despliegue](dokploy-deployment-brief.md) como borrador sin decisión.
+
 ## Correcciones de auditoría frontend — 2026-11-08
 
 La [reauditoría](../frontend/audits/2026-11-08-consola-correcciones.md) cierra F-001–F-006 del frontend base y consolida el [design system aprobado](../frontend/design-system.md). Mantiene abiertos lector de pantalla, zoom nativo, dispositivos/motores alternativos, axe/Lighthouse y métricas de campo. La prueba de confirmación con scopes issuer es UI-only y no demuestra ownership ni asignaciones reales. Sin cambio de contratos/DDL, cierre de DASH-T05, CI remoto nuevo ni aprobación productiva. Los informes y pruebas se versionan; capturas y métricas generadas se conservan localmente.

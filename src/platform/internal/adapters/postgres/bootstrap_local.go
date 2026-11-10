@@ -38,9 +38,15 @@ func BootstrapLocal(ctx context.Context, conn *pgx.Conn, issuer, subject, tenant
 	if err != nil || u.Scheme != "http" || u.Host == "" || len(subject) == 0 || len(subject) > 255 || len(tenantName) == 0 || len(tenantName) > 200 {
 		return errors.New("issuer, subject and tenant name are required")
 	}
+	return bootstrapIdentity(ctx, conn, issuer, subject, tenantName, "local.bootstrap.completed", "local bootstrap")
+}
+
+// bootstrapIdentity is the profile-independent body shared by the local and staging
+// bootstraps. Callers validate the environment, the target and the inputs first.
+func bootstrapIdentity(ctx context.Context, conn *pgx.Conn, issuer, subject, tenantName, auditAction, label string) error {
 	var superuser bool
 	if err := conn.QueryRow(ctx, `SELECT rolsuper FROM pg_catalog.pg_roles WHERE rolname=current_user`).Scan(&superuser); err != nil || !superuser {
-		return errors.New("local bootstrap requires the cluster administrator, never a runtime login")
+		return errors.New(label + " requires the cluster administrator, never a runtime login")
 	}
 	tx, err := conn.Begin(ctx)
 	if err != nil {
@@ -71,7 +77,7 @@ func BootstrapLocal(ctx context.Context, conn *pgx.Conn, issuer, subject, tenant
 		return err
 	}
 	var event string
-	if err = tx.QueryRow(ctx, `INSERT INTO platform.audit_events(tenant_id,actor_operator_identity_id,target_id,action,outcome,correlation_id) VALUES ($1,$2,$3,'local.bootstrap.completed','success',gen_random_uuid()) RETURNING event_id`, tenant, actor, member).Scan(&event); err != nil {
+	if err = tx.QueryRow(ctx, `INSERT INTO platform.audit_events(tenant_id,actor_operator_identity_id,target_id,action,outcome,correlation_id) VALUES ($1,$2,$3,$4,'success',gen_random_uuid()) RETURNING event_id`, tenant, actor, member, auditAction).Scan(&event); err != nil {
 		return err
 	}
 	if _, err = tx.Exec(ctx, `INSERT INTO platform.outbox_events(event_id,tenant_id) VALUES ($1,$2)`, event, tenant); err != nil {

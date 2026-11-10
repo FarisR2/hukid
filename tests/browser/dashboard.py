@@ -1,7 +1,20 @@
-"""DASH-T04/T07: real BFF reads and explicit UI-only fault fixtures."""
+"""DASH-T04/T07: real BFF reads and explicit UI-only fault fixtures.
+
+Two views share one component: Resumen (overview cards plus a five-event preview) and
+Actividad (the full feed: 25 per page, cursor pagination, "Reiniciar actividad").
+"""
 from playwright.sync_api import expect
 import json
 from time import perf_counter
+from urllib.parse import parse_qs, urlsplit, urlunsplit
+
+from shell_ui import in_tenant, shows_role, switch_tenant
+
+
+def go_to(page, view):
+    """Sidebar navigation: one public hash per view."""
+    page.get_by_role('navigation', name='Secciones').get_by_role('link', name=view, exact=True).click()
+    expect(page.locator('h1')).to_have_text(view)
 
 
 def run_dashboard(page, context, config, database, heading, login, artifacts):
@@ -10,30 +23,39 @@ def run_dashboard(page, context, config, database, heading, login, artifacts):
     page.wait_for_load_state('networkidle')
     login(page)
     page.get_by_label('Organización', exact=True).select_option(label='Organización de prueba A')
-    with page.expect_response(lambda response: '/activity?' in response.url) as first_feed:
+    with page.expect_response(lambda response: '/activity?' in response.url) as preview_feed:
         page.get_by_role('button', name='Continuar', exact=True).press('Enter')
-    assert first_feed.value.status == 200, f'Initial dashboard feed status: {first_feed.value.status}'
-    heading(page, 'Organización de prueba A')
+    assert preview_feed.value.status == 200, f'Initial dashboard feed status: {preview_feed.value.status}'
+    in_tenant(page, 'Organización de prueba A')
     dashboard = page.get_by_role('region', name='Resumen operativo')
     metric = dashboard.locator('.metric').filter(has=page.get_by_text('Miembros activos', exact=True))
     expect(metric.locator('.metric-value')).to_have_text('1')
     expect(metric.get_by_text('Disponible', exact=True)).to_be_visible()
-    expect(page.get_by_text('Tu rol:', exact=True)).to_be_visible()
-    expect(page.locator('.workspace-context')).to_contain_text('Administración de organización')
+    shows_role(page, 'Administración de organización')
     expect(dashboard.get_by_text('Sin permiso', exact=True)).to_have_count(5)
+    # The overview only previews the latest five events and links to the full feed.
+    assert len(preview_feed.value.json()['items']) == 5
+    expect(page.get_by_role('region', name='Actividad reciente').get_by_role('link', name='Ver toda la actividad')).to_be_visible()
+    expect(dashboard.get_by_role('button', name='Siguiente página de actividad')).to_have_count(0)
+
     # Real cursor round-trip: two tenants have 30 seeded events each. Gather
     # only this tenant's pages through the UI and never persist IDs or cursors.
+    with page.expect_response(lambda response: '/activity?' in response.url and 'cursor=' not in response.url) as first_feed:
+        go_to(page, 'Actividad')
+    assert first_feed.value.status == 200
     first = first_feed.value.json()
     assert len(first['items']) == 25 and first['nextCursor']
-    next_button = dashboard.get_by_role('button', name='Siguiente página de actividad')
+    activity = page.get_by_role('region', name='Actividad', exact=True)
+    feed = page.get_by_role('region', name='Eventos de la organización')
+    next_button = activity.get_by_role('button', name='Siguiente página de actividad')
     next_button.focus()
     before_page = perf_counter()
     with page.expect_response(lambda response: '/activity?' in response.url and 'cursor=' in response.url) as next_feed:
         page.keyboard.press('Enter')
     assert next_feed.value.status == 200
     second = next_feed.value.json()
-    expect(page.get_by_role('region', name='Actividad reciente')).to_have_attribute('aria-busy', 'false')
-    expect(dashboard.get_by_role('heading', name='Actividad reciente')).to_be_focused()
+    expect(feed).to_have_attribute('aria-busy', 'false')
+    expect(activity.get_by_role('heading', name='Eventos de la organización')).to_be_focused()
     assert second['asOf'] == first['asOf'] and second['nextCursor'] is None
     ids = [item['eventId'] for item in first['items'] + second['items']]
     assert len(ids) == len(set(ids)) and len(ids) >= 30
@@ -45,19 +67,19 @@ def run_dashboard(page, context, config, database, heading, login, artifacts):
         'pages': 2, 'uniqueEvents': len(ids), 'pageLimit': 25,
     }, indent=2), encoding='utf-8')
     with page.expect_response(lambda response: '/activity?' in response.url and 'cursor=' not in response.url):
-        dashboard.get_by_role('button', name='Reiniciar actividad').press('Enter')
+        activity.get_by_role('button', name='Reiniciar actividad').press('Enter')
     expect(next_button).to_be_visible()
     # Send a synthetic PII canary in malformed input to the real BFF. The Go
     # harness checks captured application logs after this request (never prints
     # them). This does not claim to cover external proxies or infrastructure.
-    from urllib.parse import urlsplit, urlunsplit
     feed_url = urlsplit(first_feed.value.url)
     invalid = context.request.get(urlunsplit(feed_url._replace(query='')), params={
         'from': 'dashboard-pii-canary@example.invalid', 'to': '2026-11-01T00:00:00Z'})
     assert invalid.status == 422
     page.get_by_role('link', name='Resumen', exact=True).press('Enter')
-    expect(page.get_by_role('link', name='Resumen', exact=True)).to_have_attribute('aria-current', 'location')
+    expect(page.get_by_role('link', name='Resumen', exact=True)).to_have_attribute('aria-current', 'page')
     assert page.locator('h1').count() == 1
+    expect(dashboard).to_be_visible()
 
     for width in [320, 360, 768, 1024, 1440]:
         page.set_viewport_size({'width': width, 'height': 1000})
@@ -69,6 +91,8 @@ def run_dashboard(page, context, config, database, heading, login, artifacts):
     page.evaluate("document.documentElement.style.fontSize='32px'")
     assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
     page.evaluate("document.documentElement.style.fontSize=''")
+    # The rest drives desktop controls; the sidebar is off-canvas below 900px.
+    page.set_viewport_size({'width': 1440, 'height': 1000})
 
     # Invalid input is preserved with focused recovery; no malformed read is sent.
     start = dashboard.get_by_label('Desde (UTC)')
@@ -124,7 +148,8 @@ def run_dashboard(page, context, config, database, heading, login, artifacts):
     expect(dashboard.get_by_text('Error de la fuente', exact=True)).to_be_visible()
     page.unroute('**/overview?*', degraded)
 
-    # A feed failure leaves the authorized overview usable and offers retry.
+    # A feed failure leaves the authorized overview usable; refreshing the overview retries it
+    # (the overview preview has no feed-only controls).
     def unavailable(route):
         route.fulfill(status=503, json={'code': 'dependency_unavailable'})
     page.route('**/activity?*', unavailable)
@@ -133,16 +158,17 @@ def run_dashboard(page, context, config, database, heading, login, artifacts):
     expect(dashboard.get_by_role('alert')).to_contain_text('No pudimos cargar')
     page.unroute('**/activity?*', unavailable)
     with page.expect_response(lambda response: '/activity?' in response.url):
-        dashboard.get_by_role('button', name='Reiniciar actividad').press('Enter')
+        dashboard.get_by_role('button', name='Actualizar resumen').press('Enter')
     expect(page.get_by_role('region', name='Actividad reciente')).to_have_attribute('aria-busy', 'false')
     expect(dashboard.get_by_role('alert')).to_have_count(0)
 
-    # UI-only pagination fixture: the real API's authenticated cursor is tested
-    # by DASH-T03. Here pin binding of UTC filters and explicit cursor recovery.
+    # UI-only pagination fixture on the Actividad view: the real API's authenticated cursor is
+    # tested by DASH-T03. Here pin binding of UTC filters and explicit cursor recovery.
+    go_to(page, 'Actividad')
+    page.wait_for_load_state('networkidle')
     cursor = 'a' * 32
     page_requests = []
     def paginated(route):
-        from urllib.parse import parse_qs, urlsplit
         params = parse_qs(urlsplit(route.request.url).query)
         page_requests.append(params)
         if 'cursor' in params:
@@ -153,19 +179,20 @@ def run_dashboard(page, context, config, database, heading, login, artifacts):
         value['nextCursor'] = cursor if len(page_requests) == 1 else None
         route.fulfill(response=response, json=value)
     page.route('**/activity?*', paginated)
-    dashboard.get_by_role('button', name='Reiniciar actividad').press('Enter')
-    dashboard.get_by_role('button', name='Siguiente página de actividad').press('Enter')
-    expect(dashboard.get_by_role('alert')).to_contain_text('La página ha caducado')
-    expect(dashboard.get_by_role('heading', name='Actividad reciente')).to_be_focused()
+    activity.get_by_role('button', name='Reiniciar actividad').press('Enter')
+    activity.get_by_role('button', name='Siguiente página de actividad').press('Enter')
+    expect(activity.get_by_role('alert')).to_contain_text('La página ha caducado')
+    expect(activity.get_by_role('heading', name='Eventos de la organización')).to_be_focused()
     page.keyboard.press('Tab')
-    expect(dashboard.get_by_role('button', name='Reiniciar actividad')).to_be_focused()
+    expect(activity.get_by_role('button', name='Reiniciar actividad')).to_be_focused()
     assert page_requests[1]['cursor'] == [cursor]
     assert page_requests[0]['from'] == page_requests[1]['from'] and page_requests[0]['to'] == page_requests[1]['to']
     with page.expect_response(lambda response: '/activity?' in response.url):
-        dashboard.get_by_role('button', name='Reiniciar actividad').press('Enter')
-    expect(page.get_by_role('region', name='Actividad reciente')).to_have_attribute('aria-busy', 'false')
-    expect(dashboard.get_by_role('alert')).to_have_count(0)
+        activity.get_by_role('button', name='Reiniciar actividad').press('Enter')
+    expect(feed).to_have_attribute('aria-busy', 'false')
+    expect(activity.get_by_role('alert')).to_have_count(0)
     page.unroute('**/activity?*', paginated)
+    go_to(page, 'Resumen')
 
     # Filter changes abort the previous generation, even if its response arrives.
     late = []
@@ -193,25 +220,23 @@ def run_dashboard(page, context, config, database, heading, login, artifacts):
     page.route('**/overview?*', delay, times=1)
     dashboard.get_by_role('button', name='Actualizar resumen').press('Enter')
     expect(dashboard.get_by_text('Cargando resumen…')).to_be_visible()
-    page.get_by_label('Organización', exact=True).select_option(label='Organización de prueba B')
-    page.get_by_role('button', name='Cambiar organización', exact=True).press('Enter')
-    heading(page, 'Organización de prueba B')
+    switch_tenant(page, 'Organización de prueba B')
     expect(metric.locator('.metric-value')).to_have_text('2')
     assert late
     late[0][0].fulfill(response=late[0][1], json=late[0][2])
     expect(metric.locator('.metric-value')).to_have_text('2')
     assert '987.654' not in dashboard.inner_text()
 
-    page.get_by_label('Organización', exact=True).select_option(label='Organización de prueba A')
-    page.get_by_role('button', name='Cambiar organización', exact=True).press('Enter')
-    heading(page, 'Organización de prueba A')
+    switch_tenant(page, 'Organización de prueba A')
     expect(metric.locator('.metric-value')).to_have_text('1')
     database('dashboard-readonly')
-    # Real 403 on the feed revalidates /me, removes directory navigation and
+    # Real 403 on the feed revalidates /me, removes the activity navigation and
     # stops fetching the feed. No browser-authored capabilities are trusted.
-    dashboard.get_by_role('button', name='Reiniciar actividad').press('Enter')
-    expect(page.locator('.workspace-context')).to_contain_text('Soporte de consulta')
-    expect(page.get_by_role('link', name='Miembros e invitaciones')).to_have_count(0)
+    dashboard.get_by_role('button', name='Actualizar resumen').press('Enter')
+    shows_role(page, 'Soporte de consulta')
+    nav = page.get_by_role('navigation', name='Secciones')
+    expect(nav.get_by_role('link', name='Miembros', exact=True)).to_have_count(0)
+    expect(nav.get_by_role('link', name='Actividad', exact=True)).to_have_count(0)
     expect(dashboard.get_by_text('No tienes permiso para consultar la actividad.')).to_be_visible()
     expect(metric.locator('.metric-value')).to_have_text('—')
     feed_requests = []
@@ -224,8 +249,9 @@ def run_dashboard(page, context, config, database, heading, login, artifacts):
     assert not feed_requests
     page.remove_listener('request', record_feed)
     database('dashboard-admin')
-    page.get_by_role('button', name='Comprobar acceso', exact=True).press('Enter')
-    heading(page, 'Organización de prueba A')
+    # There is no re-check button once signed in; a reload re-reads the access.
+    page.reload()
+    in_tenant(page, 'Organización de prueba A')
     expect(metric.locator('.metric-value')).to_have_text('1')
 
     # HTTP 401 returns to login and clears all dashboard data without a loop.

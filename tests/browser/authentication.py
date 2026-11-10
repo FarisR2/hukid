@@ -12,6 +12,7 @@ import traceback
 from urllib.parse import urlsplit, urljoin
 
 from playwright.sync_api import sync_playwright, expect
+from shell_ui import USER_BUTTON, in_tenant, menu_action, switch_tenant
 from members import run_members
 from dashboard import run_dashboard
 from frontend_audit import capture, run_frontend_audit
@@ -59,23 +60,6 @@ def dump_failure(exc_info):
         # Workflow-command escaping: % first, then CR and LF. Stay far below the annotation size cap.
         escaped = report[:20000].replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
         print(f'::error title=Browser journey failed::{escaped}', file=sys.stderr, flush=True)
-
-
-USER_BUTTON = re.compile(r'^Mi sesión')
-
-
-def in_tenant(page, name):
-    """The active organization is shown in the sidebar and breadcrumb; the h1 is the view name."""
-    expect(page.locator('.sb-org-name')).to_have_text(name)
-    expect(page.locator('h1')).to_have_count(1)
-
-
-def menu_action(page, name):
-    """Refresh, step-up and sign-out live in the user menu of the shell."""
-    user = page.get_by_role('button', name=USER_BUTTON)
-    if user.get_attribute('aria-expanded') != 'true':
-        user.click()
-    page.get_by_role('button', name=name, exact=True).click()
 
 
 def session_cookie(context):

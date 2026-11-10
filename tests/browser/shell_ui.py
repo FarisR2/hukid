@@ -11,6 +11,12 @@ from playwright.sync_api import expect
 USER_BUTTON = re.compile(r'^Mi sesión')
 
 
+def go_to(page, view):
+    """Sidebar navigation: one public hash per view; the h1 becomes the view name."""
+    page.get_by_role('navigation', name='Secciones').get_by_role('link', name=view, exact=True).click()
+    expect(page.locator('h1')).to_have_text(view)
+
+
 def in_tenant(page, name):
     expect(page.locator('.sb-org-name')).to_have_text(name)
     expect(page.locator('h1')).to_have_count(1)

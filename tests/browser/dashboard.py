@@ -8,13 +8,7 @@ import json
 from time import perf_counter
 from urllib.parse import parse_qs, urlsplit, urlunsplit
 
-from shell_ui import in_tenant, shows_role, switch_tenant
-
-
-def go_to(page, view):
-    """Sidebar navigation: one public hash per view."""
-    page.get_by_role('navigation', name='Secciones').get_by_role('link', name=view, exact=True).click()
-    expect(page.locator('h1')).to_have_text(view)
+from shell_ui import go_to, in_tenant, shows_role, switch_tenant
 
 
 def run_dashboard(page, context, config, database, heading, login, artifacts):

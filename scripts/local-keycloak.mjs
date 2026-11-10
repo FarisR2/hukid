@@ -1,12 +1,24 @@
 // Keycloak 26.8.2 native operator profile. No MFA claims are hardcoded.
 import { readFileSync } from 'node:fs';
-const policy = JSON.parse(readFileSync(new URL('../src/platform/config/auth.local.json', import.meta.url), 'utf8'));
+// Mode selects the realm profile: "local" (default, unchanged) or "staging" (remote, HTTPS).
+// Only timing values come from the policy file; origins and secrets never do.
+const policyFiles = { local: 'auth.local.json', staging: 'auth.staging.example.json' };
+const policies = {};
+export function selectMode(env = process.env) {
+  const mode = env.HUKID_KEYCLOAK_MODE ?? 'local';
+  if (!Object.hasOwn(policyFiles, mode)) throw new Error('HUKID_KEYCLOAK_MODE debe ser "local" o "staging"');
+  return mode;
+}
+function policyFor(mode) {
+  if (!Object.hasOwn(policyFiles, mode)) throw new Error('Keycloak: modo desconocido');
+  return policies[mode] ??= JSON.parse(readFileSync(new URL(`../src/platform/config/${policyFiles[mode]}`, import.meta.url), 'utf8'));
+}
 export const flowAlias = 'hukid-console-mfa-v1';
 export const operatorAudience = 'https://api.hukid.pe/operator';
 
-export async function adminClient(base, password) {
+export async function adminClient(base, password, username = 'admin') {
   const response = await fetch(`${base}/realms/master/protocol/openid-connect/token`, {
-    method: 'POST', body: new URLSearchParams({ grant_type: 'password', client_id: 'admin-cli', username: 'admin', password }),
+    method: 'POST', body: new URLSearchParams({ grant_type: 'password', client_id: 'admin-cli', username, password }),
     signal: AbortSignal.timeout(10000), redirect: 'error',
   });
   if (!response.ok) throw new Error('Keycloak: no se pudo autenticar al administrador local');
@@ -26,7 +38,9 @@ function claim(name, value) {
     config: { 'claim.name': name, 'claim.value': value, 'jsonType.label': 'String', 'access.token.claim': 'true', 'id.token.claim': 'false', 'userinfo.token.claim': 'false' } };
 }
 
-export async function verifyKeycloak(api, { realm, client, origin }) {
+export async function verifyKeycloak(api, { realm, client, origin, mode = 'local' }) {
+  const policy = policyFor(mode);
+  if (mode === 'staging' && (await api('GET', realm)).sslRequired !== 'external') throw new Error('Keycloak: staging exige sslRequired=external en el realm');
   const [model] = (await api('GET', `${realm}/clients?clientId=${encodeURIComponent(client)}`)).filter(c => c.clientId === client);
   const invalid = () => { throw new Error('Keycloak: perfil operator incompatible; ejecutar local-env.mjs keycloak-init'); };
   if (!model || !model.enabled || !model.standardFlowEnabled || model.publicClient || model.directAccessGrantsEnabled || model.serviceAccountsEnabled || model.implicitFlowEnabled || model.fullScopeAllowed) invalid();
@@ -70,10 +84,13 @@ export async function verifyKeycloak(api, { realm, client, origin }) {
   return model;
 }
 
-export async function reconcileKeycloak(api, { realm, client, origin, clientSecret }) {
-  if (!(await api('GET', '')).some(r => r.realm === realm)) await api('POST', '', { realm, enabled: true, sslRequired: 'none', registrationAllowed: false, bruteForceProtected: true });
+export async function reconcileKeycloak(api, { realm, client, origin, clientSecret, mode = 'local' }) {
+  const policy = policyFor(mode);
+  const sslRequired = mode === 'staging' ? 'external' : 'none';
+  if (!(await api('GET', '')).some(r => r.realm === realm)) await api('POST', '', { realm, enabled: true, sslRequired, registrationAllowed: false, bruteForceProtected: true });
   const r = encodeURIComponent(realm);
-  await api('PUT', r, { accessTokenLifespan: policy.accessTokenSeconds, ssoSessionIdleTimeout: policy.sessionIdleSeconds, ssoSessionMaxLifespan: policy.sessionAbsoluteSeconds,
+  // Staging also enforces sslRequired on an existing realm; local keeps its create-time value untouched.
+  await api('PUT', r, { ...(mode === 'staging' ? { sslRequired } : {}), accessTokenLifespan: policy.accessTokenSeconds, ssoSessionIdleTimeout: policy.sessionIdleSeconds, ssoSessionMaxLifespan: policy.sessionAbsoluteSeconds,
     offlineSessionIdleTimeout: policy.refreshTokenSeconds, offlineSessionMaxLifespanEnabled: true, offlineSessionMaxLifespan: policy.refreshTokenSeconds,
     revokeRefreshToken: true, refreshTokenMaxReuse: 0 });
   // Persist an EC key provider; do not rely on Keycloak's ephemeral fallback signer.
@@ -168,6 +185,6 @@ export async function reconcileKeycloak(api, { realm, client, origin, clientSecr
     if (old) await api('PUT', `${c}/protocol-mappers/models/${old.id}`, { ...mapper, id: old.id });
     else await api('POST', `${c}/protocol-mappers/models`, mapper);
   }
-  await verifyKeycloak(api, { realm, client, origin });
+  await verifyKeycloak(api, { realm, client, origin, mode });
   return { clientId: model.id, flowId: flow.id };
 }

@@ -18,3 +18,5 @@ dist/
 .env
 .env.*
 !.env.example
+# Staging Keycloak credentials (scripts/README.md); explicit even though .env.* already covers it.
+.env.staging

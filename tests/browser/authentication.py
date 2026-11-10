@@ -5,8 +5,10 @@ arrive through stdin and are never printed, saved in traces or screenshots.
 """
 import json
 from pathlib import Path
+import os
 import re
 import sys
+import traceback
 from urllib.parse import urlsplit, urljoin
 
 from playwright.sync_api import sync_playwright, expect
@@ -35,16 +37,28 @@ def heading(page, name):
         raise
 
 
-def dump_failure():
+def redact(text):
+    return re.sub(r'[A-Za-z0-9_\-+/=]{32,}', '<redacted>', text)
+
+
+def dump_failure(exc_info):
     """On failure print what each open page shows, so a CI log alone is enough to diagnose it.
-    Only the URL path is printed (the query carries state/code) and long token-like strings are redacted."""
+    Only the URL path is printed (the query carries state/code) and long token-like strings are redacted.
+    On GitHub Actions the same text is also emitted as an error annotation, which the public
+    check-runs API serves without authentication (job logs need a login)."""
+    parts = [redact(''.join(traceback.format_exception_only(exc_info[0], exc_info[1])).strip())]
     try:
         for index, candidate in enumerate(context.pages):
-            snapshot = candidate.locator('body').aria_snapshot(timeout=3000)
-            snapshot = re.sub(r'[A-Za-z0-9_\-+/=]{32,}', '<redacted>', snapshot)
-            print(f'--- page {index} {urlsplit(candidate.url).path or "/"}\n{snapshot[:3500]}', file=sys.stderr)
+            snapshot = redact(candidate.locator('body').aria_snapshot(timeout=3000))
+            parts.append(f'--- page {index} {urlsplit(candidate.url).path or "/"}\n{snapshot[:3500]}')
     except Exception as error:
-        print('failure dump unavailable: ' + type(error).__name__, file=sys.stderr)
+        parts.append('failure dump unavailable: ' + type(error).__name__)
+    report = '\n'.join(parts)
+    print(report, file=sys.stderr, flush=True)
+    if os.environ.get('GITHUB_ACTIONS') == 'true':
+        # Workflow-command escaping: % first, then CR and LF. Stay far below the annotation size cap.
+        escaped = report[:20000].replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+        print(f'::error title=Browser journey failed::{escaped}', file=sys.stderr, flush=True)
 
 
 USER_BUTTON = re.compile(r'^Mi sesión')
@@ -348,5 +362,5 @@ with sync_playwright() as playwright:
         browser.close()
         print('Browser: login/pending/tenant/me/refresh/step-up/logout, live suspension, expiry, failures, keyboard, history, cross-tab, storage and responsive screenshots passed.', flush=True)
     except BaseException:
-        dump_failure()
+        dump_failure(sys.exc_info())
         raise

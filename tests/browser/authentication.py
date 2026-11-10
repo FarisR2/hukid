@@ -170,6 +170,9 @@ with sync_playwright() as playwright:
         expect(page.get_by_label('Organización', exact=True)).to_be_focused()
         expect(page.get_by_label('Organización', exact=True)).to_have_attribute('data-slot', 'native-select')
         capture(page, artifacts, 'organization-selection')
+        # The picker has its own sign-out: someone on the wrong account must not be stuck here.
+        sign_out(page)
+        heading(page, 'Elige una organización')
         select = page.get_by_label('Organización', exact=True)
         select.press('ArrowDown')
         select.press('Tab')

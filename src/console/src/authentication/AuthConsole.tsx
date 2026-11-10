@@ -279,6 +279,7 @@ export function AuthConsole() {
               </Field>
               <div className="actions">
                 <Button type="submit" disabled={busy}>Continuar</Button>
+                <Button type="button" variant="outline" onClick={() => void run('logout')} disabled={busy}>Cerrar sesión</Button>
                 <Button type="button" variant="ghost" className="max-w-full whitespace-normal" onClick={() => setAccepting(true)}><Ticket aria-hidden="true" />Tengo un código de invitación</Button>
               </div>
             </FieldGroup>

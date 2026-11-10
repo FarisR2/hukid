@@ -262,7 +262,7 @@ export function AuthConsole() {
           <p>Tu cuenta aún no pertenece a ninguna organización. Contacta a un administrador de tu institución para que te invite.</p>
           <div className="actions">
             <Button type="button" variant="outline" onClick={() => void run('logout')} disabled={busy}>Cerrar sesión</Button>
-            <Button type="button" variant="ghost" onClick={() => setAccepting(true)}><Ticket aria-hidden="true" />Tengo un código de invitación</Button>
+            <Button type="button" variant="ghost" className="max-w-full whitespace-normal" onClick={() => setAccepting(true)}><Ticket aria-hidden="true" />Tengo un código de invitación</Button>
           </div>
         </> : <>
           <span className="badge">Selección requerida</span>
@@ -279,7 +279,7 @@ export function AuthConsole() {
               </Field>
               <div className="actions">
                 <Button type="submit" disabled={busy}>Continuar</Button>
-                <Button type="button" variant="ghost" onClick={() => setAccepting(true)}><Ticket aria-hidden="true" />Tengo un código de invitación</Button>
+                <Button type="button" variant="ghost" className="max-w-full whitespace-normal" onClick={() => setAccepting(true)}><Ticket aria-hidden="true" />Tengo un código de invitación</Button>
               </div>
             </FieldGroup>
           </form>

@@ -51,7 +51,9 @@ def dump_failure(exc_info):
     try:
         for index, candidate in enumerate(context.pages):
             snapshot = redact(candidate.locator('body').aria_snapshot(timeout=3000))
-            parts.append(f'--- page {index} {urlsplit(candidate.url).path or "/"}\n{snapshot[:3500]}')
+            # Controls first: long tables can push them past the size cap.
+            controls = candidate.evaluate("() => [...document.querySelectorAll('button, [role=button]')].map(e => (e.getAttribute('aria-label') || e.textContent).trim()).filter(Boolean)")
+            parts.append(f'--- page {index} {urlsplit(candidate.url).path or "/"}\nbuttons: {redact(repr(controls))[:900]}\n{snapshot[:3500]}')
     except Exception as error:
         parts.append('failure dump unavailable: ' + type(error).__name__)
     report = '\n'.join(parts)

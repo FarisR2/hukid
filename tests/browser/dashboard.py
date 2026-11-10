@@ -66,8 +66,10 @@ def run_dashboard(page, context, config, database, heading, login, artifacts):
         'nextPageToRenderedMs': (perf_counter() - before_page) * 1000,
         'pages': 2, 'uniqueEvents': len(ids), 'pageLimit': 25,
     }, indent=2), encoding='utf-8')
+    # With a cursor set the restart control is labelled "Volver al inicio".
     with page.expect_response(lambda response: '/activity?' in response.url and 'cursor=' not in response.url):
-        activity.get_by_role('button', name='Reiniciar actividad').press('Enter')
+        activity.get_by_role('button', name='Volver al inicio').press('Enter')
+    expect(activity.get_by_role('button', name='Reiniciar actividad')).to_be_visible()
     expect(next_button).to_be_visible()
     # Send a synthetic PII canary in malformed input to the real BFF. The Go
     # harness checks captured application logs after this request (never prints
@@ -184,11 +186,12 @@ def run_dashboard(page, context, config, database, heading, login, artifacts):
     expect(activity.get_by_role('alert')).to_contain_text('La página ha caducado')
     expect(activity.get_by_role('heading', name='Eventos de la organización')).to_be_focused()
     page.keyboard.press('Tab')
-    expect(activity.get_by_role('button', name='Reiniciar actividad')).to_be_focused()
+    # The rejected cursor stays set, so recovery is offered as "Volver al inicio".
+    expect(activity.get_by_role('button', name='Volver al inicio')).to_be_focused()
     assert page_requests[1]['cursor'] == [cursor]
     assert page_requests[0]['from'] == page_requests[1]['from'] and page_requests[0]['to'] == page_requests[1]['to']
     with page.expect_response(lambda response: '/activity?' in response.url):
-        activity.get_by_role('button', name='Reiniciar actividad').press('Enter')
+        activity.get_by_role('button', name='Volver al inicio').press('Enter')
     expect(feed).to_have_attribute('aria-busy', 'false')
     expect(activity.get_by_role('alert')).to_have_count(0)
     page.unroute('**/activity?*', paginated)

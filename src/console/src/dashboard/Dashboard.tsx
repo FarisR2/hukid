@@ -81,7 +81,13 @@ export function Dashboard({ identity, view, onAccessError }: { identity: Identit
       <p id="range-error" className="field-error" role={validation ? 'alert' : undefined}>{validation}</p>
       {view === 'resumen' && <div aria-busy={loading.overview}>
         {loading.overview && <p role="status">Cargando resumen…</p>}
-        {errors.overview && <p role="alert">{errors.overview} Usa Actualizar resumen para reintentar.</p>}
+        {/* Same markup as the loaded cards, content hidden: the grid keeps its height so the activity below does not jump. */}
+        {loading.overview && !overview && <dl className="metric-grid metric-skeleton" aria-hidden="true">{(Object.keys(metrics) as (keyof typeof metrics)[]).map(key =>
+          <div className="metric" key={key}><dt>{metrics[key].label}</dt><dd>
+            <span className="metric-value">—</span><span className="badge">{states.available}</span>
+            <span className="muted metric-detail">{metrics[key].scope}</span><span className="muted metric-detail">Datos al —</span>
+          </dd></div>)}</dl>}
+        {errors.overview &&<p role="alert">{errors.overview} Usa Actualizar resumen para reintentar.</p>}
         {overview && <><p className="muted">Generado: {date(overview.generatedAt)} · Periodo: {date(overview.window.from)} — {date(overview.window.to)}</p>
           <dl className="metric-grid">{(Object.keys(metrics) as (keyof typeof metrics)[]).map(key => {
             const section = overview.sections[key]; const meta = metrics[key];

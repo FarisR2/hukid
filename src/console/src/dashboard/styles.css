@@ -14,6 +14,7 @@
 .metric-value { display: block; font-size: var(--text-metric); font-weight: var(--weight-metric); font-variant-numeric: tabular-nums; margin-bottom: var(--s2); }
 .metric .badge, .activity-list .badge { margin-bottom: var(--s2); }
 .metric-detail { display: block; overflow-wrap: anywhere; }
+.metric-skeleton dd { visibility: hidden; }
 .metric-detail, .activity-list time { font-size: var(--text-sm); }
 .dashboard-activity { border-top: var(--border-width) solid var(--border); padding-top: var(--s5); }
 .activity-list { list-style: none; padding: 0; margin: var(--s5) 0; }

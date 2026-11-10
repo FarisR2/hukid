@@ -337,7 +337,12 @@ with sync_playwright() as playwright:
         page.route('**/console/api/me', delayed_identity)
         page.reload(wait_until='domcontentloaded')
         expect(page.get_by_role('heading', name='Comprobando tu sesión', exact=True)).to_be_visible()
-        page.wait_for_request('**/console/api/me') if not late else None
+        # Wait until the first /me has reached the route and is held in `late`. Page has no
+        # wait_for_request, and a request that already arrived cannot be awaited as an event.
+        for _ in range(200):
+            if late: break
+            page.wait_for_timeout(50)
+        assert late, 'the first /me request never reached the route'
         page.evaluate("window.dispatchEvent(new PageTransitionEvent('pageshow'))")
         in_tenant(page, 'Contexto nuevo')
         late[0].fulfill(status=401, content_type='application/problem+json', body='{"code":"invalid_session"}')

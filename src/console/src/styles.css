@@ -61,10 +61,8 @@
   --on-primary: #fff; --badge-bg: #e1f0ef; --badge-text: #145b57; --focus: #1265b3; --danger: #a12435;
   --s1: .25rem; --s2: .5rem; --s3: .75rem; --s4: 1rem; --s5: 1.5rem; --s6: 2rem; --s7: 3rem; --s8: 4rem;
   --radius: .5rem; --control: 3rem;
-  --measure-access: 68rem; --measure-workspace: 82rem; --measure: var(--measure-access);
   --measure-prose: 65ch; --measure-editor: 48rem; --measure-acceptance: 36rem; --measure-dialog: 40rem;
-  --measure-header-label: 8rem; --filter-basis: 16rem;
-  --height-workspace-panel: 34rem; --height-directory: 12rem;
+  --filter-basis: 16rem; --height-directory: 12rem;
   --text-sm: .875rem; --text-base: 1rem; --text-region: 1.125rem;
   --text-section: 1.5rem; --text-metric: 2rem; --text-title: clamp(2rem, 4vw, 2.75rem);
   --weight-body: 400; --weight-emphasis: 600; --weight-metric: 650; --weight-title: 700;
@@ -88,20 +86,8 @@ h1:where(:not([data-slot])):focus { outline: none; }
 h1:where(:not([data-slot])) { font-size: var(--text-title); line-height: var(--leading-title); letter-spacing: var(--tracking-title); margin: var(--s3) 0 var(--s5); overflow-wrap: anywhere; }
 h2:where(:not([data-slot])) { font-size: var(--text-region); margin: 0 0 var(--s2); }
 p:where(:not([data-slot])) { margin: 0 0 var(--s5); max-width: var(--measure-prose); }
-.app { min-height: 100dvh; display: flex; flex-direction: column; }
-.header, .footer { width: min(100%, var(--measure)); margin-inline: auto; padding: var(--s5) var(--s6); }
-.header { display: flex; align-items: center; justify-content: space-between; gap: var(--s4); }
-.brand { display: inline-flex; align-items: center; gap: var(--s3); min-height: var(--control); color: var(--text); text-decoration: none; font-size: var(--text-section); font-weight: var(--weight-title); letter-spacing: var(--tracking-brand); }
 .brand-mark { background: var(--primary); color: var(--on-primary); border-radius: var(--radius); width: var(--control); height: var(--control); text-align: center; line-height: var(--control); }
-/* Reserve the logout button height so it appearing after /me does not shift the page. */
-.header-session { display: flex; align-items: center; justify-content: flex-end; gap: var(--s4); min-width: 0; min-height: var(--control); }
-.header-label, .footer, .muted { color: var(--muted-foreground); }
-.header-label, .footer { font-size: var(--text-sm); }
-.content { width: min(100%, var(--measure)); margin: var(--s7) auto auto; display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: var(--s8); align-items: start; padding: var(--s7) var(--s6); }
-/* Shared outer alignment avoids moving the whole page when /me resolves. */
-.access { --measure: var(--measure-workspace); margin-top: 0; gap: var(--s6); }
-.access-panel { background: var(--surface); border: var(--border-width) solid var(--border); border-top: var(--border-strong) solid var(--primary); border-radius: var(--radius); padding: var(--s6); min-width: 0; }
-.eyebrow { font-size: var(--text-sm); font-weight: var(--weight-emphasis); color: var(--primary); }
+.muted { color: var(--muted-foreground); }
 .badge { display: inline-block; background: var(--badge-bg); color: var(--badge-text); border-radius: var(--s1); padding: var(--s1) var(--s2); font-size: var(--text-sm); margin-bottom: var(--s5); }
 .primary { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
 .primary:hover { background: var(--hover); color: var(--on-primary); }
@@ -110,22 +96,10 @@ form:where(:not([data-slot])) { display: flex; flex-direction: column; align-ite
 label:where(:not([data-slot])) { font-weight: var(--weight-emphasis); }
 select:where(:not([data-slot])) { width: 100%; text-overflow: ellipsis; }
 .field-error { color: var(--danger); margin: 0; }
-.session-details { border-top: var(--border-width) solid var(--border); padding-top: var(--s5); margin-top: var(--s6); }
-.quiet { border-color: transparent; background: transparent; padding-inline: var(--s2); color: var(--muted-foreground); }
-.access-note { padding: var(--s5) 0; }
-.access-note > p:where(:not([data-slot])):first-of-type { font-size: var(--text-section); letter-spacing: var(--tracking-note); line-height: var(--leading-note); }
-.note-rule { display: block; width: var(--s7); height: var(--s1); background: var(--primary); margin-bottom: var(--s5); }
 .skip { position: absolute; top: var(--s3); left: var(--s3); transform: translateY(-200%); padding: var(--s3); background: var(--surface); color: var(--text); z-index: var(--layer-skip); }
 .skip:focus { transform: none; }
 /* Native media queries cannot resolve CSS variables; mobile breakpoint is 768px. */
 @media (max-width: 767px) {
-  .header, .footer { padding: var(--s4); }
-  .header-session { gap: var(--s2); }
-  .header-label { max-width: var(--measure-header-label); text-align: right; overflow-wrap: anywhere; }
-  .content { grid-template-columns: minmax(0, 1fr); gap: var(--s5); margin-top: 0; padding: var(--s5) var(--s4); }
-  .access-panel { padding: var(--s5); }
-  .access-note { padding: var(--s4) var(--s2); }
-  .access-note > p:where(:not([data-slot])):first-of-type { font-size: var(--text-region); }
 }
 @media (prefers-color-scheme: dark) {
   :root { --bg: #11212d; --surface: #182e3b; --text: #e6eff5; --muted-foreground: #b6c6d0; --border: #3f5968; --control-border: #819caa; --primary: #87d5d1; --hover: #abe9e5; --on-primary: #102c32; --badge-bg: #25454a; --badge-text: #b4e4df; --focus: #8bc1ff; --danger: #ffacb4; }
@@ -143,9 +117,4 @@ select:where(:not([data-slot])) { width: 100%; text-overflow: ellipsis; }
   [data-slot='button']:not(:disabled), [data-slot='native-select']:not(:disabled) { cursor: pointer; }
   [data-slot='button']:disabled, [data-slot='native-select']:disabled { cursor: wait; }
   [data-slot='field-label'] { color: var(--text); }
-  .access-note > h2 { font-size: var(--text-section); line-height: var(--leading-title); }
-  .access-steps { display: grid; gap: var(--s5); padding-inline-start: var(--s5); margin: var(--s5) 0 0; }
-  .access-steps li { padding-inline-start: var(--s2); }
-  .access-steps li::marker { color: var(--primary); font-weight: var(--weight-emphasis); }
-  .access-steps p { margin: var(--s2) 0 0; color: var(--muted-foreground); }
 }

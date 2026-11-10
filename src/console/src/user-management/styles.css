@@ -8,10 +8,6 @@ legend:where(:not([data-slot])) { font-weight: 600; padding: 0; margin-bottom: v
 label:where(:not([data-slot])) { display: grid; gap: var(--s2); min-width: 0; }
 h2:where(:not([data-slot])):focus, h3:where(:not([data-slot])):focus { outline: none; }
 h3:where(:not([data-slot])) { font-size: var(--text-region); margin: 0; }
-.workspace { --measure: var(--measure-workspace); grid-template-columns: minmax(0, 1fr); gap: var(--s6); margin-top: 0; }
-.workspace .access-note { display: none; }
-.workspace .access-panel { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: var(--s6); align-content: start; min-height: var(--height-workspace-panel); }
-.workspace .access-panel > h1:where(:not([data-slot])), .workspace .access-panel > .eyebrow, .workspace .access-panel > .badge { grid-column: 1 / -1; justify-self: start; }
 .management { min-width: 0; }
 .acceptance { min-width: 0; grid-column: 1 / -1; background: var(--surface); padding: var(--s6); border: var(--border-width) solid var(--border); border-radius: var(--radius); }
 .section-heading { display: flex; justify-content: space-between; align-items: start; gap: var(--s4); }
@@ -50,7 +46,6 @@ dialog.form-dialog .editor { margin-top: 0; max-width: none; }
 dialog.form-dialog .acceptance { padding: 0; border: 0; }
 /* Native media queries use the shared 768px breakpoint documented in the design system. */
 @media (max-width: 767px) {
-  .workspace .access-panel { display: block; }
   .acceptance { padding: var(--s4); }
   .filters, .role-options { grid-template-columns: minmax(0, 1fr); }
   .section-heading { flex-direction: column; }

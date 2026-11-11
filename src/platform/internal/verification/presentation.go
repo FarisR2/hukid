@@ -185,7 +185,11 @@ func (v *Verifier) VerifyPresentation(resp Response, req Request) (PresentationR
 				result = Invalid
 			}
 		}
-		return PresentationReport{CodesVersion: CodesVersion, Checks: checks, Credentials: append([]Report{}, credentials...), TechnicalResult: result, Digest: Digest([]byte(resp.VP))}
+		report := PresentationReport{CodesVersion: CodesVersion, Checks: checks, Credentials: append([]Report{}, credentials...), TechnicalResult: result, Digest: Digest([]byte(resp.VP))}
+		if v.trust != nil {
+			report = report.WithTrust(aggregateTrust(credentials))
+		}
+		return report
 	}
 
 	parsed, code := parsePresentation(resp.VP, v.limits)

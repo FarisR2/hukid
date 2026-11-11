@@ -31,6 +31,15 @@ type Verifier struct {
 	limits    Limits
 	clockSkew time.Duration
 	replay    ReplayStore
+	trust     TrustPolicy
+}
+
+// WithTrustPolicy returns a copy of the verifier that records a trust decision
+// next to the technical result. Without a policy the reports carry no trust.
+func (v *Verifier) WithTrustPolicy(policy TrustPolicy) *Verifier {
+	copied := *v
+	copied.trust = policy
+	return &copied
 }
 
 // WithReplayStore returns a copy of the verifier that can verify presentations.
@@ -83,14 +92,29 @@ func (v *Verifier) Verify(jws string) (Report, error) {
 			optionalSkip(CheckStatus, false),
 			optionalSkip(CheckSchema, false),
 		)
-		return NewReport([]byte(jws), checks), nil
+		report := NewReport([]byte(jws), checks)
+		if v.trust != nil {
+			// The issuer of an unauthenticated credential is only a claim.
+			report = report.WithTrust(NotEvaluated)
+		}
+		return report, nil
 	}
 	checks = append(checks,
 		checkValidity(parsed, v.clock.Now(), v.clockSkew),
 		optionalSkip(CheckStatus, parsed.DeclaresStatus),
 		optionalSkip(CheckSchema, parsed.DeclaresSchema),
 	)
-	return NewReport([]byte(jws), checks), nil
+	report := NewReport([]byte(jws), checks)
+	if v.trust != nil {
+		// The issuer is authenticated here (key and signature passed), whatever
+		// the validity outcome. The decision never changes the technical result.
+		decision, err := evaluateTrust(v.trust, parsed.Issuer)
+		if err != nil {
+			return Report{}, err
+		}
+		report = report.WithTrust(decision)
+	}
+	return report, nil
 }
 
 // optionalSkip reports a check that is not run yet. It is required (and so

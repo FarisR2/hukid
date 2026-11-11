@@ -1,0 +1,81 @@
+# FEAT-004 — Núcleo de verificación de credenciales
+
+- Producto: HukID Platform / Team 5.
+- Estado: **propuesta, sin implementación**. Pendiente de aprobación del owner. Este documento no declara ningún artefacto, endpoint ni vector como existente.
+- Depende de: [perfil HukID v0.1-draft](../../03-design/hukid-profile.md) y, para la capa de adaptadores, de las decisiones abiertas de [pendientes](../../05-delivery/documentation-gaps.md). No depende de [FEAT-001](../FEAT-001-authentication/spec.md) para verificar; solo lo reutiliza en los puntos de integración que se listan abajo.
+- Salidas: [plan](plan.md), [tareas](tasks.md), [ADR-0030](../../decisions/ADR-0030.md).
+
+## Objetivo y alcance
+
+Decidir, con código y pruebas, si una credencial `application/vc+jwt` es técnicamente válida según el perfil HukID: formato, firma del issuer, resolución de clave, vigencia, holder binding y vínculo de la presentación con su solicitud. El incremento base es la **fase 0 del [roadmap](../../05-delivery/hukid-roadmap.md)** aplicada al lado verifier: una librería interna, sin HTTP y sin base de datos, con pruebas negativas y vectores sintéticos.
+
+Esta feature implementa la historia **HK-043** (validar firma, vigencia, holder binding y status con trust policy separada de la validación criptográfica) y prepara HK-051 y HK-056. No es el servicio de login: no autentica operadores ni sesiones.
+
+**HK-043 solo queda completa cuando se cierren VER-T09 (status) y VER-T13 (schema)**, ambas diferidas por dependencias de otros dominios. El incremento base V0–V4 cubre firma, vigencia, holder binding y vínculo con la solicitud; no cierra la historia. La [arquitectura §3.9](../../03-design/hukid-architecture.md) lista además `schema` y trust policy entre lo que valida el verifier, y el verifier conserva la decisión final.
+
+Fuera de este incremento:
+
+- Emitir credenciales, firmar con KMS, JWKS públicos del issuer y status lists (fases 1–4 del roadmap; ver dependencias).
+- Adaptador OpenID4VP y Verifier-as-a-Service como proceso o endpoint ([decisión abierta #1](../../05-delivery/documentation-gaps.md)).
+- Pantalla de verificación en la consola ([decisión abierta #2](../../05-delivery/documentation-gaps.md)).
+- El payload de negocio de comprobante o de certificado académico ([decisión abierta #4](../../05-delivery/documentation-gaps.md)). El laboratorio usa un tipo sintético y no fija ese corte.
+- Selective disclosure, `jwt_vc_json`, SD-JWT, Data Integrity y mdoc (fuera de v0 según el perfil §1).
+- La decisión de negocio sobre la credencial (qué hace el tercero con el resultado).
+
+## Requisitos y aceptación
+
+| ID | Comportamiento verificable | Criterio de aceptación |
+| --- | --- | --- |
+| VER-FR01 | Validar el formato `vc+jwt` del perfil §2. | AC01: se rechazan header sin `alg=ES256` o `typ=vc+jwt`, `alg` `none`/HS*/RS*, payload con contenedor `vc`, y `issuer`/`validFrom` duplicados como `iss`/`nbf`. El rechazo devuelve un código de fallo estable. |
+| VER-FR02 | Delegar la resolución de clave al puerto y rechazar las vías prohibidas por el perfil §3. | AC02: se rechazan `jku`/`jwk` suministrados por la credencial y un `kid` que el puerto no resuelve para ese issuer. Un issuer distinto del declarado no valida. El núcleo solo consume la clave que devuelve el puerto. |
+| VER-FR11 | Resolver el JWKS por HTTPS con las reglas del perfil §3 (adaptador). | AC11: el adaptador solo acepta el JWKS en `https://issuer.hukid.pe/{issuerSlug}/.well-known/jwks.json`; rechaza JWKS de otro host y redirects cross-origin. **Diferido** hasta que exista la publicación de JWKS del issuer (fase 1, HK-002); ver VER-T12. |
+| VER-FR03 | Verificar la firma ES256 del issuer. | AC03: firma alterada, clave de otro issuer y `kid` desconocido fallan con códigos distintos. Una clave retirada pero publicada sigue verificando credenciales antiguas. |
+| VER-FR04 | Evaluar vigencia con reloj inyectado. | AC04: `validFrom`/`validUntil` se comparan en UTC contra un reloj inyectable y una tolerancia de reloj explícita y acotada. Credencial futura y vencida fallan; los bordes están probados. |
+| VER-FR05 | Comprobar el holder binding del perfil §4.1. | AC05: el thumbprint RFC 7638 de la clave que firmó la VP se compara en tiempo constante con `cnf.jkt` de cada VC. Una VP firmada con otra clave invalida `holderBinding` aunque la firma del issuer sea válida. |
+| VER-FR06 | Ligar la presentación a su solicitud. | AC06: `aud`, `nonce` y `state` de la VP deben coincidir con la solicitud. Nonce o state reutilizado y audience equivocada fallan. El almacén anti-replay es un puerto con implementación en memoria para laboratorio. La expiración de la VP no está definida por el perfil; ver supuestos propuestos. |
+| VER-FR07 | Separar resultado técnico y decisión de confianza. | AC07: el reporte lista una comprobación técnica por criterio (formato, firma, vigencia, binding, solicitud) y es independiente de la trust policy. La policy es un puerto aparte: confiar en un issuer nunca convierte una firma inválida en válida ni al revés. |
+| VER-FR08 | No persistir material sensible por defecto. | AC08: ni el reporte ni los logs ni la auditoría contienen `vp_token`, JWS crudo ni claims. Solo digest SHA-256, resultado y códigos de fallo no sensibles. Verificado con una prueba que busca el material en todas las salidas. |
+| VER-FR09 | Publicar vectores reproducibles del laboratorio. | AC09: los vectores positivos y negativos se generan con claves de prueba sintéticas, deterministas y marcadas como tales, e incluyen headers, payloads, claves públicas, firmas y resultado esperado. No se presentan como evidencia de interoperabilidad con un verifier externo. |
+| VER-FR10 | Comprobar status cuando la definition lo declare. | AC10: tipo, purpose, índice, firma, issuer y frescura de la lista (perfil §5), con política de fallo explícita (HK-051). El valor por defecto de esa política está por decidir. **Diferido** hasta que existan las listas de la fase 4; ver tareas. |
+| VER-FR12 | Validar la credencial contra su `credentialSchema` y contextos versionados. | AC12: una credencial que no cumple el schema de su definition falla con código propio; solo se usan contextos allowlisted. **Diferido** hasta que exista el Definition Registry (fase 2, HK-003); ver VER-T13. |
+
+## Calidad y límites
+
+| ID | Restricción | Verificación |
+| --- | --- | --- |
+| VER-QR01 | La librería no hace red por sí sola: el resolver de claves y el cargador de contextos son puertos inyectados. Las reglas de host y redirects viven en el adaptador (VER-FR11). | Pruebas con resolver falso; el paquete no importa `net/http`. |
+| VER-QR02 | Solo contextos JSON-LD allowlisted durante una verificación (perfil §2.6). | Prueba con contexto remoto no listado: se rechaza sin salir a la red. |
+| VER-QR03 | Comparaciones de thumbprint y de digest en tiempo constante. | Revisión de código y prueba de unidad sobre la función de comparación. |
+| VER-QR04 | Sin dependencia del módulo de autenticación de la consola. | El paquete no importa `internal/authentication`. **No existe hoy ningún chequeo automático:** VER-T07 lo crea (prueba de imports o regla de lint) y lo ejecuta en CI. |
+| VER-QR05 | Propuesta: entrada acotada (tamaño máximo de JWS, número de VCs por VP, profundidad JSON). Los valores no están en el perfil y se fijan en VER-T02. | Pruebas de límites con entradas sobredimensionadas. |
+
+## Supuestos propuestos
+
+Decisiones de diseño de este borrador que **no** vienen del perfil ni de la arquitectura y requieren aprobación del owner:
+
+- Expiración de la VP como criterio de fallo; el perfil solo exige `aud` y `nonce` ligados a la solicitud.
+- Valor por defecto de la política de fallo de status (HK-051 exige que sea explícita, no cuál es).
+- Los límites de tamaño, número de VCs y profundidad JSON de VER-QR05.
+- La tolerancia de reloj de VER-FR04; HK-022 solo pide "clock skew limitado".
+
+## Definition of Done aplicable
+
+La [DoD](../../05-delivery/definition-of-done.md) exige, para este cambio: contrato versionado antes de integrar, pruebas negativas, evidencia de checks ejecutados con sus limitaciones, runbook y documentación. Esta feature lo concreta en VER-T01 (contrato), VER-T07 (pruebas negativas) y VER-T08 (runbook y evidencia). Completar V0–V4 **no** satisface los apartados "Tipo de credencial HukID" (definición de purpose, trust policy y caso de uso del verifier) ni "Release y producción" de la DoD.
+
+No se fija un objetivo de latencia hasta medir un perfil de carga; los objetivos de las APIs de emisión no se aplican automáticamente.
+
+## Integración con lo que ya existe
+
+La verificación de credenciales y la autenticación de la consola son mecanismos distintos. La primera ocurre entre wallet y verifier, sin sesión de operador; la segunda es OIDC/BFF para el panel. No se reutiliza el login ni los tokens `operator` para verificar.
+
+| Pieza existente | Uso en esta feature |
+| --- | --- |
+| Tenants y RLS ([persistencia](../../03-design/console-persistence.md)) | Solo cuando exista Verifier-as-a-Service: client, audience y claves pertenecen al verifier/tenant (perfil §10). No aplica al incremento base. |
+| Auditoría ([AUTH-T09](../../03-design/console-auth-audit.md)) | Reutilizar el puerto de auditoría para registrar digest, resultado y razones no sensibles. |
+| Scopes reservados `issuer:read`, `definition:read`, `issuance:read`, `status:read` | Siguen sin concederse. Un cambio de la matriz requiere su propio contrato y ADR. |
+| Dashboard [FEAT-003](../FEAT-003-dashboard/spec.md) | Podría mostrar lecturas agregadas cuando exista el dominio; se decide en DASH-T05, no aquí. |
+| Clases de token del perfil §6 | Un token de integración o de operador nunca actúa como holder ni autoriza verificar. |
+
+## Trazabilidad y decisiones
+
+HK-043 y HK-056 ([backlog Team 5](../../02-requirements/backlogs/team-5-hukid.md)); [perfil §2, §3, §4.1, §5, §9, §10 y §12](../../03-design/hukid-profile.md); [arquitectura §3.9](../../03-design/hukid-architecture.md) y [ADR-0001](../../decisions/ADR-0001.md) (punto 6: API modular y worker, sin microservicio por módulo). El diseño del módulo y sus límites están en el [ADR-0030](../../decisions/ADR-0030.md), que es una propuesta. Las decisiones #1–#4 siguen abiertas: ningún documento de esta feature las resuelve por inferencia.

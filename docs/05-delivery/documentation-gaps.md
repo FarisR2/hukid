@@ -21,6 +21,8 @@ Lo implementado hasta hoy es el panel administrativo (autenticación, miembros, 
 
 Hasta que se decidan, ningún ADR ni artefacto ejecutable debe presentar estos puntos como resueltos.
 
+La [propuesta FEAT-004](../features/FEAT-004-credential-verification/spec.md) y su [ADR-0030](../decisions/ADR-0030.md) cubren solo el núcleo de verificación de la fase 0, sin depender de #1–#4: las tareas que sí las necesitan (VER-T10 y VER-T11) quedan diferidas. Ambas son propuestas pendientes de aprobación del owner.
+
 ## Correcciones de auditoría frontend — 2026-11-08
 
 La [reauditoría](../frontend/audits/2026-11-08-consola-correcciones.md) cierra F-001–F-006 del frontend base y consolida el [design system aprobado](../frontend/design-system.md). Mantiene abiertos lector de pantalla, zoom nativo, dispositivos/motores alternativos, axe/Lighthouse y métricas de campo. La prueba de confirmación con scopes issuer es UI-only y no demuestra ownership ni asignaciones reales. Sin cambio de contratos/DDL, cierre de DASH-T05, CI remoto nuevo ni aprobación productiva. Los informes y pruebas se versionan; capturas y métricas generadas se conservan localmente.

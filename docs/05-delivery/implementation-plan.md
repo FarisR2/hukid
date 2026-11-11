@@ -32,6 +32,7 @@ Estos paquetes concretan parte de foundation; no sustituyen el recorrido de emis
 2. Reproducir el [gate D4 base](dashboard-gate.md) con npm run test:dashboard:gate y seguir el [runbook](../04-engineering/console-dashboard-runbook.md) para fuentes activas, rollout y retirada. DASH-T08 cierra D1/D2 de laboratorio; D3/DASH-T05 sigue pendiente por fuente propietaria. No usar fixtures como datos operativos.
 3. Al incorporar cada fuente DASH-T05, extender contrato/política, matriz negativa y gate. Para iniciar un incremento del roadmap HK, acordar su corte y requisitos antes de dar por disponibles emisión/verificación. Reutilizar autorización viva, matriz y contexto AUTH/USR; conservar los límites del [gate U4](members-gate.md). Sin fuente confiable de ownership issuer no conceder grants ni inventar dominios.
 4. Mantener AUTH→USR→DASH y el roadmap HK separado. El dashboard base no acredita emisión, wallet, verificación ni preparación productiva.
+5. Existe una propuesta sin aprobar, [FEAT-004](../features/FEAT-004-credential-verification/spec.md), para el núcleo de verificación de credenciales (fase 0 del roadmap, HK-043 parcial). No altera el orden AUTH→USR→DASH ni está adoptada como prioridad; requiere aprobación del owner y el corte de las [decisiones abiertas](documentation-gaps.md).
 
 ## Preparación común / Sprint 0
 

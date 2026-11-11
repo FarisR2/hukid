@@ -9,6 +9,7 @@ Consola significa **panel web de administración**, con pantallas en el navegado
 | FEAT-001-authentication | Operador autenticado con OIDC/MFA, sesión segura y contexto tenant autorizado. | [Spec](FEAT-001-authentication/spec.md) · [Plan](FEAT-001-authentication/plan.md) · [Tareas](FEAT-001-authentication/tasks.md) |
 | FEAT-002-user-management | Administrar miembros, invitaciones, roles y acceso dentro de un tenant. | [Spec](FEAT-002-user-management/spec.md) · [Plan](FEAT-002-user-management/plan.md) · [Tareas](FEAT-002-user-management/tasks.md) |
 | FEAT-003-dashboard | Resumen operativo autorizado con datos reales y disponibilidad explícita. | [Spec](FEAT-003-dashboard/spec.md) · [Plan](FEAT-003-dashboard/plan.md) · [Tareas](FEAT-003-dashboard/tasks.md) |
+| FEAT-004-credential-verification | **Propuesta, sin implementación.** Núcleo interno que valida técnicamente una credencial `vc+jwt` (fase 0 del roadmap, HK-043); no es login ni parte del panel. | [Spec](FEAT-004-credential-verification/spec.md) · [Plan](FEAT-004-credential-verification/plan.md) · [Tareas](FEAT-004-credential-verification/tasks.md) · [ADR-0030](../decisions/ADR-0030.md) |
 
 ## Secuencia y primer incremento
 

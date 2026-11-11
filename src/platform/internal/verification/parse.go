@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io"
 	"strings"
+	"time"
 )
 
 const vcdmBaseContext = "https://www.w3.org/ns/credentials/v2"
@@ -31,6 +32,15 @@ type ParsedCredential struct {
 	ValidFrom    string
 	ValidUntil   string
 	CNFJKT       string
+	// ValidFromAt and ValidUntilAt are the parsed validity bounds in UTC; nil
+	// when the credential does not declare them.
+	ValidFromAt  *time.Time
+	ValidUntilAt *time.Time
+	// DeclaresStatus and DeclaresSchema report that the credential carries
+	// credentialStatus or credentialSchema. A declared member that is not yet
+	// checked must never let the credential be reported as valid.
+	DeclaresStatus bool
+	DeclaresSchema bool
 	// UntrustedKeyHeaders lists key-bearing JOSE headers supplied by the
 	// credential itself (jku, jwk, x5u, x5c). The profile forbids using them;
 	// the issuerKey check rejects the credential when this is not empty.
@@ -111,8 +121,23 @@ func ParseCredential(jws string, limits Limits) (*ParsedCredential, Check) {
 				return fail(CodeFormatMalformed)
 			}
 			*target = value
+			at, err := time.Parse(time.RFC3339, value)
+			if err != nil {
+				return fail(CodeFormatMalformed)
+			}
+			at = at.UTC()
+			if name == "validFrom" {
+				parsed.ValidFromAt = &at
+			} else {
+				parsed.ValidUntilAt = &at
+			}
 		}
 	}
+	if parsed.ValidFromAt != nil && parsed.ValidUntilAt != nil && !parsed.ValidFromAt.Before(*parsed.ValidUntilAt) {
+		return fail(CodeFormatMalformed)
+	}
+	_, parsed.DeclaresStatus = payload["credentialStatus"]
+	_, parsed.DeclaresSchema = payload["credentialSchema"]
 	if raw, present := payload["cnf"]; present {
 		cnf, err := decodeStrictObject(raw, limits.MaxJSONDepth)
 		if err != nil {

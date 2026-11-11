@@ -14,7 +14,7 @@ Ejecuciones del CI sobre la rama `feat/verification-report-contract` (lanzadas a
 | `42951483523` | VER-T03 | Intento 1: `failure` en `TestConsoleBrowser` (prueba del panel que el cambio no toca); intento 2: `success`. `ok .../internal/verification` en ambos. |
 | `42952831104` | VER-T04 | `success` |
 | `42953955890` | VER-T05 | `success` |
-| `42954692403` | VER-T06 y T07 | Pendiente de registrar al redactar este documento. |
+| `42954692403` | VER-T06 y T07 (commit `ddf5153`) | `success`, con `ok .../internal/verification` |
 
 Limitaciones de la evidencia: en la máquina del owner, Application Control bloquea de forma intermitente el binario de prueba de este paquete (no se esquivó), por lo que el CI es la verificación de referencia. El fallo intermitente de `TestConsoleBrowser` se observó una vez y no se investigó su causa.
 

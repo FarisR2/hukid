@@ -4,7 +4,7 @@ Estado: **propuesta; ninguna tarea iniciada**. Las casillas se marcan solo con i
 
 | Estado / ID | Objetivo y artefacto | Depende de | Componentes | Aceptación / verificación | Riesgo |
 | --- | --- | --- | --- | --- | --- |
-| [ ] VER-T01 | Fijar el contrato del reporte, el conjunto cerrado de códigos de fallo y los vectores sintéticos base. | Perfil v0.1-draft | `internal/verification`, vectores | VER-FR07/FR09: el reporte distingue `pass`/`fail`/`skipped`; los vectores validan y se rotulan sintéticos. | Códigos ambiguos. |
+| [x] VER-T01 | Fijar el contrato del reporte, el conjunto cerrado de códigos de fallo y los vectores sintéticos base. | Perfil v0.1-draft | `internal/verification`, vectores | VER-FR07/FR09: el reporte distingue `pass`/`fail`/`skipped`; los vectores validan y se rotulan sintéticos. | Códigos ambiguos. |
 | [ ] VER-T02 | Validar el formato `vc+jwt`: header, payload VCDM directo, sin contenedor `vc`. | VER-T01 | Parser y reglas puras | VER-FR01/AC01 y VER-QR05: casos negativos del header y el payload y límites de tamaño. | Aceptar `alg` no permitido. |
 | [ ] VER-T03 | Consumir la clave del puerto `IssuerKeyResolver` y verificar la firma ES256. | VER-T02 | Resolver en memoria, firma | VER-FR02/FR03 y VER-QR01: `jku`/`jwk` en la credencial, `kid` desconocido, issuer distinto, firma alterada y clave retirada pero publicada. Las reglas de host y redirects no se prueban aquí (VER-T12). | Resolver que sale a la red. |
 | [ ] VER-T04 | Evaluar vigencia con `Clock` inyectado y tolerancia explícita. | VER-T02 | Reglas de tiempo | VER-FR04/AC04: bordes de `validFrom`/`validUntil` y tolerancia acotada. | Zona horaria o desfase. |
@@ -17,6 +17,10 @@ Estado: **propuesta; ninguna tarea iniciada**. Las casillas se marcan solo con i
 | [ ] VER-T11 | Verifier-as-a-Service por tenant y, si se decide, lectura en la consola. | VER-T10; decisiones #1, #2, #3 | Tenancy, RLS, consola | Contrato y ADR propios; sin conceder scopes por inferencia. **Diferida.** | Alcance de producto sin acordar. |
 | [ ] VER-T12 | Adaptador HTTPS del resolver: JWKS solo del host del issuer, sin redirects cross-origin ni `jku`. | VER-T03; fase 1 (HK-002, JWKS publicado) | Adaptador, pruebas con servidor local | VER-FR11/AC11: JWKS de otro host y redirects cross-origin rechazados. **Diferida:** no hay publicación de JWKS. | Reglas de host aplicadas en el lugar equivocado. |
 | [ ] VER-T13 | Validar `credentialSchema` y contextos versionados contra la definition. | VER-T07; fase 2 (HK-003) | Schema, `ContextLoader` | VER-FR12/AC12 con definitions publicadas. **Diferida:** no existe el Definition Registry. | Dependencia futura. |
+
+## Evidencia
+
+**VER-T01 (2026-11-10).** Paquete `src/platform/internal/verification`: `report.go` (reporte con `pass`/`fail`/`skipped`, 20 códigos cerrados con `CodesVersion = 1`, `technicalResult` derivado de las comprobaciones, `trust` aparte y digest SHA-256), `report_test.go` y `vectors_test.go` con `testdata/vectors.json` (9 vectores sintéticos: 1 válido y 8 negativos). Las claves privadas de prueba son efímeras y no se versionan; el generador solo corre con `HUKID_UPDATE_VECTORS=1`. Una verificación independiente de los vectores, hecha solo con la biblioteca estándar, confirma que las firmas coinciden con lo declarado. Verificado: `gofmt`, `go vet` y `go test ./internal/verification/` en Windows con el toolchain local Go 1.27.3. **No verificado:** no hay verificador todavía; las reglas de formato, vigencia y binding de los vectores se ejercitan en VER-T02 a VER-T05. Los vectores no son evidencia de interoperabilidad externa.
 
 ## Cobertura requisito → aceptación → tarea
 

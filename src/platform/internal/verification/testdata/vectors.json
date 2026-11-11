@@ -1,0 +1,130 @@
+{
+  "synthetic": true,
+  "notice": "SYNTHETIC lab vectors. Generated with ephemeral P-256 keys whose private halves were discarded. They are not evidence of interoperability with any external verifier, wallet or issuer.",
+  "codesVersion": 1,
+  "issuer": "https://issuer.hukid.pe/synthetic-lab",
+  "issuerPublicKeys": {
+    "synthetic-lab-key-1": {
+      "kty": "EC",
+      "crv": "P-256",
+      "x": "DSaPANxU6ABKjca-ByjyMHWLEw8XRY1yPkZz6wglmgM",
+      "y": "esayMY6RSKvLYRLaUa6AwK49jt3KcFnncuuD_aEHI5I",
+      "kid": "synthetic-lab-key-1"
+    }
+  },
+  "holderPublicKey": {
+    "kty": "EC",
+    "crv": "P-256",
+    "x": "hZTcqQ1az__xqVfb5DbgZ_NUgbdDMXyjisXAKKxh8FE",
+    "y": "-MjvUXqtrET9W9wjItqmzzhMQzw6g2jW10kNN4zOmgc"
+  },
+  "holderJkt": "lOBRFAnDmJ2lU8uyX24aARnxoC-svemSaHao4Ft2xuA",
+  "vectors": [
+    {
+      "id": "v01-valid",
+      "description": "Well-formed vc+jwt signed by the issuer key, inside its validity window.",
+      "jws": "eyJhbGciOiJFUzI1NiIsImN0eSI6InZjIiwia2lkIjoic3ludGhldGljLWxhYi1rZXktMSIsInR5cCI6InZjK2p3dCJ9.eyJAY29udGV4dCI6WyJodHRwczovL3d3dy53My5vcmcvbnMvY3JlZGVudGlhbHMvdjIiXSwiY25mIjp7ImprdCI6ImxPQlJGQW5EbUoybFU4dXlYMjRhQVJueG9DLXN2ZW1TYUhhbzRGdDJ4dUEifSwiY3JlZGVudGlhbFN1YmplY3QiOnsibGFiZWwiOiJzeW50aGV0aWMtbGFiLXN1YmplY3QifSwiaXNzdWVyIjoiaHR0cHM6Ly9pc3N1ZXIuaHVraWQucGUvc3ludGhldGljLWxhYiIsInR5cGUiOlsiVmVyaWZpYWJsZUNyZWRlbnRpYWwiLCJTeW50aGV0aWNMYWJDcmVkZW50aWFsIl0sInZhbGlkRnJvbSI6IjIwMjYtMDEtMDFUMDA6MDA6MDBaIiwidmFsaWRVbnRpbCI6IjIwMjctMDEtMDFUMDA6MDA6MDBaIn0.FA3NOvLrKP1s4KXc1M8BSEJmvc0G_BdAuLh7-3_ALjEM-0rguObPqhU6de9LbM55Lj83lNnayqOkeAnfT8vY6w",
+      "evaluationTime": "2026-06-01T00:00:00Z",
+      "expected": {
+        "technicalResult": "valid"
+      }
+    },
+    {
+      "id": "v02-header-typ-wrong",
+      "description": "Header typ is JWT instead of vc+jwt; signature is otherwise valid.",
+      "jws": "eyJhbGciOiJFUzI1NiIsImN0eSI6InZjIiwia2lkIjoic3ludGhldGljLWxhYi1rZXktMSIsInR5cCI6IkpXVCJ9.eyJAY29udGV4dCI6WyJodHRwczovL3d3dy53My5vcmcvbnMvY3JlZGVudGlhbHMvdjIiXSwiY25mIjp7ImprdCI6ImxPQlJGQW5EbUoybFU4dXlYMjRhQVJueG9DLXN2ZW1TYUhhbzRGdDJ4dUEifSwiY3JlZGVudGlhbFN1YmplY3QiOnsibGFiZWwiOiJzeW50aGV0aWMtbGFiLXN1YmplY3QifSwiaXNzdWVyIjoiaHR0cHM6Ly9pc3N1ZXIuaHVraWQucGUvc3ludGhldGljLWxhYiIsInR5cGUiOlsiVmVyaWZpYWJsZUNyZWRlbnRpYWwiLCJTeW50aGV0aWNMYWJDcmVkZW50aWFsIl0sInZhbGlkRnJvbSI6IjIwMjYtMDEtMDFUMDA6MDA6MDBaIiwidmFsaWRVbnRpbCI6IjIwMjctMDEtMDFUMDA6MDA6MDBaIn0.ibLsZj1FGLG24-YMaja2vfacUviDj1TnxkICtqjN0SObhaVTAM-xKSL48FFXZ1cLM-jjOOuhpB4_Q0pjpiv9TQ",
+      "evaluationTime": "2026-06-01T00:00:00Z",
+      "expected": {
+        "technicalResult": "invalid",
+        "failedCheck": "format",
+        "code": "format.header.typ"
+      }
+    },
+    {
+      "id": "v03-header-alg-none",
+      "description": "Header alg is none with an empty signature.",
+      "jws": "eyJhbGciOiJub25lIiwia2lkIjoic3ludGhldGljLWxhYi1rZXktMSIsInR5cCI6InZjK2p3dCJ9.eyJAY29udGV4dCI6WyJodHRwczovL3d3dy53My5vcmcvbnMvY3JlZGVudGlhbHMvdjIiXSwiY25mIjp7ImprdCI6ImxPQlJGQW5EbUoybFU4dXlYMjRhQVJueG9DLXN2ZW1TYUhhbzRGdDJ4dUEifSwiY3JlZGVudGlhbFN1YmplY3QiOnsibGFiZWwiOiJzeW50aGV0aWMtbGFiLXN1YmplY3QifSwiaXNzdWVyIjoiaHR0cHM6Ly9pc3N1ZXIuaHVraWQucGUvc3ludGhldGljLWxhYiIsInR5cGUiOlsiVmVyaWZpYWJsZUNyZWRlbnRpYWwiLCJTeW50aGV0aWNMYWJDcmVkZW50aWFsIl0sInZhbGlkRnJvbSI6IjIwMjYtMDEtMDFUMDA6MDA6MDBaIiwidmFsaWRVbnRpbCI6IjIwMjctMDEtMDFUMDA6MDA6MDBaIn0.",
+      "evaluationTime": "2026-06-01T00:00:00Z",
+      "expected": {
+        "technicalResult": "invalid",
+        "failedCheck": "format",
+        "code": "format.header.alg"
+      }
+    },
+    {
+      "id": "v04-payload-vc-container",
+      "description": "Payload wraps the credential in a vc claim, which the profile forbids.",
+      "jws": "eyJhbGciOiJFUzI1NiIsImN0eSI6InZjIiwia2lkIjoic3ludGhldGljLWxhYi1rZXktMSIsInR5cCI6InZjK2p3dCJ9.eyJ2YyI6eyJAY29udGV4dCI6WyJodHRwczovL3d3dy53My5vcmcvbnMvY3JlZGVudGlhbHMvdjIiXSwiY25mIjp7ImprdCI6ImxPQlJGQW5EbUoybFU4dXlYMjRhQVJueG9DLXN2ZW1TYUhhbzRGdDJ4dUEifSwiY3JlZGVudGlhbFN1YmplY3QiOnsibGFiZWwiOiJzeW50aGV0aWMtbGFiLXN1YmplY3QifSwiaXNzdWVyIjoiaHR0cHM6Ly9pc3N1ZXIuaHVraWQucGUvc3ludGhldGljLWxhYiIsInR5cGUiOlsiVmVyaWZpYWJsZUNyZWRlbnRpYWwiLCJTeW50aGV0aWNMYWJDcmVkZW50aWFsIl0sInZhbGlkRnJvbSI6IjIwMjYtMDEtMDFUMDA6MDA6MDBaIiwidmFsaWRVbnRpbCI6IjIwMjctMDEtMDFUMDA6MDA6MDBaIn19.9imdEZGSE9qRwPbjcYwd1DRPEbpLGhsvx02IIpyGayA35D-cmSfb6iorz9AJLAYzwzyl5qzBrE_Nmq4EJkt3Pg",
+      "evaluationTime": "2026-06-01T00:00:00Z",
+      "expected": {
+        "technicalResult": "invalid",
+        "failedCheck": "format",
+        "code": "format.payload.vc_container"
+      }
+    },
+    {
+      "id": "v05-header-jku",
+      "description": "Header carries a jku supplied by the credential.",
+      "jws": "eyJhbGciOiJFUzI1NiIsImN0eSI6InZjIiwiamt1IjoiaHR0cHM6Ly9hdHRhY2tlci5pbnZhbGlkL2p3a3MuanNvbiIsImtpZCI6InN5bnRoZXRpYy1sYWIta2V5LTEiLCJ0eXAiOiJ2Yytqd3QifQ.eyJAY29udGV4dCI6WyJodHRwczovL3d3dy53My5vcmcvbnMvY3JlZGVudGlhbHMvdjIiXSwiY25mIjp7ImprdCI6ImxPQlJGQW5EbUoybFU4dXlYMjRhQVJueG9DLXN2ZW1TYUhhbzRGdDJ4dUEifSwiY3JlZGVudGlhbFN1YmplY3QiOnsibGFiZWwiOiJzeW50aGV0aWMtbGFiLXN1YmplY3QifSwiaXNzdWVyIjoiaHR0cHM6Ly9pc3N1ZXIuaHVraWQucGUvc3ludGhldGljLWxhYiIsInR5cGUiOlsiVmVyaWZpYWJsZUNyZWRlbnRpYWwiLCJTeW50aGV0aWNMYWJDcmVkZW50aWFsIl0sInZhbGlkRnJvbSI6IjIwMjYtMDEtMDFUMDA6MDA6MDBaIiwidmFsaWRVbnRpbCI6IjIwMjctMDEtMDFUMDA6MDA6MDBaIn0.ozNVyTCqqp0Dh75tkd8VSdPmgaUyEaT-Xu0GDxYC84Rku3djWdPU_MSy6mOJtcejgGkKKFVcSm1oAY3NNXqNtA",
+      "evaluationTime": "2026-06-01T00:00:00Z",
+      "expected": {
+        "technicalResult": "invalid",
+        "failedCheck": "issuerKey",
+        "code": "key.untrusted_header"
+      }
+    },
+    {
+      "id": "v06-signature-tampered",
+      "description": "Payload altered after signing; the signature no longer matches.",
+      "jws": "eyJhbGciOiJFUzI1NiIsImN0eSI6InZjIiwia2lkIjoic3ludGhldGljLWxhYi1rZXktMSIsInR5cCI6InZjK2p3dCJ9.eyJAY29udGV4dCI6WyJodHRwczovL3d3dy53My5vcmcvbnMvY3JlZGVudGlhbHMvdjIiXSwiY25mIjp7ImprdCI6ImxPQlJGQW5EbUoybFU4dXlYMjRhQVJueG9DLXN2ZW1TYUhhbzRGdDJ4dUEifSwiY3JlZGVudGlhbFN1YmplY3QiOnsibGFiZWwiOiJ0YW1wZXJlZCJ9LCJpc3N1ZXIiOiJodHRwczovL2lzc3Vlci5odWtpZC5wZS9zeW50aGV0aWMtbGFiIiwidHlwZSI6WyJWZXJpZmlhYmxlQ3JlZGVudGlhbCIsIlN5bnRoZXRpY0xhYkNyZWRlbnRpYWwiXSwidmFsaWRGcm9tIjoiMjAyNi0wMS0wMVQwMDowMDowMFoiLCJ2YWxpZFVudGlsIjoiMjAyNy0wMS0wMVQwMDowMDowMFoifQ.FA3NOvLrKP1s4KXc1M8BSEJmvc0G_BdAuLh7-3_ALjEM-0rguObPqhU6de9LbM55Lj83lNnayqOkeAnfT8vY6w",
+      "evaluationTime": "2026-06-01T00:00:00Z",
+      "expected": {
+        "technicalResult": "invalid",
+        "failedCheck": "signature",
+        "code": "signature.invalid"
+      }
+    },
+    {
+      "id": "v07-unknown-kid",
+      "description": "kid is not published by the issuer; signed with the issuer key.",
+      "jws": "eyJhbGciOiJFUzI1NiIsImN0eSI6InZjIiwia2lkIjoidW5rbm93bi1rZXkiLCJ0eXAiOiJ2Yytqd3QifQ.eyJAY29udGV4dCI6WyJodHRwczovL3d3dy53My5vcmcvbnMvY3JlZGVudGlhbHMvdjIiXSwiY25mIjp7ImprdCI6ImxPQlJGQW5EbUoybFU4dXlYMjRhQVJueG9DLXN2ZW1TYUhhbzRGdDJ4dUEifSwiY3JlZGVudGlhbFN1YmplY3QiOnsibGFiZWwiOiJzeW50aGV0aWMtbGFiLXN1YmplY3QifSwiaXNzdWVyIjoiaHR0cHM6Ly9pc3N1ZXIuaHVraWQucGUvc3ludGhldGljLWxhYiIsInR5cGUiOlsiVmVyaWZpYWJsZUNyZWRlbnRpYWwiLCJTeW50aGV0aWNMYWJDcmVkZW50aWFsIl0sInZhbGlkRnJvbSI6IjIwMjYtMDEtMDFUMDA6MDA6MDBaIiwidmFsaWRVbnRpbCI6IjIwMjctMDEtMDFUMDA6MDA6MDBaIn0.-KlEH-dbHfUCOHSoZ7oyIhpowLnk4zcwqbaj_E692J0LMwB152MoxKsrNowtL2SQ8lVJiNj6tnmspIjTwRGq2A",
+      "evaluationTime": "2026-06-01T00:00:00Z",
+      "expected": {
+        "technicalResult": "invalid",
+        "failedCheck": "issuerKey",
+        "code": "key.unknown_kid"
+      }
+    },
+    {
+      "id": "v08-expired",
+      "description": "Valid credential evaluated after validUntil.",
+      "jws": "eyJhbGciOiJFUzI1NiIsImN0eSI6InZjIiwia2lkIjoic3ludGhldGljLWxhYi1rZXktMSIsInR5cCI6InZjK2p3dCJ9.eyJAY29udGV4dCI6WyJodHRwczovL3d3dy53My5vcmcvbnMvY3JlZGVudGlhbHMvdjIiXSwiY25mIjp7ImprdCI6ImxPQlJGQW5EbUoybFU4dXlYMjRhQVJueG9DLXN2ZW1TYUhhbzRGdDJ4dUEifSwiY3JlZGVudGlhbFN1YmplY3QiOnsibGFiZWwiOiJzeW50aGV0aWMtbGFiLXN1YmplY3QifSwiaXNzdWVyIjoiaHR0cHM6Ly9pc3N1ZXIuaHVraWQucGUvc3ludGhldGljLWxhYiIsInR5cGUiOlsiVmVyaWZpYWJsZUNyZWRlbnRpYWwiLCJTeW50aGV0aWNMYWJDcmVkZW50aWFsIl0sInZhbGlkRnJvbSI6IjIwMjYtMDEtMDFUMDA6MDA6MDBaIiwidmFsaWRVbnRpbCI6IjIwMjctMDEtMDFUMDA6MDA6MDBaIn0.FA3NOvLrKP1s4KXc1M8BSEJmvc0G_BdAuLh7-3_ALjEM-0rguObPqhU6de9LbM55Lj83lNnayqOkeAnfT8vY6w",
+      "evaluationTime": "2027-06-01T00:00:00Z",
+      "expected": {
+        "technicalResult": "invalid",
+        "failedCheck": "validity",
+        "code": "validity.expired"
+      }
+    },
+    {
+      "id": "v09-not-yet-valid",
+      "description": "Valid credential evaluated before validFrom.",
+      "jws": "eyJhbGciOiJFUzI1NiIsImN0eSI6InZjIiwia2lkIjoic3ludGhldGljLWxhYi1rZXktMSIsInR5cCI6InZjK2p3dCJ9.eyJAY29udGV4dCI6WyJodHRwczovL3d3dy53My5vcmcvbnMvY3JlZGVudGlhbHMvdjIiXSwiY25mIjp7ImprdCI6ImxPQlJGQW5EbUoybFU4dXlYMjRhQVJueG9DLXN2ZW1TYUhhbzRGdDJ4dUEifSwiY3JlZGVudGlhbFN1YmplY3QiOnsibGFiZWwiOiJzeW50aGV0aWMtbGFiLXN1YmplY3QifSwiaXNzdWVyIjoiaHR0cHM6Ly9pc3N1ZXIuaHVraWQucGUvc3ludGhldGljLWxhYiIsInR5cGUiOlsiVmVyaWZpYWJsZUNyZWRlbnRpYWwiLCJTeW50aGV0aWNMYWJDcmVkZW50aWFsIl0sInZhbGlkRnJvbSI6IjIwMjYtMDEtMDFUMDA6MDA6MDBaIiwidmFsaWRVbnRpbCI6IjIwMjctMDEtMDFUMDA6MDA6MDBaIn0.FA3NOvLrKP1s4KXc1M8BSEJmvc0G_BdAuLh7-3_ALjEM-0rguObPqhU6de9LbM55Lj83lNnayqOkeAnfT8vY6w",
+      "evaluationTime": "2025-06-01T00:00:00Z",
+      "expected": {
+        "technicalResult": "invalid",
+        "failedCheck": "validity",
+        "code": "validity.not_yet_valid"
+      }
+    }
+  ],
+  "limitations": [
+    "The credential uses only the VCDM 2.0 base context. The profile defines cnf through a HukID context that does not exist for this lab type.",
+    "No verifiable presentation, status list or schema vectors yet: holder-binding and request-binding vectors arrive with VER-T05.",
+    "The issuer URL follows the profile pattern but is not a published issuer."
+  ],
+  "meta": {
+    "feature": "FEAT-004 VER-T01",
+    "generator": "vectors_test.go TestGenerateVectors"
+  }
+}

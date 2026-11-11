@@ -1,7 +1,7 @@
 # FEAT-004 — Núcleo de verificación de credenciales
 
 - Producto: HukID Platform / Team 5.
-- Estado: **propuesta, sin implementación**. Pendiente de aprobación del owner. Este documento no declara ningún artefacto, endpoint ni vector como existente.
+- Estado: **núcleo de laboratorio implementado (VER-T01–T08)**, por indicación del owner de iniciar la implementación; la aprobación formal del FEAT y del [ADR-0030](../../decisions/ADR-0030.md) **no está registrada**, y los valores marcados como propuesta siguen pendientes. Es un módulo interno sin endpoint ni proceso; HK-043 sigue incompleta (VER-T09 y T13) y el conformance gate del perfil, abierto. Evidencia y límites en el [gate V4](../../05-delivery/verification-gate.md).
 - Depende de: [perfil HukID v0.1-draft](../../03-design/hukid-profile.md) y, para la capa de adaptadores, de las decisiones abiertas de [pendientes](../../05-delivery/documentation-gaps.md). No depende de [FEAT-001](../FEAT-001-authentication/spec.md) para verificar; solo lo reutiliza en los puntos de integración que se listan abajo.
 - Salidas: [plan](plan.md), [tareas](tasks.md), [ADR-0030](../../decisions/ADR-0030.md).
 
@@ -32,7 +32,7 @@ Fuera de este incremento:
 | VER-FR03 | Verificar la firma ES256 del issuer. | AC03: firma alterada, clave de otro issuer y `kid` desconocido fallan con códigos distintos. Una clave retirada pero publicada sigue verificando credenciales antiguas. |
 | VER-FR04 | Evaluar vigencia con reloj inyectado. | AC04: `validFrom`/`validUntil` se comparan en UTC contra un reloj inyectable y una tolerancia de reloj explícita y acotada. Credencial futura y vencida fallan; los bordes están probados. |
 | VER-FR05 | Comprobar el holder binding del perfil §4.1. | AC05: el thumbprint RFC 7638 de la clave que firmó la VP se compara en tiempo constante con `cnf.jkt` de cada VC. Una VP firmada con otra clave invalida `holderBinding` aunque la firma del issuer sea válida. |
-| VER-FR06 | Ligar la presentación a su solicitud. | AC06: `aud`, `nonce` y `state` de la VP deben coincidir con la solicitud. Nonce o state reutilizado y audience equivocada fallan. El almacén anti-replay es un puerto con implementación en memoria para laboratorio. La expiración de la VP no está definida por el perfil; ver supuestos propuestos. |
+| VER-FR06 | Ligar la presentación a su solicitud. | AC06: `aud` y `nonce` de la VP, y el `state` de la respuesta (parámetro de la Authorization Response, no un claim de la VP), deben coincidir con la solicitud. Nonce o state reutilizado y audience equivocada fallan. El almacén anti-replay es un puerto con implementación en memoria para laboratorio. La expiración de la VP no está definida por el perfil; ver supuestos propuestos. |
 | VER-FR07 | Separar resultado técnico y decisión de confianza. | AC07: el reporte lista una comprobación técnica por criterio (formato, firma, vigencia, binding, solicitud) y es independiente de la trust policy. La policy es un puerto aparte: confiar en un issuer nunca convierte una firma inválida en válida ni al revés. |
 | VER-FR08 | No persistir material sensible por defecto. | AC08: ni el reporte ni los logs ni la auditoría contienen `vp_token`, JWS crudo ni claims. Solo digest SHA-256, resultado y códigos de fallo no sensibles. Verificado con una prueba que busca el material en todas las salidas. |
 | VER-FR09 | Publicar vectores reproducibles del laboratorio. | AC09: los vectores positivos y negativos se generan con claves de prueba sintéticas, deterministas y marcadas como tales, e incluyen headers, payloads, claves públicas, firmas y resultado esperado. No se presentan como evidencia de interoperabilidad con un verifier externo. |
@@ -44,8 +44,8 @@ Fuera de este incremento:
 | ID | Restricción | Verificación |
 | --- | --- | --- |
 | VER-QR01 | La librería no hace red por sí sola: el resolver de claves y el cargador de contextos son puertos inyectados. Las reglas de host y redirects viven en el adaptador (VER-FR11). | Pruebas con resolver falso; el paquete no importa `net/http`. |
-| VER-QR02 | Solo contextos JSON-LD allowlisted durante una verificación (perfil §2.6). | Prueba con contexto remoto no listado: se rechaza sin salir a la red. |
-| VER-QR03 | Comparaciones de thumbprint y de digest en tiempo constante. | Revisión de código y prueba de unidad sobre la función de comparación. |
+| VER-QR02 | Solo contextos JSON-LD allowlisted durante una verificación (perfil §2.6). Un contexto no listado, o un contexto en línea (objeto), se rechaza con `format.context_not_allowed` sin salir a la red. Por defecto solo se admite el contexto base VCDM 2.0 (y el de presentación en una VP). | Prueba con contexto remoto no listado: se rechaza sin salir a la red; el paquete no puede hacer red (QR01). |
+| VER-QR03 | Comparaciones de thumbprint, audience, nonce y state en tiempo constante. El módulo no compara digests: solo los produce. | Revisión de código y pruebas de coincidencia y discrepancia de la presentación. |
 | VER-QR04 | Sin dependencia del módulo de autenticación de la consola. | El paquete no importa `internal/authentication`. **No existe hoy ningún chequeo automático:** VER-T07 lo crea (prueba de imports o regla de lint) y lo ejecuta en CI. |
 | VER-QR05 | Propuesta: entrada acotada (tamaño máximo de JWS, número de VCs por VP, profundidad JSON). Los valores no están en el perfil y se fijan en VER-T02. | Pruebas de límites con entradas sobredimensionadas. |
 
@@ -55,8 +55,11 @@ Decisiones de diseño de este borrador que **no** vienen del perfil ni de la arq
 
 - Expiración de la VP como criterio de fallo; el perfil solo exige `aud` y `nonce` ligados a la solicitud.
 - Valor por defecto de la política de fallo de status (HK-051 exige que sea explícita, no cuál es).
-- Los límites de tamaño, número de VCs y profundidad JSON de VER-QR05.
+- Los límites de tamaño, número de VCs y profundidad JSON de VER-QR05. Valores implementados: 16 KiB por credencial, 8 niveles, 8 credenciales y 64 KiB por presentación.
+- La forma exacta de la VP (`aud` y `nonce` como miembros de primer nivel, credenciales envueltas en `verifiableCredential`, JWK del holder en el header). Se infiere de las secciones 2.3, 2.5 y 9.6 del perfil porque el ejemplo `vp-jwt-structure.json` no está en el repositorio; no se admite un `kid` del holder resuelto fuera del header.
 - La tolerancia de reloj de VER-FR04; HK-022 solo pide "clock skew limitado".
+- La lista de contextos permitidos por defecto: solo el contexto base VCDM 2.0 (y el de presentación en una VP). No se incluye el contexto `cpe/v1` del perfil, porque permitirlo por defecto prejuzgaría la decisión abierta #4 (qué documento va primero en el piloto); los contextos de cada tipo se añaden por definición (VER-T13).
+- El código nuevo `format.context_not_allowed` subió `CodesVersion` de 1 a 2, según la regla de que cambiar el conjunto cerrado exige nueva versión.
 
 ## Definition of Done aplicable
 

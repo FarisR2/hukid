@@ -10,7 +10,7 @@ import (
 
 // CodesVersion identifies the closed failure-code set. Adding or renaming a
 // code requires a new version.
-const CodesVersion = 1
+const CodesVersion = 2
 
 // CheckName identifies one verification criterion.
 type CheckName string
@@ -40,30 +40,31 @@ const (
 type Code string
 
 const (
-	CodeFormatMalformed       Code = "format.malformed"
-	CodeFormatHeaderAlg       Code = "format.header.alg"
-	CodeFormatHeaderTyp       Code = "format.header.typ"
-	CodeFormatVCContainer     Code = "format.payload.vc_container"
-	CodeFormatDuplicateClaim  Code = "format.payload.duplicate_claim"
-	CodeKeyUntrustedHeader    Code = "key.untrusted_header"
-	CodeKeyUnknownKID         Code = "key.unknown_kid"
-	CodeKeyIssuerMismatch     Code = "key.issuer_mismatch"
-	CodeSignatureInvalid      Code = "signature.invalid"
-	CodeValidityNotYetValid   Code = "validity.not_yet_valid"
-	CodeValidityExpired       Code = "validity.expired"
-	CodeBindingMissingCNF     Code = "binding.missing_cnf"
-	CodeBindingMismatch       Code = "binding.mismatch"
-	CodeRequestAudience       Code = "request.audience_mismatch"
-	CodeRequestNonce          Code = "request.nonce_mismatch"
-	CodeRequestState          Code = "request.state_mismatch"
-	CodeRequestReplayed       Code = "request.replayed"
-	CodeSkippedNotDeclared    Code = "skipped.not_declared"
-	CodeSkippedNotImplemented Code = "skipped.not_implemented"
-	CodeSkippedPrecondition   Code = "skipped.precondition_failed"
+	CodeFormatMalformed         Code = "format.malformed"
+	CodeFormatHeaderAlg         Code = "format.header.alg"
+	CodeFormatHeaderTyp         Code = "format.header.typ"
+	CodeFormatVCContainer       Code = "format.payload.vc_container"
+	CodeFormatDuplicateClaim    Code = "format.payload.duplicate_claim"
+	CodeFormatContextNotAllowed Code = "format.context_not_allowed"
+	CodeKeyUntrustedHeader      Code = "key.untrusted_header"
+	CodeKeyUnknownKID           Code = "key.unknown_kid"
+	CodeKeyIssuerMismatch       Code = "key.issuer_mismatch"
+	CodeSignatureInvalid        Code = "signature.invalid"
+	CodeValidityNotYetValid     Code = "validity.not_yet_valid"
+	CodeValidityExpired         Code = "validity.expired"
+	CodeBindingMissingCNF       Code = "binding.missing_cnf"
+	CodeBindingMismatch         Code = "binding.mismatch"
+	CodeRequestAudience         Code = "request.audience_mismatch"
+	CodeRequestNonce            Code = "request.nonce_mismatch"
+	CodeRequestState            Code = "request.state_mismatch"
+	CodeRequestReplayed         Code = "request.replayed"
+	CodeSkippedNotDeclared      Code = "skipped.not_declared"
+	CodeSkippedNotImplemented   Code = "skipped.not_implemented"
+	CodeSkippedPrecondition     Code = "skipped.precondition_failed"
 )
 
 var failureCodes = map[CheckName][]Code{
-	CheckFormat:         {CodeFormatMalformed, CodeFormatHeaderAlg, CodeFormatHeaderTyp, CodeFormatVCContainer, CodeFormatDuplicateClaim},
+	CheckFormat:         {CodeFormatMalformed, CodeFormatHeaderAlg, CodeFormatHeaderTyp, CodeFormatVCContainer, CodeFormatDuplicateClaim, CodeFormatContextNotAllowed},
 	CheckIssuerKey:      {CodeKeyUntrustedHeader, CodeKeyUnknownKID, CodeKeyIssuerMismatch},
 	CheckSignature:      {CodeSignatureInvalid},
 	CheckValidity:       {CodeValidityNotYetValid, CodeValidityExpired},

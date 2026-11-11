@@ -30,12 +30,38 @@ type Verifier struct {
 	clock     Clock
 	limits    Limits
 	clockSkew time.Duration
+	replay    ReplayStore
+	trust     TrustPolicy
+}
+
+// WithCredentialContexts returns a copy that accepts the given JSON-LD contexts
+// in credentials, in place of the minimal default. Contexts are never fetched.
+func (v *Verifier) WithCredentialContexts(contexts ...string) *Verifier {
+	copied := *v
+	copied.limits.Contexts = append([]string{vcdmBaseContext}, contexts...)
+	return &copied
+}
+
+// WithTrustPolicy returns a copy of the verifier that records a trust decision
+// next to the technical result. Without a policy the reports carry no trust.
+func (v *Verifier) WithTrustPolicy(policy TrustPolicy) *Verifier {
+	copied := *v
+	copied.trust = policy
+	return &copied
+}
+
+// WithReplayStore returns a copy of the verifier that can verify presentations.
+// Credential verification does not need a store.
+func (v *Verifier) WithReplayStore(store ReplayStore) *Verifier {
+	copied := *v
+	copied.replay = store
+	return &copied
 }
 
 // NewVerifier validates its configuration. clockSkew must be within
 // [0, MaxClockSkew].
 func NewVerifier(keys IssuerKeyResolver, clock Clock, limits Limits, clockSkew time.Duration) (*Verifier, error) {
-	if keys == nil || clock == nil || limits.MaxJWSBytes <= 0 || limits.MaxJSONDepth <= 0 || clockSkew < 0 || clockSkew > MaxClockSkew {
+	if keys == nil || clock == nil || limits.MaxJWSBytes <= 0 || limits.MaxJSONDepth <= 0 || limits.MaxCredentials <= 0 || limits.MaxPresentationBytes <= 0 || clockSkew < 0 || clockSkew > MaxClockSkew {
 		return nil, ErrConfig
 	}
 	return &Verifier{keys: keys, clock: clock, limits: limits, clockSkew: clockSkew}, nil
@@ -74,14 +100,29 @@ func (v *Verifier) Verify(jws string) (Report, error) {
 			optionalSkip(CheckStatus, false),
 			optionalSkip(CheckSchema, false),
 		)
-		return NewReport([]byte(jws), checks), nil
+		report := NewReport([]byte(jws), checks)
+		if v.trust != nil {
+			// The issuer of an unauthenticated credential is only a claim.
+			report = report.WithTrust(NotEvaluated)
+		}
+		return report, nil
 	}
 	checks = append(checks,
 		checkValidity(parsed, v.clock.Now(), v.clockSkew),
 		optionalSkip(CheckStatus, parsed.DeclaresStatus),
 		optionalSkip(CheckSchema, parsed.DeclaresSchema),
 	)
-	return NewReport([]byte(jws), checks), nil
+	report := NewReport([]byte(jws), checks)
+	if v.trust != nil {
+		// The issuer is authenticated here (key and signature passed), whatever
+		// the validity outcome. The decision never changes the technical result.
+		decision, err := evaluateTrust(v.trust, parsed.Issuer)
+		if err != nil {
+			return Report{}, err
+		}
+		report = report.WithTrust(decision)
+	}
+	return report, nil
 }
 
 // optionalSkip reports a check that is not run yet. It is required (and so

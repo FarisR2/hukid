@@ -73,7 +73,7 @@ func TestCodeSetIsClosedUniqueAndStable(t *testing.T) {
 	if IsKnown("format.unknown") || IsKnown("") {
 		t.Fatal("unlisted codes must not be known")
 	}
-	if len(seen) != 20 {
+	if len(seen) != 21 {
 		t.Fatalf("closed set has %d codes; changing it requires a new CodesVersion and this assertion", len(seen))
 	}
 }

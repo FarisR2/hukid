@@ -21,7 +21,7 @@ Lo implementado hasta hoy es el panel administrativo (autenticación, miembros, 
 
 Hasta que se decidan, ningún ADR ni artefacto ejecutable debe presentar estos puntos como resueltos.
 
-La [propuesta FEAT-004](../features/FEAT-004-credential-verification/spec.md) y su [ADR-0030](../decisions/ADR-0030.md) cubren solo el núcleo de verificación de la fase 0, sin depender de #1–#4: las tareas que sí las necesitan (VER-T10 y VER-T11) quedan diferidas. Ambas son propuestas pendientes de aprobación del owner.
+La [propuesta FEAT-004](../features/FEAT-004-credential-verification/spec.md) y su [ADR-0030](../decisions/ADR-0030.md) cubren solo el núcleo de verificación de la fase 0, sin depender de #1–#4: las tareas que sí las necesitan (VER-T10 y VER-T11) quedan diferidas. El núcleo está implementado en laboratorio (VER-T01–T08, [gate V4](verification-gate.md)) por indicación del owner de iniciar la implementación; la aprobación formal de ambos documentos no está registrada. Siguen abiertos: status, resolución HTTPS del JWKS y schema (VER-T09, T12, T13), la interoperabilidad con un verifier externo, el conformance gate del perfil y los valores propuestos (límites de entrada, tolerancia de reloj, contextos permitidos).
 
 ## Correcciones de auditoría frontend — 2026-11-08
 

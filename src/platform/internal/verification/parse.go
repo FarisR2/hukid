@@ -14,13 +14,52 @@ const vcdmBaseContext = "https://www.w3.org/ns/credentials/v2"
 // Limits bound the input before any cryptographic work. The values are a
 // proposal of FEAT-004 (VER-QR05), not a profile requirement.
 type Limits struct {
-	MaxJWSBytes  int
-	MaxJSONDepth int
+	MaxJWSBytes          int
+	MaxJSONDepth         int
+	MaxCredentials       int
+	MaxPresentationBytes int
 }
 
-// DefaultLimits are the proposed defaults: 16 KiB per compact JWS and 8 levels
-// of JSON nesting.
-var DefaultLimits = Limits{MaxJWSBytes: 16 * 1024, MaxJSONDepth: 8}
+// DefaultLimits are the proposed defaults: 16 KiB per compact credential JWS,
+// 8 levels of JSON nesting, 8 credentials and 64 KiB per presentation.
+var DefaultLimits = Limits{MaxJWSBytes: 16 * 1024, MaxJSONDepth: 8, MaxCredentials: 8, MaxPresentationBytes: 64 * 1024}
+
+// compactJWS is a compact JWS split and strictly decoded, before any check of
+// its content.
+type compactJWS struct {
+	SigningInput string
+	Header       map[string]json.RawMessage
+	Payload      map[string]json.RawMessage
+	Signature    []byte
+}
+
+// decodeCompact splits a compact JWS and decodes header and payload as strict
+// JSON objects (no duplicate members, bounded depth). ok is false for any
+// structural problem, which callers report as format.malformed.
+func decodeCompact(jws string, maxBytes, maxDepth int) (compactJWS, bool) {
+	if len(jws) == 0 || len(jws) > maxBytes {
+		return compactJWS{}, false
+	}
+	parts := strings.Split(jws, ".")
+	if len(parts) != 3 || parts[0] == "" || parts[1] == "" {
+		return compactJWS{}, false
+	}
+	headerRaw, errH := base64.RawURLEncoding.DecodeString(parts[0])
+	payloadRaw, errP := base64.RawURLEncoding.DecodeString(parts[1])
+	signature, errS := base64.RawURLEncoding.DecodeString(parts[2])
+	if errH != nil || errP != nil || errS != nil {
+		return compactJWS{}, false
+	}
+	header, err := decodeStrictObject(headerRaw, maxDepth)
+	if err != nil {
+		return compactJWS{}, false
+	}
+	payload, err := decodeStrictObject(payloadRaw, maxDepth)
+	if err != nil {
+		return compactJWS{}, false
+	}
+	return compactJWS{SigningInput: parts[0] + "." + parts[1], Header: header, Payload: payload, Signature: signature}, true
+}
 
 // ParsedCredential is the structurally valid content of a vc+jwt. It is the
 // input of the later checks: key resolution, signature, validity and binding.
@@ -55,27 +94,11 @@ var untrustedKeyHeaders = []string{"jku", "jwk", "x5u", "x5c"}
 func ParseCredential(jws string, limits Limits) (*ParsedCredential, Check) {
 	fail := func(code Code) (*ParsedCredential, Check) { return nil, Failed(CheckFormat, code) }
 
-	if len(jws) == 0 || len(jws) > limits.MaxJWSBytes {
+	compact, ok := decodeCompact(jws, limits.MaxJWSBytes, limits.MaxJSONDepth)
+	if !ok {
 		return fail(CodeFormatMalformed)
 	}
-	parts := strings.Split(jws, ".")
-	if len(parts) != 3 || parts[0] == "" || parts[1] == "" {
-		return fail(CodeFormatMalformed)
-	}
-	headerRaw, errH := base64.RawURLEncoding.DecodeString(parts[0])
-	payloadRaw, errP := base64.RawURLEncoding.DecodeString(parts[1])
-	signature, errS := base64.RawURLEncoding.DecodeString(parts[2])
-	if errH != nil || errP != nil || errS != nil {
-		return fail(CodeFormatMalformed)
-	}
-	header, err := decodeStrictObject(headerRaw, limits.MaxJSONDepth)
-	if err != nil {
-		return fail(CodeFormatMalformed)
-	}
-	payload, err := decodeStrictObject(payloadRaw, limits.MaxJSONDepth)
-	if err != nil {
-		return fail(CodeFormatMalformed)
-	}
+	header, payload, signature := compact.Header, compact.Payload, compact.Signature
 
 	if alg, ok := stringMember(header, "alg"); !ok || alg != "ES256" {
 		return fail(CodeFormatHeaderAlg)
@@ -102,7 +125,7 @@ func ParseCredential(jws string, limits Limits) (*ParsedCredential, Check) {
 	}
 
 	parsed := &ParsedCredential{
-		SigningInput: parts[0] + "." + parts[1],
+		SigningInput: compact.SigningInput,
 		Signature:    signature,
 		KID:          kid,
 		Issuer:       issuer,

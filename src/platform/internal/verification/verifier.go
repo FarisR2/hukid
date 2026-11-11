@@ -30,12 +30,21 @@ type Verifier struct {
 	clock     Clock
 	limits    Limits
 	clockSkew time.Duration
+	replay    ReplayStore
+}
+
+// WithReplayStore returns a copy of the verifier that can verify presentations.
+// Credential verification does not need a store.
+func (v *Verifier) WithReplayStore(store ReplayStore) *Verifier {
+	copied := *v
+	copied.replay = store
+	return &copied
 }
 
 // NewVerifier validates its configuration. clockSkew must be within
 // [0, MaxClockSkew].
 func NewVerifier(keys IssuerKeyResolver, clock Clock, limits Limits, clockSkew time.Duration) (*Verifier, error) {
-	if keys == nil || clock == nil || limits.MaxJWSBytes <= 0 || limits.MaxJSONDepth <= 0 || clockSkew < 0 || clockSkew > MaxClockSkew {
+	if keys == nil || clock == nil || limits.MaxJWSBytes <= 0 || limits.MaxJSONDepth <= 0 || limits.MaxCredentials <= 0 || limits.MaxPresentationBytes <= 0 || clockSkew < 0 || clockSkew > MaxClockSkew {
 		return nil, ErrConfig
 	}
 	return &Verifier{keys: keys, clock: clock, limits: limits, clockSkew: clockSkew}, nil

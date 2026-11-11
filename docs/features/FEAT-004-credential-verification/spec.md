@@ -32,7 +32,7 @@ Fuera de este incremento:
 | VER-FR03 | Verificar la firma ES256 del issuer. | AC03: firma alterada, clave de otro issuer y `kid` desconocido fallan con códigos distintos. Una clave retirada pero publicada sigue verificando credenciales antiguas. |
 | VER-FR04 | Evaluar vigencia con reloj inyectado. | AC04: `validFrom`/`validUntil` se comparan en UTC contra un reloj inyectable y una tolerancia de reloj explícita y acotada. Credencial futura y vencida fallan; los bordes están probados. |
 | VER-FR05 | Comprobar el holder binding del perfil §4.1. | AC05: el thumbprint RFC 7638 de la clave que firmó la VP se compara en tiempo constante con `cnf.jkt` de cada VC. Una VP firmada con otra clave invalida `holderBinding` aunque la firma del issuer sea válida. |
-| VER-FR06 | Ligar la presentación a su solicitud. | AC06: `aud`, `nonce` y `state` de la VP deben coincidir con la solicitud. Nonce o state reutilizado y audience equivocada fallan. El almacén anti-replay es un puerto con implementación en memoria para laboratorio. La expiración de la VP no está definida por el perfil; ver supuestos propuestos. |
+| VER-FR06 | Ligar la presentación a su solicitud. | AC06: `aud` y `nonce` de la VP, y el `state` de la respuesta (parámetro de la Authorization Response, no un claim de la VP), deben coincidir con la solicitud. Nonce o state reutilizado y audience equivocada fallan. El almacén anti-replay es un puerto con implementación en memoria para laboratorio. La expiración de la VP no está definida por el perfil; ver supuestos propuestos. |
 | VER-FR07 | Separar resultado técnico y decisión de confianza. | AC07: el reporte lista una comprobación técnica por criterio (formato, firma, vigencia, binding, solicitud) y es independiente de la trust policy. La policy es un puerto aparte: confiar en un issuer nunca convierte una firma inválida en válida ni al revés. |
 | VER-FR08 | No persistir material sensible por defecto. | AC08: ni el reporte ni los logs ni la auditoría contienen `vp_token`, JWS crudo ni claims. Solo digest SHA-256, resultado y códigos de fallo no sensibles. Verificado con una prueba que busca el material en todas las salidas. |
 | VER-FR09 | Publicar vectores reproducibles del laboratorio. | AC09: los vectores positivos y negativos se generan con claves de prueba sintéticas, deterministas y marcadas como tales, e incluyen headers, payloads, claves públicas, firmas y resultado esperado. No se presentan como evidencia de interoperabilidad con un verifier externo. |
@@ -55,7 +55,8 @@ Decisiones de diseño de este borrador que **no** vienen del perfil ni de la arq
 
 - Expiración de la VP como criterio de fallo; el perfil solo exige `aud` y `nonce` ligados a la solicitud.
 - Valor por defecto de la política de fallo de status (HK-051 exige que sea explícita, no cuál es).
-- Los límites de tamaño, número de VCs y profundidad JSON de VER-QR05.
+- Los límites de tamaño, número de VCs y profundidad JSON de VER-QR05. Valores implementados: 16 KiB por credencial, 8 niveles, 8 credenciales y 64 KiB por presentación.
+- La forma exacta de la VP (`aud` y `nonce` como miembros de primer nivel, credenciales envueltas en `verifiableCredential`, JWK del holder en el header). Se infiere de las secciones 2.3, 2.5 y 9.6 del perfil porque el ejemplo `vp-jwt-structure.json` no está en el repositorio; no se admite un `kid` del holder resuelto fuera del header.
 - La tolerancia de reloj de VER-FR04; HK-022 solo pide "clock skew limitado".
 
 ## Definition of Done aplicable

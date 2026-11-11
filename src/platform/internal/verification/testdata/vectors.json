@@ -7,23 +7,23 @@
     "synthetic-lab-key-1": {
       "kty": "EC",
       "crv": "P-256",
-      "x": "DSaPANxU6ABKjca-ByjyMHWLEw8XRY1yPkZz6wglmgM",
-      "y": "esayMY6RSKvLYRLaUa6AwK49jt3KcFnncuuD_aEHI5I",
+      "x": "IEWTSb-0FlYrz6qTW-eTHQuT2GpM1o1BMumkTr85UUw",
+      "y": "ON8-VFScxDKchIGFCslME7KCsKmXFDzEYWh4nBvYbRU",
       "kid": "synthetic-lab-key-1"
     }
   },
   "holderPublicKey": {
     "kty": "EC",
     "crv": "P-256",
-    "x": "hZTcqQ1az__xqVfb5DbgZ_NUgbdDMXyjisXAKKxh8FE",
-    "y": "-MjvUXqtrET9W9wjItqmzzhMQzw6g2jW10kNN4zOmgc"
+    "x": "LN7BmgstWwY7BPaYynWMMuDdJpM8GNL4QENu6IDcK-Q",
+    "y": "36BgscWuPuDLB0L21IGhQaehp22rCxFVTSFXQYo_m8A"
   },
-  "holderJkt": "lOBRFAnDmJ2lU8uyX24aARnxoC-svemSaHao4Ft2xuA",
+  "holderJkt": "wRSi8m9YIgW6QXOS6L_Bshx9PK_zj8dwX-yC_yV1Pyo",
   "vectors": [
     {
       "id": "v01-valid",
       "description": "Well-formed vc+jwt signed by the issuer key, inside its validity window.",
-      "jws": "eyJhbGciOiJFUzI1NiIsImN0eSI6InZjIiwia2lkIjoic3ludGhldGljLWxhYi1rZXktMSIsInR5cCI6InZjK2p3dCJ9.eyJAY29udGV4dCI6WyJodHRwczovL3d3dy53My5vcmcvbnMvY3JlZGVudGlhbHMvdjIiXSwiY25mIjp7ImprdCI6ImxPQlJGQW5EbUoybFU4dXlYMjRhQVJueG9DLXN2ZW1TYUhhbzRGdDJ4dUEifSwiY3JlZGVudGlhbFN1YmplY3QiOnsibGFiZWwiOiJzeW50aGV0aWMtbGFiLXN1YmplY3QifSwiaXNzdWVyIjoiaHR0cHM6Ly9pc3N1ZXIuaHVraWQucGUvc3ludGhldGljLWxhYiIsInR5cGUiOlsiVmVyaWZpYWJsZUNyZWRlbnRpYWwiLCJTeW50aGV0aWNMYWJDcmVkZW50aWFsIl0sInZhbGlkRnJvbSI6IjIwMjYtMDEtMDFUMDA6MDA6MDBaIiwidmFsaWRVbnRpbCI6IjIwMjctMDEtMDFUMDA6MDA6MDBaIn0.FA3NOvLrKP1s4KXc1M8BSEJmvc0G_BdAuLh7-3_ALjEM-0rguObPqhU6de9LbM55Lj83lNnayqOkeAnfT8vY6w",
+      "jws": "eyJhbGciOiJFUzI1NiIsImN0eSI6InZjIiwia2lkIjoic3ludGhldGljLWxhYi1rZXktMSIsInR5cCI6InZjK2p3dCJ9.eyJAY29udGV4dCI6WyJodHRwczovL3d3dy53My5vcmcvbnMvY3JlZGVudGlhbHMvdjIiXSwiY25mIjp7ImprdCI6IndSU2k4bTlZSWdXNlFYT1M2TF9Cc2h4OVBLX3pqOGR3WC15Q195VjFQeW8ifSwiY3JlZGVudGlhbFN1YmplY3QiOnsibGFiZWwiOiJzeW50aGV0aWMtbGFiLXN1YmplY3QifSwiaXNzdWVyIjoiaHR0cHM6Ly9pc3N1ZXIuaHVraWQucGUvc3ludGhldGljLWxhYiIsInR5cGUiOlsiVmVyaWZpYWJsZUNyZWRlbnRpYWwiLCJTeW50aGV0aWNMYWJDcmVkZW50aWFsIl0sInZhbGlkRnJvbSI6IjIwMjYtMDEtMDFUMDA6MDA6MDBaIiwidmFsaWRVbnRpbCI6IjIwMjctMDEtMDFUMDA6MDA6MDBaIn0.MpEyq14F8FHJYFHshM38TJIuwUTc-082aSQ0zMTDBlh81_MstR_a4AdPFPri8b3ze1gsnXH7sIxk104AbmLKrQ",
       "evaluationTime": "2026-06-01T00:00:00Z",
       "expected": {
         "technicalResult": "valid"
@@ -32,7 +32,7 @@
     {
       "id": "v02-header-typ-wrong",
       "description": "Header typ is JWT instead of vc+jwt; signature is otherwise valid.",
-      "jws": "eyJhbGciOiJFUzI1NiIsImN0eSI6InZjIiwia2lkIjoic3ludGhldGljLWxhYi1rZXktMSIsInR5cCI6IkpXVCJ9.eyJAY29udGV4dCI6WyJodHRwczovL3d3dy53My5vcmcvbnMvY3JlZGVudGlhbHMvdjIiXSwiY25mIjp7ImprdCI6ImxPQlJGQW5EbUoybFU4dXlYMjRhQVJueG9DLXN2ZW1TYUhhbzRGdDJ4dUEifSwiY3JlZGVudGlhbFN1YmplY3QiOnsibGFiZWwiOiJzeW50aGV0aWMtbGFiLXN1YmplY3QifSwiaXNzdWVyIjoiaHR0cHM6Ly9pc3N1ZXIuaHVraWQucGUvc3ludGhldGljLWxhYiIsInR5cGUiOlsiVmVyaWZpYWJsZUNyZWRlbnRpYWwiLCJTeW50aGV0aWNMYWJDcmVkZW50aWFsIl0sInZhbGlkRnJvbSI6IjIwMjYtMDEtMDFUMDA6MDA6MDBaIiwidmFsaWRVbnRpbCI6IjIwMjctMDEtMDFUMDA6MDA6MDBaIn0.ibLsZj1FGLG24-YMaja2vfacUviDj1TnxkICtqjN0SObhaVTAM-xKSL48FFXZ1cLM-jjOOuhpB4_Q0pjpiv9TQ",
+      "jws": "eyJhbGciOiJFUzI1NiIsImN0eSI6InZjIiwia2lkIjoic3ludGhldGljLWxhYi1rZXktMSIsInR5cCI6IkpXVCJ9.eyJAY29udGV4dCI6WyJodHRwczovL3d3dy53My5vcmcvbnMvY3JlZGVudGlhbHMvdjIiXSwiY25mIjp7ImprdCI6IndSU2k4bTlZSWdXNlFYT1M2TF9Cc2h4OVBLX3pqOGR3WC15Q195VjFQeW8ifSwiY3JlZGVudGlhbFN1YmplY3QiOnsibGFiZWwiOiJzeW50aGV0aWMtbGFiLXN1YmplY3QifSwiaXNzdWVyIjoiaHR0cHM6Ly9pc3N1ZXIuaHVraWQucGUvc3ludGhldGljLWxhYiIsInR5cGUiOlsiVmVyaWZpYWJsZUNyZWRlbnRpYWwiLCJTeW50aGV0aWNMYWJDcmVkZW50aWFsIl0sInZhbGlkRnJvbSI6IjIwMjYtMDEtMDFUMDA6MDA6MDBaIiwidmFsaWRVbnRpbCI6IjIwMjctMDEtMDFUMDA6MDA6MDBaIn0.VbSLMmuRDnBHKpEEI4bmA_3FiclCfQUjk5Wo1d3GLE7r6OSOpv1TS3SI2OELH8ND6hcr1fHAlTS77wuEAiWKZA",
       "evaluationTime": "2026-06-01T00:00:00Z",
       "expected": {
         "technicalResult": "invalid",
@@ -43,7 +43,7 @@
     {
       "id": "v03-header-alg-none",
       "description": "Header alg is none with an empty signature.",
-      "jws": "eyJhbGciOiJub25lIiwia2lkIjoic3ludGhldGljLWxhYi1rZXktMSIsInR5cCI6InZjK2p3dCJ9.eyJAY29udGV4dCI6WyJodHRwczovL3d3dy53My5vcmcvbnMvY3JlZGVudGlhbHMvdjIiXSwiY25mIjp7ImprdCI6ImxPQlJGQW5EbUoybFU4dXlYMjRhQVJueG9DLXN2ZW1TYUhhbzRGdDJ4dUEifSwiY3JlZGVudGlhbFN1YmplY3QiOnsibGFiZWwiOiJzeW50aGV0aWMtbGFiLXN1YmplY3QifSwiaXNzdWVyIjoiaHR0cHM6Ly9pc3N1ZXIuaHVraWQucGUvc3ludGhldGljLWxhYiIsInR5cGUiOlsiVmVyaWZpYWJsZUNyZWRlbnRpYWwiLCJTeW50aGV0aWNMYWJDcmVkZW50aWFsIl0sInZhbGlkRnJvbSI6IjIwMjYtMDEtMDFUMDA6MDA6MDBaIiwidmFsaWRVbnRpbCI6IjIwMjctMDEtMDFUMDA6MDA6MDBaIn0.",
+      "jws": "eyJhbGciOiJub25lIiwia2lkIjoic3ludGhldGljLWxhYi1rZXktMSIsInR5cCI6InZjK2p3dCJ9.eyJAY29udGV4dCI6WyJodHRwczovL3d3dy53My5vcmcvbnMvY3JlZGVudGlhbHMvdjIiXSwiY25mIjp7ImprdCI6IndSU2k4bTlZSWdXNlFYT1M2TF9Cc2h4OVBLX3pqOGR3WC15Q195VjFQeW8ifSwiY3JlZGVudGlhbFN1YmplY3QiOnsibGFiZWwiOiJzeW50aGV0aWMtbGFiLXN1YmplY3QifSwiaXNzdWVyIjoiaHR0cHM6Ly9pc3N1ZXIuaHVraWQucGUvc3ludGhldGljLWxhYiIsInR5cGUiOlsiVmVyaWZpYWJsZUNyZWRlbnRpYWwiLCJTeW50aGV0aWNMYWJDcmVkZW50aWFsIl0sInZhbGlkRnJvbSI6IjIwMjYtMDEtMDFUMDA6MDA6MDBaIiwidmFsaWRVbnRpbCI6IjIwMjctMDEtMDFUMDA6MDA6MDBaIn0.",
       "evaluationTime": "2026-06-01T00:00:00Z",
       "expected": {
         "technicalResult": "invalid",
@@ -54,7 +54,7 @@
     {
       "id": "v04-payload-vc-container",
       "description": "Payload wraps the credential in a vc claim, which the profile forbids.",
-      "jws": "eyJhbGciOiJFUzI1NiIsImN0eSI6InZjIiwia2lkIjoic3ludGhldGljLWxhYi1rZXktMSIsInR5cCI6InZjK2p3dCJ9.eyJ2YyI6eyJAY29udGV4dCI6WyJodHRwczovL3d3dy53My5vcmcvbnMvY3JlZGVudGlhbHMvdjIiXSwiY25mIjp7ImprdCI6ImxPQlJGQW5EbUoybFU4dXlYMjRhQVJueG9DLXN2ZW1TYUhhbzRGdDJ4dUEifSwiY3JlZGVudGlhbFN1YmplY3QiOnsibGFiZWwiOiJzeW50aGV0aWMtbGFiLXN1YmplY3QifSwiaXNzdWVyIjoiaHR0cHM6Ly9pc3N1ZXIuaHVraWQucGUvc3ludGhldGljLWxhYiIsInR5cGUiOlsiVmVyaWZpYWJsZUNyZWRlbnRpYWwiLCJTeW50aGV0aWNMYWJDcmVkZW50aWFsIl0sInZhbGlkRnJvbSI6IjIwMjYtMDEtMDFUMDA6MDA6MDBaIiwidmFsaWRVbnRpbCI6IjIwMjctMDEtMDFUMDA6MDA6MDBaIn19.9imdEZGSE9qRwPbjcYwd1DRPEbpLGhsvx02IIpyGayA35D-cmSfb6iorz9AJLAYzwzyl5qzBrE_Nmq4EJkt3Pg",
+      "jws": "eyJhbGciOiJFUzI1NiIsImN0eSI6InZjIiwia2lkIjoic3ludGhldGljLWxhYi1rZXktMSIsInR5cCI6InZjK2p3dCJ9.eyJ2YyI6eyJAY29udGV4dCI6WyJodHRwczovL3d3dy53My5vcmcvbnMvY3JlZGVudGlhbHMvdjIiXSwiY25mIjp7ImprdCI6IndSU2k4bTlZSWdXNlFYT1M2TF9Cc2h4OVBLX3pqOGR3WC15Q195VjFQeW8ifSwiY3JlZGVudGlhbFN1YmplY3QiOnsibGFiZWwiOiJzeW50aGV0aWMtbGFiLXN1YmplY3QifSwiaXNzdWVyIjoiaHR0cHM6Ly9pc3N1ZXIuaHVraWQucGUvc3ludGhldGljLWxhYiIsInR5cGUiOlsiVmVyaWZpYWJsZUNyZWRlbnRpYWwiLCJTeW50aGV0aWNMYWJDcmVkZW50aWFsIl0sInZhbGlkRnJvbSI6IjIwMjYtMDEtMDFUMDA6MDA6MDBaIiwidmFsaWRVbnRpbCI6IjIwMjctMDEtMDFUMDA6MDA6MDBaIn19.PVE9ulUIMtDyZZ2EFzqAfkzT8otsICtTbkaI4NH08zD1XPOEgLhWZqSpJRx_kHOi-CIAXl8RP88-D7bjMyCqog",
       "evaluationTime": "2026-06-01T00:00:00Z",
       "expected": {
         "technicalResult": "invalid",
@@ -65,7 +65,7 @@
     {
       "id": "v05-header-jku",
       "description": "Header carries a jku supplied by the credential.",
-      "jws": "eyJhbGciOiJFUzI1NiIsImN0eSI6InZjIiwiamt1IjoiaHR0cHM6Ly9hdHRhY2tlci5pbnZhbGlkL2p3a3MuanNvbiIsImtpZCI6InN5bnRoZXRpYy1sYWIta2V5LTEiLCJ0eXAiOiJ2Yytqd3QifQ.eyJAY29udGV4dCI6WyJodHRwczovL3d3dy53My5vcmcvbnMvY3JlZGVudGlhbHMvdjIiXSwiY25mIjp7ImprdCI6ImxPQlJGQW5EbUoybFU4dXlYMjRhQVJueG9DLXN2ZW1TYUhhbzRGdDJ4dUEifSwiY3JlZGVudGlhbFN1YmplY3QiOnsibGFiZWwiOiJzeW50aGV0aWMtbGFiLXN1YmplY3QifSwiaXNzdWVyIjoiaHR0cHM6Ly9pc3N1ZXIuaHVraWQucGUvc3ludGhldGljLWxhYiIsInR5cGUiOlsiVmVyaWZpYWJsZUNyZWRlbnRpYWwiLCJTeW50aGV0aWNMYWJDcmVkZW50aWFsIl0sInZhbGlkRnJvbSI6IjIwMjYtMDEtMDFUMDA6MDA6MDBaIiwidmFsaWRVbnRpbCI6IjIwMjctMDEtMDFUMDA6MDA6MDBaIn0.ozNVyTCqqp0Dh75tkd8VSdPmgaUyEaT-Xu0GDxYC84Rku3djWdPU_MSy6mOJtcejgGkKKFVcSm1oAY3NNXqNtA",
+      "jws": "eyJhbGciOiJFUzI1NiIsImN0eSI6InZjIiwiamt1IjoiaHR0cHM6Ly9hdHRhY2tlci5pbnZhbGlkL2p3a3MuanNvbiIsImtpZCI6InN5bnRoZXRpYy1sYWIta2V5LTEiLCJ0eXAiOiJ2Yytqd3QifQ.eyJAY29udGV4dCI6WyJodHRwczovL3d3dy53My5vcmcvbnMvY3JlZGVudGlhbHMvdjIiXSwiY25mIjp7ImprdCI6IndSU2k4bTlZSWdXNlFYT1M2TF9Cc2h4OVBLX3pqOGR3WC15Q195VjFQeW8ifSwiY3JlZGVudGlhbFN1YmplY3QiOnsibGFiZWwiOiJzeW50aGV0aWMtbGFiLXN1YmplY3QifSwiaXNzdWVyIjoiaHR0cHM6Ly9pc3N1ZXIuaHVraWQucGUvc3ludGhldGljLWxhYiIsInR5cGUiOlsiVmVyaWZpYWJsZUNyZWRlbnRpYWwiLCJTeW50aGV0aWNMYWJDcmVkZW50aWFsIl0sInZhbGlkRnJvbSI6IjIwMjYtMDEtMDFUMDA6MDA6MDBaIiwidmFsaWRVbnRpbCI6IjIwMjctMDEtMDFUMDA6MDA6MDBaIn0.C6Tm0318mC5X-X-san2bzpz68gh0Jhjbx4_zMa0MSUzb61Zuul7pR7U8WZFMZT3vmidNh4BBY-sM39razMoO8g",
       "evaluationTime": "2026-06-01T00:00:00Z",
       "expected": {
         "technicalResult": "invalid",
@@ -76,7 +76,7 @@
     {
       "id": "v06-signature-tampered",
       "description": "Payload altered after signing; the signature no longer matches.",
-      "jws": "eyJhbGciOiJFUzI1NiIsImN0eSI6InZjIiwia2lkIjoic3ludGhldGljLWxhYi1rZXktMSIsInR5cCI6InZjK2p3dCJ9.eyJAY29udGV4dCI6WyJodHRwczovL3d3dy53My5vcmcvbnMvY3JlZGVudGlhbHMvdjIiXSwiY25mIjp7ImprdCI6ImxPQlJGQW5EbUoybFU4dXlYMjRhQVJueG9DLXN2ZW1TYUhhbzRGdDJ4dUEifSwiY3JlZGVudGlhbFN1YmplY3QiOnsibGFiZWwiOiJ0YW1wZXJlZCJ9LCJpc3N1ZXIiOiJodHRwczovL2lzc3Vlci5odWtpZC5wZS9zeW50aGV0aWMtbGFiIiwidHlwZSI6WyJWZXJpZmlhYmxlQ3JlZGVudGlhbCIsIlN5bnRoZXRpY0xhYkNyZWRlbnRpYWwiXSwidmFsaWRGcm9tIjoiMjAyNi0wMS0wMVQwMDowMDowMFoiLCJ2YWxpZFVudGlsIjoiMjAyNy0wMS0wMVQwMDowMDowMFoifQ.FA3NOvLrKP1s4KXc1M8BSEJmvc0G_BdAuLh7-3_ALjEM-0rguObPqhU6de9LbM55Lj83lNnayqOkeAnfT8vY6w",
+      "jws": "eyJhbGciOiJFUzI1NiIsImN0eSI6InZjIiwia2lkIjoic3ludGhldGljLWxhYi1rZXktMSIsInR5cCI6InZjK2p3dCJ9.eyJAY29udGV4dCI6WyJodHRwczovL3d3dy53My5vcmcvbnMvY3JlZGVudGlhbHMvdjIiXSwiY25mIjp7ImprdCI6IndSU2k4bTlZSWdXNlFYT1M2TF9Cc2h4OVBLX3pqOGR3WC15Q195VjFQeW8ifSwiY3JlZGVudGlhbFN1YmplY3QiOnsibGFiZWwiOiJ0YW1wZXJlZCJ9LCJpc3N1ZXIiOiJodHRwczovL2lzc3Vlci5odWtpZC5wZS9zeW50aGV0aWMtbGFiIiwidHlwZSI6WyJWZXJpZmlhYmxlQ3JlZGVudGlhbCIsIlN5bnRoZXRpY0xhYkNyZWRlbnRpYWwiXSwidmFsaWRGcm9tIjoiMjAyNi0wMS0wMVQwMDowMDowMFoiLCJ2YWxpZFVudGlsIjoiMjAyNy0wMS0wMVQwMDowMDowMFoifQ.MpEyq14F8FHJYFHshM38TJIuwUTc-082aSQ0zMTDBlh81_MstR_a4AdPFPri8b3ze1gsnXH7sIxk104AbmLKrQ",
       "evaluationTime": "2026-06-01T00:00:00Z",
       "expected": {
         "technicalResult": "invalid",
@@ -87,7 +87,7 @@
     {
       "id": "v07-unknown-kid",
       "description": "kid is not published by the issuer; signed with the issuer key.",
-      "jws": "eyJhbGciOiJFUzI1NiIsImN0eSI6InZjIiwia2lkIjoidW5rbm93bi1rZXkiLCJ0eXAiOiJ2Yytqd3QifQ.eyJAY29udGV4dCI6WyJodHRwczovL3d3dy53My5vcmcvbnMvY3JlZGVudGlhbHMvdjIiXSwiY25mIjp7ImprdCI6ImxPQlJGQW5EbUoybFU4dXlYMjRhQVJueG9DLXN2ZW1TYUhhbzRGdDJ4dUEifSwiY3JlZGVudGlhbFN1YmplY3QiOnsibGFiZWwiOiJzeW50aGV0aWMtbGFiLXN1YmplY3QifSwiaXNzdWVyIjoiaHR0cHM6Ly9pc3N1ZXIuaHVraWQucGUvc3ludGhldGljLWxhYiIsInR5cGUiOlsiVmVyaWZpYWJsZUNyZWRlbnRpYWwiLCJTeW50aGV0aWNMYWJDcmVkZW50aWFsIl0sInZhbGlkRnJvbSI6IjIwMjYtMDEtMDFUMDA6MDA6MDBaIiwidmFsaWRVbnRpbCI6IjIwMjctMDEtMDFUMDA6MDA6MDBaIn0.-KlEH-dbHfUCOHSoZ7oyIhpowLnk4zcwqbaj_E692J0LMwB152MoxKsrNowtL2SQ8lVJiNj6tnmspIjTwRGq2A",
+      "jws": "eyJhbGciOiJFUzI1NiIsImN0eSI6InZjIiwia2lkIjoidW5rbm93bi1rZXkiLCJ0eXAiOiJ2Yytqd3QifQ.eyJAY29udGV4dCI6WyJodHRwczovL3d3dy53My5vcmcvbnMvY3JlZGVudGlhbHMvdjIiXSwiY25mIjp7ImprdCI6IndSU2k4bTlZSWdXNlFYT1M2TF9Cc2h4OVBLX3pqOGR3WC15Q195VjFQeW8ifSwiY3JlZGVudGlhbFN1YmplY3QiOnsibGFiZWwiOiJzeW50aGV0aWMtbGFiLXN1YmplY3QifSwiaXNzdWVyIjoiaHR0cHM6Ly9pc3N1ZXIuaHVraWQucGUvc3ludGhldGljLWxhYiIsInR5cGUiOlsiVmVyaWZpYWJsZUNyZWRlbnRpYWwiLCJTeW50aGV0aWNMYWJDcmVkZW50aWFsIl0sInZhbGlkRnJvbSI6IjIwMjYtMDEtMDFUMDA6MDA6MDBaIiwidmFsaWRVbnRpbCI6IjIwMjctMDEtMDFUMDA6MDA6MDBaIn0.UCUjVaJC6Gfw_qPG_0nBII3VyemeIfdDBQnpXNitL25qdGgeTz8waEQNh9cqa910MEYESekYXuNYm32hUx356w",
       "evaluationTime": "2026-06-01T00:00:00Z",
       "expected": {
         "technicalResult": "invalid",
@@ -98,7 +98,7 @@
     {
       "id": "v08-expired",
       "description": "Valid credential evaluated after validUntil.",
-      "jws": "eyJhbGciOiJFUzI1NiIsImN0eSI6InZjIiwia2lkIjoic3ludGhldGljLWxhYi1rZXktMSIsInR5cCI6InZjK2p3dCJ9.eyJAY29udGV4dCI6WyJodHRwczovL3d3dy53My5vcmcvbnMvY3JlZGVudGlhbHMvdjIiXSwiY25mIjp7ImprdCI6ImxPQlJGQW5EbUoybFU4dXlYMjRhQVJueG9DLXN2ZW1TYUhhbzRGdDJ4dUEifSwiY3JlZGVudGlhbFN1YmplY3QiOnsibGFiZWwiOiJzeW50aGV0aWMtbGFiLXN1YmplY3QifSwiaXNzdWVyIjoiaHR0cHM6Ly9pc3N1ZXIuaHVraWQucGUvc3ludGhldGljLWxhYiIsInR5cGUiOlsiVmVyaWZpYWJsZUNyZWRlbnRpYWwiLCJTeW50aGV0aWNMYWJDcmVkZW50aWFsIl0sInZhbGlkRnJvbSI6IjIwMjYtMDEtMDFUMDA6MDA6MDBaIiwidmFsaWRVbnRpbCI6IjIwMjctMDEtMDFUMDA6MDA6MDBaIn0.FA3NOvLrKP1s4KXc1M8BSEJmvc0G_BdAuLh7-3_ALjEM-0rguObPqhU6de9LbM55Lj83lNnayqOkeAnfT8vY6w",
+      "jws": "eyJhbGciOiJFUzI1NiIsImN0eSI6InZjIiwia2lkIjoic3ludGhldGljLWxhYi1rZXktMSIsInR5cCI6InZjK2p3dCJ9.eyJAY29udGV4dCI6WyJodHRwczovL3d3dy53My5vcmcvbnMvY3JlZGVudGlhbHMvdjIiXSwiY25mIjp7ImprdCI6IndSU2k4bTlZSWdXNlFYT1M2TF9Cc2h4OVBLX3pqOGR3WC15Q195VjFQeW8ifSwiY3JlZGVudGlhbFN1YmplY3QiOnsibGFiZWwiOiJzeW50aGV0aWMtbGFiLXN1YmplY3QifSwiaXNzdWVyIjoiaHR0cHM6Ly9pc3N1ZXIuaHVraWQucGUvc3ludGhldGljLWxhYiIsInR5cGUiOlsiVmVyaWZpYWJsZUNyZWRlbnRpYWwiLCJTeW50aGV0aWNMYWJDcmVkZW50aWFsIl0sInZhbGlkRnJvbSI6IjIwMjYtMDEtMDFUMDA6MDA6MDBaIiwidmFsaWRVbnRpbCI6IjIwMjctMDEtMDFUMDA6MDA6MDBaIn0.MpEyq14F8FHJYFHshM38TJIuwUTc-082aSQ0zMTDBlh81_MstR_a4AdPFPri8b3ze1gsnXH7sIxk104AbmLKrQ",
       "evaluationTime": "2027-06-01T00:00:00Z",
       "expected": {
         "technicalResult": "invalid",
@@ -109,7 +109,7 @@
     {
       "id": "v09-not-yet-valid",
       "description": "Valid credential evaluated before validFrom.",
-      "jws": "eyJhbGciOiJFUzI1NiIsImN0eSI6InZjIiwia2lkIjoic3ludGhldGljLWxhYi1rZXktMSIsInR5cCI6InZjK2p3dCJ9.eyJAY29udGV4dCI6WyJodHRwczovL3d3dy53My5vcmcvbnMvY3JlZGVudGlhbHMvdjIiXSwiY25mIjp7ImprdCI6ImxPQlJGQW5EbUoybFU4dXlYMjRhQVJueG9DLXN2ZW1TYUhhbzRGdDJ4dUEifSwiY3JlZGVudGlhbFN1YmplY3QiOnsibGFiZWwiOiJzeW50aGV0aWMtbGFiLXN1YmplY3QifSwiaXNzdWVyIjoiaHR0cHM6Ly9pc3N1ZXIuaHVraWQucGUvc3ludGhldGljLWxhYiIsInR5cGUiOlsiVmVyaWZpYWJsZUNyZWRlbnRpYWwiLCJTeW50aGV0aWNMYWJDcmVkZW50aWFsIl0sInZhbGlkRnJvbSI6IjIwMjYtMDEtMDFUMDA6MDA6MDBaIiwidmFsaWRVbnRpbCI6IjIwMjctMDEtMDFUMDA6MDA6MDBaIn0.FA3NOvLrKP1s4KXc1M8BSEJmvc0G_BdAuLh7-3_ALjEM-0rguObPqhU6de9LbM55Lj83lNnayqOkeAnfT8vY6w",
+      "jws": "eyJhbGciOiJFUzI1NiIsImN0eSI6InZjIiwia2lkIjoic3ludGhldGljLWxhYi1rZXktMSIsInR5cCI6InZjK2p3dCJ9.eyJAY29udGV4dCI6WyJodHRwczovL3d3dy53My5vcmcvbnMvY3JlZGVudGlhbHMvdjIiXSwiY25mIjp7ImprdCI6IndSU2k4bTlZSWdXNlFYT1M2TF9Cc2h4OVBLX3pqOGR3WC15Q195VjFQeW8ifSwiY3JlZGVudGlhbFN1YmplY3QiOnsibGFiZWwiOiJzeW50aGV0aWMtbGFiLXN1YmplY3QifSwiaXNzdWVyIjoiaHR0cHM6Ly9pc3N1ZXIuaHVraWQucGUvc3ludGhldGljLWxhYiIsInR5cGUiOlsiVmVyaWZpYWJsZUNyZWRlbnRpYWwiLCJTeW50aGV0aWNMYWJDcmVkZW50aWFsIl0sInZhbGlkRnJvbSI6IjIwMjYtMDEtMDFUMDA6MDA6MDBaIiwidmFsaWRVbnRpbCI6IjIwMjctMDEtMDFUMDA6MDA6MDBaIn0.MpEyq14F8FHJYFHshM38TJIuwUTc-082aSQ0zMTDBlh81_MstR_a4AdPFPri8b3ze1gsnXH7sIxk104AbmLKrQ",
       "evaluationTime": "2025-06-01T00:00:00Z",
       "expected": {
         "technicalResult": "invalid",
@@ -118,13 +118,185 @@
       }
     }
   ],
+  "presentationVectors": [
+    {
+      "id": "p01-valid",
+      "description": "Presentation signed with the key bound by cnf.jkt, answering its request.",
+      "vp": "eyJhbGciOiJFUzI1NiIsImN0eSI6InZwIiwiandrIjp7Imt0eSI6IkVDIiwiY3J2IjoiUC0yNTYiLCJ4IjoiTE43Qm1nc3RXd1k3QlBhWXluV01NdURkSnBNOEdOTDRRRU51NklEY0stUSIsInkiOiIzNkJnc2NXdVB1RExCMEwyMUlHaFFhZWhwMjJyQ3hGVlRTRlhRWW9fbThBIn0sInR5cCI6InZwK2p3dCJ9.eyJAY29udGV4dCI6WyJodHRwczovL3d3dy53My5vcmcvbnMvY3JlZGVudGlhbHMvdjIiLCJodHRwczovL3NjaGVtYXMuaHVraWQucGUvY29udGV4dHMvcHJlc2VudGF0aW9uL3YxIl0sImF1ZCI6Imh0dHBzOi8vdmVyaWZpZXIuZXhhbXBsZS9zeW50aGV0aWMiLCJub25jZSI6Im5vbmNlLXAwMSIsInR5cGUiOlsiVmVyaWZpYWJsZVByZXNlbnRhdGlvbiJdLCJ2ZXJpZmlhYmxlQ3JlZGVudGlhbCI6W3siQGNvbnRleHQiOiJodHRwczovL3d3dy53My5vcmcvbnMvY3JlZGVudGlhbHMvdjIiLCJpZCI6ImRhdGE6YXBwbGljYXRpb24vdmMrand0LGV5SmhiR2NpT2lKRlV6STFOaUlzSW1OMGVTSTZJblpqSWl3aWEybGtJam9pYzNsdWRHaGxkR2xqTFd4aFlpMXJaWGt0TVNJc0luUjVjQ0k2SW5aaksycDNkQ0o5LmV5SkFZMjl1ZEdWNGRDSTZXeUpvZEhSd2N6b3ZMM2QzZHk1M015NXZjbWN2Ym5NdlkzSmxaR1Z1ZEdsaGJITXZkaklpWFN3aVkyNW1JanA3SW1wcmRDSTZJbmRTVTJrNGJUbFpTV2RYTmxGWVQxTTJURjlDYzJoNE9WQkxYM3BxT0dSM1dDMTVRMTk1VmpGUWVXOGlmU3dpWTNKbFpHVnVkR2xoYkZOMVltcGxZM1FpT25zaWJHRmlaV3dpT2lKemVXNTBhR1YwYVdNdGJHRmlMWE4xWW1wbFkzUWlmU3dpYVhOemRXVnlJam9pYUhSMGNITTZMeTlwYzNOMVpYSXVhSFZyYVdRdWNHVXZjM2x1ZEdobGRHbGpMV3hoWWlJc0luUjVjR1VpT2xzaVZtVnlhV1pwWVdKc1pVTnlaV1JsYm5ScFlXd2lMQ0pUZVc1MGFHVjBhV05NWVdKRGNtVmtaVzUwYVdGc0lsMHNJblpoYkdsa1JuSnZiU0k2SWpJd01qWXRNREV0TURGVU1EQTZNREE2TURCYUlpd2lkbUZzYVdSVmJuUnBiQ0k2SWpJd01qY3RNREV0TURGVU1EQTZNREE2TURCYUluMC5NcEV5cTE0RjhGSEpZRkhzaE0zOFRKSXV3VVRjLTA4MmFTUTB6TVREQmxoODFfTXN0Ul9hNEFkUEZQcmk4YjN6ZTFnc25YSDdzSXhrMTA0QWJtTEtyUSIsInR5cGUiOiJFbnZlbG9wZWRWZXJpZmlhYmxlQ3JlZGVudGlhbCJ9XX0.tagKmgUo60_IaAZuQSrFLTOBbEsY24HtZ6fQTcU-SzoF6d20yytPRqeAsVKVGm-TIiHzpkrTqc4loiFv8n6rkw",
+      "responseState": "state-p01",
+      "request": {
+        "audience": "https://verifier.example/synthetic",
+        "nonce": "nonce-p01",
+        "state": "state-p01"
+      },
+      "evaluationTime": "2026-06-01T00:00:00Z",
+      "expected": {
+        "technicalResult": "valid"
+      }
+    },
+    {
+      "id": "p02-holder-key-mismatch",
+      "description": "VP signed by a different holder key than the one bound in cnf.jkt; the VP signature itself is valid.",
+      "vp": "eyJhbGciOiJFUzI1NiIsImN0eSI6InZwIiwiandrIjp7Imt0eSI6IkVDIiwiY3J2IjoiUC0yNTYiLCJ4IjoiWHZQdGlZMXhJSDUwNEwtdjJxVW5NYi1aZGo4UXdULWVHdDBOOVByUUsyVSIsInkiOiJfMTBLaWgtNmpxVVJQRmxTZFljVkVBYVQ0RGRRY1lrMEExeUhfOUF3NUdFIn0sInR5cCI6InZwK2p3dCJ9.eyJAY29udGV4dCI6WyJodHRwczovL3d3dy53My5vcmcvbnMvY3JlZGVudGlhbHMvdjIiLCJodHRwczovL3NjaGVtYXMuaHVraWQucGUvY29udGV4dHMvcHJlc2VudGF0aW9uL3YxIl0sImF1ZCI6Imh0dHBzOi8vdmVyaWZpZXIuZXhhbXBsZS9zeW50aGV0aWMiLCJub25jZSI6Im5vbmNlLXAwMiIsInR5cGUiOlsiVmVyaWZpYWJsZVByZXNlbnRhdGlvbiJdLCJ2ZXJpZmlhYmxlQ3JlZGVudGlhbCI6W3siQGNvbnRleHQiOiJodHRwczovL3d3dy53My5vcmcvbnMvY3JlZGVudGlhbHMvdjIiLCJpZCI6ImRhdGE6YXBwbGljYXRpb24vdmMrand0LGV5SmhiR2NpT2lKRlV6STFOaUlzSW1OMGVTSTZJblpqSWl3aWEybGtJam9pYzNsdWRHaGxkR2xqTFd4aFlpMXJaWGt0TVNJc0luUjVjQ0k2SW5aaksycDNkQ0o5LmV5SkFZMjl1ZEdWNGRDSTZXeUpvZEhSd2N6b3ZMM2QzZHk1M015NXZjbWN2Ym5NdlkzSmxaR1Z1ZEdsaGJITXZkaklpWFN3aVkyNW1JanA3SW1wcmRDSTZJbmRTVTJrNGJUbFpTV2RYTmxGWVQxTTJURjlDYzJoNE9WQkxYM3BxT0dSM1dDMTVRMTk1VmpGUWVXOGlmU3dpWTNKbFpHVnVkR2xoYkZOMVltcGxZM1FpT25zaWJHRmlaV3dpT2lKemVXNTBhR1YwYVdNdGJHRmlMWE4xWW1wbFkzUWlmU3dpYVhOemRXVnlJam9pYUhSMGNITTZMeTlwYzNOMVpYSXVhSFZyYVdRdWNHVXZjM2x1ZEdobGRHbGpMV3hoWWlJc0luUjVjR1VpT2xzaVZtVnlhV1pwWVdKc1pVTnlaV1JsYm5ScFlXd2lMQ0pUZVc1MGFHVjBhV05NWVdKRGNtVmtaVzUwYVdGc0lsMHNJblpoYkdsa1JuSnZiU0k2SWpJd01qWXRNREV0TURGVU1EQTZNREE2TURCYUlpd2lkbUZzYVdSVmJuUnBiQ0k2SWpJd01qY3RNREV0TURGVU1EQTZNREE2TURCYUluMC5NcEV5cTE0RjhGSEpZRkhzaE0zOFRKSXV3VVRjLTA4MmFTUTB6TVREQmxoODFfTXN0Ul9hNEFkUEZQcmk4YjN6ZTFnc25YSDdzSXhrMTA0QWJtTEtyUSIsInR5cGUiOiJFbnZlbG9wZWRWZXJpZmlhYmxlQ3JlZGVudGlhbCJ9XX0.0vh0S_fn6l-vpllNAQ3cRt6Hpzm0REFhRH9HaBcq3kXePyDh38SxP-04fp20-El83LkJpNs_OwcSd9Y5efD9OQ",
+      "responseState": "state-p02",
+      "request": {
+        "audience": "https://verifier.example/synthetic",
+        "nonce": "nonce-p02",
+        "state": "state-p02"
+      },
+      "evaluationTime": "2026-06-01T00:00:00Z",
+      "expected": {
+        "technicalResult": "invalid",
+        "failedCheck": "holderBinding",
+        "code": "binding.mismatch"
+      }
+    },
+    {
+      "id": "p03-audience-mismatch",
+      "description": "VP aud differs from the audience the verifier expects.",
+      "vp": "eyJhbGciOiJFUzI1NiIsImN0eSI6InZwIiwiandrIjp7Imt0eSI6IkVDIiwiY3J2IjoiUC0yNTYiLCJ4IjoiTE43Qm1nc3RXd1k3QlBhWXluV01NdURkSnBNOEdOTDRRRU51NklEY0stUSIsInkiOiIzNkJnc2NXdVB1RExCMEwyMUlHaFFhZWhwMjJyQ3hGVlRTRlhRWW9fbThBIn0sInR5cCI6InZwK2p3dCJ9.eyJAY29udGV4dCI6WyJodHRwczovL3d3dy53My5vcmcvbnMvY3JlZGVudGlhbHMvdjIiLCJodHRwczovL3NjaGVtYXMuaHVraWQucGUvY29udGV4dHMvcHJlc2VudGF0aW9uL3YxIl0sImF1ZCI6Imh0dHBzOi8vdmVyaWZpZXIuZXhhbXBsZS9vdGhlciIsIm5vbmNlIjoibm9uY2UtcDAzIiwidHlwZSI6WyJWZXJpZmlhYmxlUHJlc2VudGF0aW9uIl0sInZlcmlmaWFibGVDcmVkZW50aWFsIjpbeyJAY29udGV4dCI6Imh0dHBzOi8vd3d3LnczLm9yZy9ucy9jcmVkZW50aWFscy92MiIsImlkIjoiZGF0YTphcHBsaWNhdGlvbi92Yytqd3QsZXlKaGJHY2lPaUpGVXpJMU5pSXNJbU4wZVNJNkluWmpJaXdpYTJsa0lqb2ljM2x1ZEdobGRHbGpMV3hoWWkxclpYa3RNU0lzSW5SNWNDSTZJblpqSzJwM2RDSjkuZXlKQVkyOXVkR1Y0ZENJNld5Sm9kSFJ3Y3pvdkwzZDNkeTUzTXk1dmNtY3Zibk12WTNKbFpHVnVkR2xoYkhNdmRqSWlYU3dpWTI1bUlqcDdJbXByZENJNkluZFNVMms0YlRsWlNXZFhObEZZVDFNMlRGOUNjMmg0T1ZCTFgzcHFPR1IzV0MxNVExOTVWakZRZVc4aWZTd2lZM0psWkdWdWRHbGhiRk4xWW1wbFkzUWlPbnNpYkdGaVpXd2lPaUp6ZVc1MGFHVjBhV010YkdGaUxYTjFZbXBsWTNRaWZTd2lhWE56ZFdWeUlqb2lhSFIwY0hNNkx5OXBjM04xWlhJdWFIVnJhV1F1Y0dVdmMzbHVkR2hsZEdsakxXeGhZaUlzSW5SNWNHVWlPbHNpVm1WeWFXWnBZV0pzWlVOeVpXUmxiblJwWVd3aUxDSlRlVzUwYUdWMGFXTk1ZV0pEY21Wa1pXNTBhV0ZzSWwwc0luWmhiR2xrUm5KdmJTSTZJakl3TWpZdE1ERXRNREZVTURBNk1EQTZNREJhSWl3aWRtRnNhV1JWYm5ScGJDSTZJakl3TWpjdE1ERXRNREZVTURBNk1EQTZNREJhSW4wLk1wRXlxMTRGOEZISllGSHNoTTM4VEpJdXdVVGMtMDgyYVNRMHpNVERCbGg4MV9Nc3RSX2E0QWRQRlByaThiM3plMWdzblhIN3NJeGsxMDRBYm1MS3JRIiwidHlwZSI6IkVudmVsb3BlZFZlcmlmaWFibGVDcmVkZW50aWFsIn1dfQ.rgO1jV4d5I_vKFxo9fcYgetpQIP5lSVnawXw50-CemYSAKey7WIyPx14ChOOnwN1EHcaNBhUClfQFhUktZmjEg",
+      "responseState": "state-p03",
+      "request": {
+        "audience": "https://verifier.example/synthetic",
+        "nonce": "nonce-p03",
+        "state": "state-p03"
+      },
+      "evaluationTime": "2026-06-01T00:00:00Z",
+      "expected": {
+        "technicalResult": "invalid",
+        "failedCheck": "requestBinding",
+        "code": "request.audience_mismatch"
+      }
+    },
+    {
+      "id": "p04-nonce-mismatch",
+      "description": "VP nonce differs from the request nonce.",
+      "vp": "eyJhbGciOiJFUzI1NiIsImN0eSI6InZwIiwiandrIjp7Imt0eSI6IkVDIiwiY3J2IjoiUC0yNTYiLCJ4IjoiTE43Qm1nc3RXd1k3QlBhWXluV01NdURkSnBNOEdOTDRRRU51NklEY0stUSIsInkiOiIzNkJnc2NXdVB1RExCMEwyMUlHaFFhZWhwMjJyQ3hGVlRTRlhRWW9fbThBIn0sInR5cCI6InZwK2p3dCJ9.eyJAY29udGV4dCI6WyJodHRwczovL3d3dy53My5vcmcvbnMvY3JlZGVudGlhbHMvdjIiLCJodHRwczovL3NjaGVtYXMuaHVraWQucGUvY29udGV4dHMvcHJlc2VudGF0aW9uL3YxIl0sImF1ZCI6Imh0dHBzOi8vdmVyaWZpZXIuZXhhbXBsZS9zeW50aGV0aWMiLCJub25jZSI6Indyb25nLW5vbmNlIiwidHlwZSI6WyJWZXJpZmlhYmxlUHJlc2VudGF0aW9uIl0sInZlcmlmaWFibGVDcmVkZW50aWFsIjpbeyJAY29udGV4dCI6Imh0dHBzOi8vd3d3LnczLm9yZy9ucy9jcmVkZW50aWFscy92MiIsImlkIjoiZGF0YTphcHBsaWNhdGlvbi92Yytqd3QsZXlKaGJHY2lPaUpGVXpJMU5pSXNJbU4wZVNJNkluWmpJaXdpYTJsa0lqb2ljM2x1ZEdobGRHbGpMV3hoWWkxclpYa3RNU0lzSW5SNWNDSTZJblpqSzJwM2RDSjkuZXlKQVkyOXVkR1Y0ZENJNld5Sm9kSFJ3Y3pvdkwzZDNkeTUzTXk1dmNtY3Zibk12WTNKbFpHVnVkR2xoYkhNdmRqSWlYU3dpWTI1bUlqcDdJbXByZENJNkluZFNVMms0YlRsWlNXZFhObEZZVDFNMlRGOUNjMmg0T1ZCTFgzcHFPR1IzV0MxNVExOTVWakZRZVc4aWZTd2lZM0psWkdWdWRHbGhiRk4xWW1wbFkzUWlPbnNpYkdGaVpXd2lPaUp6ZVc1MGFHVjBhV010YkdGaUxYTjFZbXBsWTNRaWZTd2lhWE56ZFdWeUlqb2lhSFIwY0hNNkx5OXBjM04xWlhJdWFIVnJhV1F1Y0dVdmMzbHVkR2hsZEdsakxXeGhZaUlzSW5SNWNHVWlPbHNpVm1WeWFXWnBZV0pzWlVOeVpXUmxiblJwWVd3aUxDSlRlVzUwYUdWMGFXTk1ZV0pEY21Wa1pXNTBhV0ZzSWwwc0luWmhiR2xrUm5KdmJTSTZJakl3TWpZdE1ERXRNREZVTURBNk1EQTZNREJhSWl3aWRtRnNhV1JWYm5ScGJDSTZJakl3TWpjdE1ERXRNREZVTURBNk1EQTZNREJhSW4wLk1wRXlxMTRGOEZISllGSHNoTTM4VEpJdXdVVGMtMDgyYVNRMHpNVERCbGg4MV9Nc3RSX2E0QWRQRlByaThiM3plMWdzblhIN3NJeGsxMDRBYm1MS3JRIiwidHlwZSI6IkVudmVsb3BlZFZlcmlmaWFibGVDcmVkZW50aWFsIn1dfQ._rfAh_889zyB06pZqBL2uyzGb4dr2LzbcX9xXrl-6XJEJmgRRkENb7hMjJaHrXO7yvecSym16MszZWs-DW6c2A",
+      "responseState": "state-p04",
+      "request": {
+        "audience": "https://verifier.example/synthetic",
+        "nonce": "nonce-p04",
+        "state": "state-p04"
+      },
+      "evaluationTime": "2026-06-01T00:00:00Z",
+      "expected": {
+        "technicalResult": "invalid",
+        "failedCheck": "requestBinding",
+        "code": "request.nonce_mismatch"
+      }
+    },
+    {
+      "id": "p05-state-mismatch",
+      "description": "Response state differs from the request state.",
+      "vp": "eyJhbGciOiJFUzI1NiIsImN0eSI6InZwIiwiandrIjp7Imt0eSI6IkVDIiwiY3J2IjoiUC0yNTYiLCJ4IjoiTE43Qm1nc3RXd1k3QlBhWXluV01NdURkSnBNOEdOTDRRRU51NklEY0stUSIsInkiOiIzNkJnc2NXdVB1RExCMEwyMUlHaFFhZWhwMjJyQ3hGVlRTRlhRWW9fbThBIn0sInR5cCI6InZwK2p3dCJ9.eyJAY29udGV4dCI6WyJodHRwczovL3d3dy53My5vcmcvbnMvY3JlZGVudGlhbHMvdjIiLCJodHRwczovL3NjaGVtYXMuaHVraWQucGUvY29udGV4dHMvcHJlc2VudGF0aW9uL3YxIl0sImF1ZCI6Imh0dHBzOi8vdmVyaWZpZXIuZXhhbXBsZS9zeW50aGV0aWMiLCJub25jZSI6Im5vbmNlLXAwNSIsInR5cGUiOlsiVmVyaWZpYWJsZVByZXNlbnRhdGlvbiJdLCJ2ZXJpZmlhYmxlQ3JlZGVudGlhbCI6W3siQGNvbnRleHQiOiJodHRwczovL3d3dy53My5vcmcvbnMvY3JlZGVudGlhbHMvdjIiLCJpZCI6ImRhdGE6YXBwbGljYXRpb24vdmMrand0LGV5SmhiR2NpT2lKRlV6STFOaUlzSW1OMGVTSTZJblpqSWl3aWEybGtJam9pYzNsdWRHaGxkR2xqTFd4aFlpMXJaWGt0TVNJc0luUjVjQ0k2SW5aaksycDNkQ0o5LmV5SkFZMjl1ZEdWNGRDSTZXeUpvZEhSd2N6b3ZMM2QzZHk1M015NXZjbWN2Ym5NdlkzSmxaR1Z1ZEdsaGJITXZkaklpWFN3aVkyNW1JanA3SW1wcmRDSTZJbmRTVTJrNGJUbFpTV2RYTmxGWVQxTTJURjlDYzJoNE9WQkxYM3BxT0dSM1dDMTVRMTk1VmpGUWVXOGlmU3dpWTNKbFpHVnVkR2xoYkZOMVltcGxZM1FpT25zaWJHRmlaV3dpT2lKemVXNTBhR1YwYVdNdGJHRmlMWE4xWW1wbFkzUWlmU3dpYVhOemRXVnlJam9pYUhSMGNITTZMeTlwYzNOMVpYSXVhSFZyYVdRdWNHVXZjM2x1ZEdobGRHbGpMV3hoWWlJc0luUjVjR1VpT2xzaVZtVnlhV1pwWVdKc1pVTnlaV1JsYm5ScFlXd2lMQ0pUZVc1MGFHVjBhV05NWVdKRGNtVmtaVzUwYVdGc0lsMHNJblpoYkdsa1JuSnZiU0k2SWpJd01qWXRNREV0TURGVU1EQTZNREE2TURCYUlpd2lkbUZzYVdSVmJuUnBiQ0k2SWpJd01qY3RNREV0TURGVU1EQTZNREE2TURCYUluMC5NcEV5cTE0RjhGSEpZRkhzaE0zOFRKSXV3VVRjLTA4MmFTUTB6TVREQmxoODFfTXN0Ul9hNEFkUEZQcmk4YjN6ZTFnc25YSDdzSXhrMTA0QWJtTEtyUSIsInR5cGUiOiJFbnZlbG9wZWRWZXJpZmlhYmxlQ3JlZGVudGlhbCJ9XX0.Se7mGRniXuVr-vPwL7qvuYnzUnLEYZ_zB5i6FT-LVnICgevpz0x5ukBX8vLP5YGy5TxYaRHBL2zZu6LFlLTiWg",
+      "responseState": "wrong-state",
+      "request": {
+        "audience": "https://verifier.example/synthetic",
+        "nonce": "nonce-p05",
+        "state": "state-p05"
+      },
+      "evaluationTime": "2026-06-01T00:00:00Z",
+      "expected": {
+        "technicalResult": "invalid",
+        "failedCheck": "requestBinding",
+        "code": "request.state_mismatch"
+      }
+    },
+    {
+      "id": "p06-vp-signature-tampered",
+      "description": "VP payload altered after signing; the holder signature no longer matches.",
+      "vp": "eyJhbGciOiJFUzI1NiIsImN0eSI6InZwIiwiandrIjp7Imt0eSI6IkVDIiwiY3J2IjoiUC0yNTYiLCJ4IjoiTE43Qm1nc3RXd1k3QlBhWXluV01NdURkSnBNOEdOTDRRRU51NklEY0stUSIsInkiOiIzNkJnc2NXdVB1RExCMEwyMUlHaFFhZWhwMjJyQ3hGVlRTRlhRWW9fbThBIn0sInR5cCI6InZwK2p3dCJ9.eyJAY29udGV4dCI6WyJodHRwczovL3d3dy53My5vcmcvbnMvY3JlZGVudGlhbHMvdjIiLCJodHRwczovL3NjaGVtYXMuaHVraWQucGUvY29udGV4dHMvcHJlc2VudGF0aW9uL3YxIl0sImF1ZCI6Imh0dHBzOi8vdmVyaWZpZXIuZXhhbXBsZS9zeW50aGV0aWMiLCJub25jZSI6ImFsdGVyZWQtbm9uY2UiLCJ0eXBlIjpbIlZlcmlmaWFibGVQcmVzZW50YXRpb24iXSwidmVyaWZpYWJsZUNyZWRlbnRpYWwiOlt7IkBjb250ZXh0IjoiaHR0cHM6Ly93d3cudzMub3JnL25zL2NyZWRlbnRpYWxzL3YyIiwiaWQiOiJkYXRhOmFwcGxpY2F0aW9uL3ZjK2p3dCxleUpoYkdjaU9pSkZVekkxTmlJc0ltTjBlU0k2SW5aaklpd2lhMmxrSWpvaWMzbHVkR2hsZEdsakxXeGhZaTFyWlhrdE1TSXNJblI1Y0NJNkluWmpLMnAzZENKOS5leUpBWTI5dWRHVjRkQ0k2V3lKb2RIUndjem92TDNkM2R5NTNNeTV2Y21jdmJuTXZZM0psWkdWdWRHbGhiSE12ZGpJaVhTd2lZMjVtSWpwN0ltcHJkQ0k2SW5kU1UyazRiVGxaU1dkWE5sRllUMU0yVEY5Q2MyaDRPVkJMWDNwcU9HUjNXQzE1UTE5NVZqRlFlVzhpZlN3aVkzSmxaR1Z1ZEdsaGJGTjFZbXBsWTNRaU9uc2liR0ZpWld3aU9pSnplVzUwYUdWMGFXTXRiR0ZpTFhOMVltcGxZM1FpZlN3aWFYTnpkV1Z5SWpvaWFIUjBjSE02THk5cGMzTjFaWEl1YUhWcmFXUXVjR1V2YzNsdWRHaGxkR2xqTFd4aFlpSXNJblI1Y0dVaU9sc2lWbVZ5YVdacFlXSnNaVU55WldSbGJuUnBZV3dpTENKVGVXNTBhR1YwYVdOTVlXSkRjbVZrWlc1MGFXRnNJbDBzSW5aaGJHbGtSbkp2YlNJNklqSXdNall0TURFdE1ERlVNREE2TURBNk1EQmFJaXdpZG1Gc2FXUlZiblJwYkNJNklqSXdNamN0TURFdE1ERlVNREE2TURBNk1EQmFJbjAuTXBFeXExNEY4RkhKWUZIc2hNMzhUSkl1d1VUYy0wODJhU1Ewek1UREJsaDgxX01zdFJfYTRBZFBGUHJpOGIzemUxZ3NuWEg3c0l4azEwNEFibUxLclEiLCJ0eXBlIjoiRW52ZWxvcGVkVmVyaWZpYWJsZUNyZWRlbnRpYWwifV19.mGu86gryXb5QpzM9RYRGCi25kyQFTmGxELYEz542SCwoFtHJCkmTurGmxnp4QbK-kBscPJi4E2gBppytEl3wMg",
+      "responseState": "state-p06",
+      "request": {
+        "audience": "https://verifier.example/synthetic",
+        "nonce": "nonce-p06",
+        "state": "state-p06"
+      },
+      "evaluationTime": "2026-06-01T00:00:00Z",
+      "expected": {
+        "technicalResult": "invalid",
+        "failedCheck": "signature",
+        "code": "signature.invalid"
+      }
+    },
+    {
+      "id": "p07-credential-without-cnf",
+      "description": "The enveloped credential carries no cnf.jkt, so it cannot be bound to the holder.",
+      "vp": "eyJhbGciOiJFUzI1NiIsImN0eSI6InZwIiwiandrIjp7Imt0eSI6IkVDIiwiY3J2IjoiUC0yNTYiLCJ4IjoiTE43Qm1nc3RXd1k3QlBhWXluV01NdURkSnBNOEdOTDRRRU51NklEY0stUSIsInkiOiIzNkJnc2NXdVB1RExCMEwyMUlHaFFhZWhwMjJyQ3hGVlRTRlhRWW9fbThBIn0sInR5cCI6InZwK2p3dCJ9.eyJAY29udGV4dCI6WyJodHRwczovL3d3dy53My5vcmcvbnMvY3JlZGVudGlhbHMvdjIiLCJodHRwczovL3NjaGVtYXMuaHVraWQucGUvY29udGV4dHMvcHJlc2VudGF0aW9uL3YxIl0sImF1ZCI6Imh0dHBzOi8vdmVyaWZpZXIuZXhhbXBsZS9zeW50aGV0aWMiLCJub25jZSI6Im5vbmNlLXAwNyIsInR5cGUiOlsiVmVyaWZpYWJsZVByZXNlbnRhdGlvbiJdLCJ2ZXJpZmlhYmxlQ3JlZGVudGlhbCI6W3siQGNvbnRleHQiOiJodHRwczovL3d3dy53My5vcmcvbnMvY3JlZGVudGlhbHMvdjIiLCJpZCI6ImRhdGE6YXBwbGljYXRpb24vdmMrand0LGV5SmhiR2NpT2lKRlV6STFOaUlzSW1OMGVTSTZJblpqSWl3aWEybGtJam9pYzNsdWRHaGxkR2xqTFd4aFlpMXJaWGt0TVNJc0luUjVjQ0k2SW5aaksycDNkQ0o5LmV5SkFZMjl1ZEdWNGRDSTZXeUpvZEhSd2N6b3ZMM2QzZHk1M015NXZjbWN2Ym5NdlkzSmxaR1Z1ZEdsaGJITXZkaklpWFN3aVkzSmxaR1Z1ZEdsaGJGTjFZbXBsWTNRaU9uc2liR0ZpWld3aU9pSnplVzUwYUdWMGFXTXRiR0ZpTFhOMVltcGxZM1FpZlN3aWFYTnpkV1Z5SWpvaWFIUjBjSE02THk5cGMzTjFaWEl1YUhWcmFXUXVjR1V2YzNsdWRHaGxkR2xqTFd4aFlpSXNJblI1Y0dVaU9sc2lWbVZ5YVdacFlXSnNaVU55WldSbGJuUnBZV3dpTENKVGVXNTBhR1YwYVdOTVlXSkRjbVZrWlc1MGFXRnNJbDBzSW5aaGJHbGtSbkp2YlNJNklqSXdNall0TURFdE1ERlVNREE2TURBNk1EQmFJaXdpZG1Gc2FXUlZiblJwYkNJNklqSXdNamN0TURFdE1ERlVNREE2TURBNk1EQmFJbjAuWmFyQWIyM3Y5Ml82MEwteFF4NDhIVm5wU2FwS1p2OHhCRm9qbFB2MUNfdzNZbUZIMWJvZi1UN2ZzLXRGRG50eDVhX3djSFlmWW4zMG12QUl6N2daSFEiLCJ0eXBlIjoiRW52ZWxvcGVkVmVyaWZpYWJsZUNyZWRlbnRpYWwifV19.sT0J2RYLWdztnXqendfRdQ7x7YEU1jRQSZ4KlyPTF4_7JEzdLnaspl5dlgYzGl6R91XA9OgfUpxtTtXJXFvTUg",
+      "responseState": "state-p07",
+      "request": {
+        "audience": "https://verifier.example/synthetic",
+        "nonce": "nonce-p07",
+        "state": "state-p07"
+      },
+      "evaluationTime": "2026-06-01T00:00:00Z",
+      "expected": {
+        "technicalResult": "invalid",
+        "failedCheck": "holderBinding",
+        "code": "binding.missing_cnf"
+      }
+    },
+    {
+      "id": "p08-vp-header-typ-wrong",
+      "description": "VP header typ is JWT instead of vp+jwt.",
+      "vp": "eyJhbGciOiJFUzI1NiIsImN0eSI6InZwIiwiandrIjp7Imt0eSI6IkVDIiwiY3J2IjoiUC0yNTYiLCJ4IjoiTE43Qm1nc3RXd1k3QlBhWXluV01NdURkSnBNOEdOTDRRRU51NklEY0stUSIsInkiOiIzNkJnc2NXdVB1RExCMEwyMUlHaFFhZWhwMjJyQ3hGVlRTRlhRWW9fbThBIn0sInR5cCI6IkpXVCJ9.eyJAY29udGV4dCI6WyJodHRwczovL3d3dy53My5vcmcvbnMvY3JlZGVudGlhbHMvdjIiLCJodHRwczovL3NjaGVtYXMuaHVraWQucGUvY29udGV4dHMvcHJlc2VudGF0aW9uL3YxIl0sImF1ZCI6Imh0dHBzOi8vdmVyaWZpZXIuZXhhbXBsZS9zeW50aGV0aWMiLCJub25jZSI6Im5vbmNlLXAwOCIsInR5cGUiOlsiVmVyaWZpYWJsZVByZXNlbnRhdGlvbiJdLCJ2ZXJpZmlhYmxlQ3JlZGVudGlhbCI6W3siQGNvbnRleHQiOiJodHRwczovL3d3dy53My5vcmcvbnMvY3JlZGVudGlhbHMvdjIiLCJpZCI6ImRhdGE6YXBwbGljYXRpb24vdmMrand0LGV5SmhiR2NpT2lKRlV6STFOaUlzSW1OMGVTSTZJblpqSWl3aWEybGtJam9pYzNsdWRHaGxkR2xqTFd4aFlpMXJaWGt0TVNJc0luUjVjQ0k2SW5aaksycDNkQ0o5LmV5SkFZMjl1ZEdWNGRDSTZXeUpvZEhSd2N6b3ZMM2QzZHk1M015NXZjbWN2Ym5NdlkzSmxaR1Z1ZEdsaGJITXZkaklpWFN3aVkyNW1JanA3SW1wcmRDSTZJbmRTVTJrNGJUbFpTV2RYTmxGWVQxTTJURjlDYzJoNE9WQkxYM3BxT0dSM1dDMTVRMTk1VmpGUWVXOGlmU3dpWTNKbFpHVnVkR2xoYkZOMVltcGxZM1FpT25zaWJHRmlaV3dpT2lKemVXNTBhR1YwYVdNdGJHRmlMWE4xWW1wbFkzUWlmU3dpYVhOemRXVnlJam9pYUhSMGNITTZMeTlwYzNOMVpYSXVhSFZyYVdRdWNHVXZjM2x1ZEdobGRHbGpMV3hoWWlJc0luUjVjR1VpT2xzaVZtVnlhV1pwWVdKc1pVTnlaV1JsYm5ScFlXd2lMQ0pUZVc1MGFHVjBhV05NWVdKRGNtVmtaVzUwYVdGc0lsMHNJblpoYkdsa1JuSnZiU0k2SWpJd01qWXRNREV0TURGVU1EQTZNREE2TURCYUlpd2lkbUZzYVdSVmJuUnBiQ0k2SWpJd01qY3RNREV0TURGVU1EQTZNREE2TURCYUluMC5NcEV5cTE0RjhGSEpZRkhzaE0zOFRKSXV3VVRjLTA4MmFTUTB6TVREQmxoODFfTXN0Ul9hNEFkUEZQcmk4YjN6ZTFnc25YSDdzSXhrMTA0QWJtTEtyUSIsInR5cGUiOiJFbnZlbG9wZWRWZXJpZmlhYmxlQ3JlZGVudGlhbCJ9XX0.e0w7Is_YiiaLUzBg50a1bavbwVO6BDZ9jJqkCekZidImUchk5U_C-CeYsfFf6wsV4eltvqtlzvr7joBZz4f_bw",
+      "responseState": "state-p08",
+      "request": {
+        "audience": "https://verifier.example/synthetic",
+        "nonce": "nonce-p08",
+        "state": "state-p08"
+      },
+      "evaluationTime": "2026-06-01T00:00:00Z",
+      "expected": {
+        "technicalResult": "invalid",
+        "failedCheck": "format",
+        "code": "format.header.typ"
+      }
+    },
+    {
+      "id": "p09-envelope-not-data-url",
+      "description": "The enveloped credential id is an https URL, not a data:application/vc+jwt URL.",
+      "vp": "eyJhbGciOiJFUzI1NiIsImN0eSI6InZwIiwiandrIjp7Imt0eSI6IkVDIiwiY3J2IjoiUC0yNTYiLCJ4IjoiTE43Qm1nc3RXd1k3QlBhWXluV01NdURkSnBNOEdOTDRRRU51NklEY0stUSIsInkiOiIzNkJnc2NXdVB1RExCMEwyMUlHaFFhZWhwMjJyQ3hGVlRTRlhRWW9fbThBIn0sInR5cCI6InZwK2p3dCJ9.eyJAY29udGV4dCI6WyJodHRwczovL3d3dy53My5vcmcvbnMvY3JlZGVudGlhbHMvdjIiLCJodHRwczovL3NjaGVtYXMuaHVraWQucGUvY29udGV4dHMvcHJlc2VudGF0aW9uL3YxIl0sImF1ZCI6Imh0dHBzOi8vdmVyaWZpZXIuZXhhbXBsZS9zeW50aGV0aWMiLCJub25jZSI6Im5vbmNlLXAwOSIsInR5cGUiOlsiVmVyaWZpYWJsZVByZXNlbnRhdGlvbiJdLCJ2ZXJpZmlhYmxlQ3JlZGVudGlhbCI6W3siQGNvbnRleHQiOiJodHRwczovL3d3dy53My5vcmcvbnMvY3JlZGVudGlhbHMvdjIiLCJpZCI6Imh0dHBzOi8vZXhhbXBsZS5pbnZhbGlkL3ZjIiwidHlwZSI6IkVudmVsb3BlZFZlcmlmaWFibGVDcmVkZW50aWFsIn1dfQ.qkfkTj1s-wxBzfWA2qMJMA5aKrPF8jrUKMzj-8EI2MHiS-e8_QJvX8cmeAPn_BZfi2bF3b_uFgtVX8RDHBle8w",
+      "responseState": "state-p09",
+      "request": {
+        "audience": "https://verifier.example/synthetic",
+        "nonce": "nonce-p09",
+        "state": "state-p09"
+      },
+      "evaluationTime": "2026-06-01T00:00:00Z",
+      "expected": {
+        "technicalResult": "invalid",
+        "failedCheck": "format",
+        "code": "format.malformed"
+      }
+    },
+    {
+      "id": "p10-credential-expired",
+      "description": "A well-formed, correctly bound presentation whose credential is expired at evaluation time.",
+      "vp": "eyJhbGciOiJFUzI1NiIsImN0eSI6InZwIiwiandrIjp7Imt0eSI6IkVDIiwiY3J2IjoiUC0yNTYiLCJ4IjoiTE43Qm1nc3RXd1k3QlBhWXluV01NdURkSnBNOEdOTDRRRU51NklEY0stUSIsInkiOiIzNkJnc2NXdVB1RExCMEwyMUlHaFFhZWhwMjJyQ3hGVlRTRlhRWW9fbThBIn0sInR5cCI6InZwK2p3dCJ9.eyJAY29udGV4dCI6WyJodHRwczovL3d3dy53My5vcmcvbnMvY3JlZGVudGlhbHMvdjIiLCJodHRwczovL3NjaGVtYXMuaHVraWQucGUvY29udGV4dHMvcHJlc2VudGF0aW9uL3YxIl0sImF1ZCI6Imh0dHBzOi8vdmVyaWZpZXIuZXhhbXBsZS9zeW50aGV0aWMiLCJub25jZSI6Im5vbmNlLXAxMCIsInR5cGUiOlsiVmVyaWZpYWJsZVByZXNlbnRhdGlvbiJdLCJ2ZXJpZmlhYmxlQ3JlZGVudGlhbCI6W3siQGNvbnRleHQiOiJodHRwczovL3d3dy53My5vcmcvbnMvY3JlZGVudGlhbHMvdjIiLCJpZCI6ImRhdGE6YXBwbGljYXRpb24vdmMrand0LGV5SmhiR2NpT2lKRlV6STFOaUlzSW1OMGVTSTZJblpqSWl3aWEybGtJam9pYzNsdWRHaGxkR2xqTFd4aFlpMXJaWGt0TVNJc0luUjVjQ0k2SW5aaksycDNkQ0o5LmV5SkFZMjl1ZEdWNGRDSTZXeUpvZEhSd2N6b3ZMM2QzZHk1M015NXZjbWN2Ym5NdlkzSmxaR1Z1ZEdsaGJITXZkaklpWFN3aVkyNW1JanA3SW1wcmRDSTZJbmRTVTJrNGJUbFpTV2RYTmxGWVQxTTJURjlDYzJoNE9WQkxYM3BxT0dSM1dDMTVRMTk1VmpGUWVXOGlmU3dpWTNKbFpHVnVkR2xoYkZOMVltcGxZM1FpT25zaWJHRmlaV3dpT2lKemVXNTBhR1YwYVdNdGJHRmlMWE4xWW1wbFkzUWlmU3dpYVhOemRXVnlJam9pYUhSMGNITTZMeTlwYzNOMVpYSXVhSFZyYVdRdWNHVXZjM2x1ZEdobGRHbGpMV3hoWWlJc0luUjVjR1VpT2xzaVZtVnlhV1pwWVdKc1pVTnlaV1JsYm5ScFlXd2lMQ0pUZVc1MGFHVjBhV05NWVdKRGNtVmtaVzUwYVdGc0lsMHNJblpoYkdsa1JuSnZiU0k2SWpJd01qWXRNREV0TURGVU1EQTZNREE2TURCYUlpd2lkbUZzYVdSVmJuUnBiQ0k2SWpJd01qY3RNREV0TURGVU1EQTZNREE2TURCYUluMC5NcEV5cTE0RjhGSEpZRkhzaE0zOFRKSXV3VVRjLTA4MmFTUTB6TVREQmxoODFfTXN0Ul9hNEFkUEZQcmk4YjN6ZTFnc25YSDdzSXhrMTA0QWJtTEtyUSIsInR5cGUiOiJFbnZlbG9wZWRWZXJpZmlhYmxlQ3JlZGVudGlhbCJ9XX0.wFQpzw_KGLXolMzQOKM0bWON02DxZDqlP5-bO6CJPrnqsOK_TO9U0f9hx5qjDji85ZMYpIlE2PQD3sieL76Jrw",
+      "responseState": "state-p10",
+      "request": {
+        "audience": "https://verifier.example/synthetic",
+        "nonce": "nonce-p10",
+        "state": "state-p10"
+      },
+      "evaluationTime": "2027-06-01T00:00:00Z",
+      "expected": {
+        "technicalResult": "invalid",
+        "failedCheck": "validity",
+        "code": "validity.expired"
+      }
+    }
+  ],
   "limitations": [
     "The credential uses only the VCDM 2.0 base context. The profile defines cnf through a HukID context that does not exist for this lab type.",
-    "No verifiable presentation, status list or schema vectors yet: holder-binding and request-binding vectors arrive with VER-T05.",
+    "The presentation layout is inferred from profile sections 2.3, 2.5 and 9.6: the reference vp-jwt-structure.json is not part of this repository, and the HukID presentation context URL is not published.",
+    "The holder key travels as a JWK in the VP header; a holder kid resolved elsewhere is not covered.",
+    "No status list or schema vectors yet.",
     "The issuer URL follows the profile pattern but is not a published issuer."
   ],
   "meta": {
-    "feature": "FEAT-004 VER-T01",
+    "feature": "FEAT-004 VER-T01, VER-T05",
     "generator": "vectors_test.go TestGenerateVectors"
   }
 }

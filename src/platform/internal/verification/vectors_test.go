@@ -40,17 +40,54 @@ type vector struct {
 	Expected       vectorExpectation `json:"expected"`
 }
 
+type presentationRequest struct {
+	Audience string `json:"audience"`
+	Nonce    string `json:"nonce"`
+	State    string `json:"state"`
+}
+
+type presentationVector struct {
+	ID             string              `json:"id"`
+	Description    string              `json:"description"`
+	VP             string              `json:"vp"`
+	ResponseState  string              `json:"responseState"`
+	Request        presentationRequest `json:"request"`
+	EvaluationTime string              `json:"evaluationTime"`
+	Expected       vectorExpectation   `json:"expected"`
+}
+
 type vectorFile struct {
-	Synthetic   bool              `json:"synthetic"`
-	Notice      string            `json:"notice"`
-	CodesVer    int               `json:"codesVersion"`
-	Issuer      string            `json:"issuer"`
-	IssuerKeys  map[string]jwk    `json:"issuerPublicKeys"`
-	HolderKey   jwk               `json:"holderPublicKey"`
-	HolderJKT   string            `json:"holderJkt"`
-	Vectors     []vector          `json:"vectors"`
-	Limitations []string          `json:"limitations"`
-	Meta        map[string]string `json:"meta"`
+	Synthetic           bool                 `json:"synthetic"`
+	Notice              string               `json:"notice"`
+	CodesVer            int                  `json:"codesVersion"`
+	Issuer              string               `json:"issuer"`
+	IssuerKeys          map[string]jwk       `json:"issuerPublicKeys"`
+	HolderKey           jwk                  `json:"holderPublicKey"`
+	HolderJKT           string               `json:"holderJkt"`
+	Vectors             []vector             `json:"vectors"`
+	PresentationVectors []presentationVector `json:"presentationVectors"`
+	Limitations         []string             `json:"limitations"`
+	Meta                map[string]string    `json:"meta"`
+}
+
+const vectorAudience = "https://verifier.example/synthetic"
+
+func envelopedCredential(vc string) map[string]any {
+	return map[string]any{"@context": "https://www.w3.org/ns/credentials/v2", "type": "EnvelopedVerifiableCredential", "id": "data:application/vc+jwt," + vc}
+}
+
+func presentationPayload(aud, nonce string, credentials ...any) map[string]any {
+	return map[string]any{
+		"@context":             []any{"https://www.w3.org/ns/credentials/v2", "https://schemas.hukid.pe/contexts/presentation/v1"},
+		"type":                 []any{"VerifiablePresentation"},
+		"aud":                  aud,
+		"nonce":                nonce,
+		"verifiableCredential": credentials,
+	}
+}
+
+func presentationHeader(holder jwk) map[string]any {
+	return map[string]any{"alg": "ES256", "typ": "vp+jwt", "cty": "vp", "jwk": holder}
 }
 
 const (
@@ -163,7 +200,43 @@ func generateVectors(t *testing.T) vectorFile {
 	fail := func(check CheckName, code Code) vectorExpectation {
 		return vectorExpectation{TechnicalResult: Invalid, FailedCheck: check, Code: code}
 	}
-	return vectorFile{
+
+	otherHolderKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherHolderPub := publicJWK(&otherHolderKey.PublicKey, "")
+	noCNF := valid()
+	delete(noCNF, "cnf")
+	noCNFJWS := compact(baseHeader(kid), noCNF, issuerKey)
+
+	// Each presentation vector has its own nonce and state so that replay
+	// protection never couples two vectors.
+	request := func(n string) presentationRequest {
+		return presentationRequest{Audience: vectorAudience, Nonce: "nonce-" + n, State: "state-" + n}
+	}
+	presentation := func(id, description string, header, payload map[string]any, signer *ecdsa.PrivateKey, req presentationRequest, responseState, evaluationTime string, expected vectorExpectation) presentationVector {
+		return presentationVector{ID: id, Description: description, VP: compact(header, payload, signer), ResponseState: responseState, Request: req, EvaluationTime: evaluationTime, Expected: expected}
+	}
+	envelope := []any{envelopedCredential(validJWS)}
+	p01, p02, p03, p04, p05, p06, p07, p08, p09, p10 := request("p01"), request("p02"), request("p03"), request("p04"), request("p05"), request("p06"), request("p07"), request("p08"), request("p09"), request("p10")
+	tamperedVP := presentation("p06-vp-signature-tampered", "VP payload altered after signing; the holder signature no longer matches.", presentationHeader(holderPub), presentationPayload(vectorAudience, p06.Nonce, envelope...), holderKey, p06, p06.State, insideWindow, fail(CheckSignature, CodeSignatureInvalid))
+	vpParts := strings.Split(tamperedVP.VP, ".")
+	alteredPayload, _ := json.Marshal(presentationPayload(vectorAudience, "altered-nonce", envelope...))
+	tamperedVP.VP = vpParts[0] + "." + b64(alteredPayload) + "." + vpParts[2]
+	presentations := []presentationVector{
+		presentation("p01-valid", "Presentation signed with the key bound by cnf.jkt, answering its request.", presentationHeader(holderPub), presentationPayload(vectorAudience, p01.Nonce, envelope...), holderKey, p01, p01.State, insideWindow, vectorExpectation{TechnicalResult: Valid}),
+		presentation("p02-holder-key-mismatch", "VP signed by a different holder key than the one bound in cnf.jkt; the VP signature itself is valid.", presentationHeader(otherHolderPub), presentationPayload(vectorAudience, p02.Nonce, envelope...), otherHolderKey, p02, p02.State, insideWindow, fail(CheckHolderBinding, CodeBindingMismatch)),
+		presentation("p03-audience-mismatch", "VP aud differs from the audience the verifier expects.", presentationHeader(holderPub), presentationPayload("https://verifier.example/other", p03.Nonce, envelope...), holderKey, p03, p03.State, insideWindow, fail(CheckRequestBinding, CodeRequestAudience)),
+		presentation("p04-nonce-mismatch", "VP nonce differs from the request nonce.", presentationHeader(holderPub), presentationPayload(vectorAudience, "wrong-nonce", envelope...), holderKey, p04, p04.State, insideWindow, fail(CheckRequestBinding, CodeRequestNonce)),
+		presentation("p05-state-mismatch", "Response state differs from the request state.", presentationHeader(holderPub), presentationPayload(vectorAudience, p05.Nonce, envelope...), holderKey, p05, "wrong-state", insideWindow, fail(CheckRequestBinding, CodeRequestState)),
+		tamperedVP,
+		presentation("p07-credential-without-cnf", "The enveloped credential carries no cnf.jkt, so it cannot be bound to the holder.", presentationHeader(holderPub), presentationPayload(vectorAudience, p07.Nonce, envelopedCredential(noCNFJWS)), holderKey, p07, p07.State, insideWindow, fail(CheckHolderBinding, CodeBindingMissingCNF)),
+		presentation("p08-vp-header-typ-wrong", "VP header typ is JWT instead of vp+jwt.", mutate(presentationHeader(holderPub), func(h map[string]any) { h["typ"] = "JWT" }), presentationPayload(vectorAudience, p08.Nonce, envelope...), holderKey, p08, p08.State, insideWindow, fail(CheckFormat, CodeFormatHeaderTyp)),
+		presentation("p09-envelope-not-data-url", "The enveloped credential id is an https URL, not a data:application/vc+jwt URL.", presentationHeader(holderPub), presentationPayload(vectorAudience, p09.Nonce, map[string]any{"@context": "https://www.w3.org/ns/credentials/v2", "type": "EnvelopedVerifiableCredential", "id": "https://example.invalid/vc"}), holderKey, p09, p09.State, insideWindow, fail(CheckFormat, CodeFormatMalformed)),
+		presentation("p10-credential-expired", "A well-formed, correctly bound presentation whose credential is expired at evaluation time.", presentationHeader(holderPub), presentationPayload(vectorAudience, p10.Nonce, envelope...), holderKey, p10, p10.State, "2027-06-01T00:00:00Z", fail(CheckValidity, CodeValidityExpired)),
+	}
+	file := vectorFile{
 		Synthetic: true,
 		Notice:    "SYNTHETIC lab vectors. Generated with ephemeral P-256 keys whose private halves were discarded. They are not evidence of interoperability with any external verifier, wallet or issuer.",
 		CodesVer:  CodesVersion,
@@ -186,11 +259,15 @@ func generateVectors(t *testing.T) vectorFile {
 		},
 		Limitations: []string{
 			"The credential uses only the VCDM 2.0 base context. The profile defines cnf through a HukID context that does not exist for this lab type.",
-			"No verifiable presentation, status list or schema vectors yet: holder-binding and request-binding vectors arrive with VER-T05.",
+			"The presentation layout is inferred from profile sections 2.3, 2.5 and 9.6: the reference vp-jwt-structure.json is not part of this repository, and the HukID presentation context URL is not published.",
+			"The holder key travels as a JWK in the VP header; a holder kid resolved elsewhere is not covered.",
+			"No status list or schema vectors yet.",
 			"The issuer URL follows the profile pattern but is not a published issuer.",
 		},
-		Meta: map[string]string{"generator": "vectors_test.go TestGenerateVectors", "feature": "FEAT-004 VER-T01"},
+		Meta: map[string]string{"generator": "vectors_test.go TestGenerateVectors", "feature": "FEAT-004 VER-T01, VER-T05"},
 	}
+	file.PresentationVectors = presentations
+	return file
 }
 
 func TestGenerateVectors(t *testing.T) {

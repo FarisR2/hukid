@@ -35,11 +35,17 @@ func checkIssuerKey(parsed *ParsedCredential, keys IssuerKeyResolver) (*ecdsa.Pu
 
 // checkSignature verifies the raw ES256 (r||s) signature over the signing input.
 func checkSignature(parsed *ParsedCredential, key *ecdsa.PublicKey) Check {
-	if len(parsed.Signature) != 64 {
+	return checkES256(parsed.SigningInput, parsed.Signature, key)
+}
+
+// checkES256 verifies a raw ES256 (r||s) JWS signature. It is shared by the
+// credential and the presentation, whose key comes from different sources.
+func checkES256(signingInput string, signature []byte, key *ecdsa.PublicKey) Check {
+	if len(signature) != 64 {
 		return Failed(CheckSignature, CodeSignatureInvalid)
 	}
-	r := new(big.Int).SetBytes(parsed.Signature[:32])
-	s := new(big.Int).SetBytes(parsed.Signature[32:])
+	r := new(big.Int).SetBytes(signature[:32])
+	s := new(big.Int).SetBytes(signature[32:])
 	if r.Sign() == 0 || s.Sign() == 0 {
 		return Failed(CheckSignature, CodeSignatureInvalid)
 	}
@@ -47,7 +53,7 @@ func checkSignature(parsed *ParsedCredential, key *ecdsa.PublicKey) Check {
 	if err != nil {
 		return Failed(CheckSignature, CodeSignatureInvalid)
 	}
-	digest := sha256.Sum256([]byte(parsed.SigningInput))
+	digest := sha256.Sum256([]byte(signingInput))
 	if !ecdsa.VerifyASN1(key, digest[:], der) {
 		return Failed(CheckSignature, CodeSignatureInvalid)
 	}

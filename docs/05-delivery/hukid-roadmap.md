@@ -6,7 +6,7 @@ Este roadmap describe el producto completo; no es evidencia de fases terminadas.
 
 | Fase de este roadmap | Relación con historias del [backlog Team 5](../02-requirements/backlogs/team-5-hukid.md) | Estado verificable |
 | --- | --- | --- |
-| 0 — Laboratorio de credenciales | Preparación del perfil y conformance HK-056; firma/proof/binding requeridos por las historias de emisión y verificación. | Pendiente. El laboratorio OIDC de AUTH no valida VC, wallet ni verifier. |
+| 0 — Laboratorio de credenciales | Preparación del perfil y conformance HK-056; firma/proof/binding requeridos por las historias de emisión y verificación. | Parcial. El laboratorio OIDC de AUTH no valida VC, wallet ni verifier. El núcleo de verificación de [FEAT-004](../features/FEAT-004-credential-verification/spec.md) cubre el lado verifier con vectores sintéticos ([gate V4](verification-gate.md)); faltan emisión, wallet, verifier externo y el conformance gate. |
 | 1 — Foundation | HK-001/002/004/005; FEAT-001/002 concretan parte del acceso administrativo. | Parcial: AUTH-T01–T10 entregadas para autenticación de laboratorio. Emisores, keys/KMS, clientes/grants y cierre de auditoría/operación no están completos. |
 | 2 — Definition Registry | HK-003. | Pendiente. |
 | 3 — Emisión y recepción | HK-010–013, HK-020–025 y las historias de wallet HK-030–033 necesarias para el recorrido. | Pendiente. |

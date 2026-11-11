@@ -1,7 +1,7 @@
 # FEAT-004 — Núcleo de verificación de credenciales
 
 - Producto: HukID Platform / Team 5.
-- Estado: **propuesta, sin implementación**. Pendiente de aprobación del owner. Este documento no declara ningún artefacto, endpoint ni vector como existente.
+- Estado: **núcleo de laboratorio implementado (VER-T01–T08)**, por indicación del owner de iniciar la implementación; la aprobación formal del FEAT y del [ADR-0030](../../decisions/ADR-0030.md) **no está registrada**, y los valores marcados como propuesta siguen pendientes. Es un módulo interno sin endpoint ni proceso; HK-043 sigue incompleta (VER-T09 y T13) y el conformance gate del perfil, abierto. Evidencia y límites en el [gate V4](../../05-delivery/verification-gate.md).
 - Depende de: [perfil HukID v0.1-draft](../../03-design/hukid-profile.md) y, para la capa de adaptadores, de las decisiones abiertas de [pendientes](../../05-delivery/documentation-gaps.md). No depende de [FEAT-001](../FEAT-001-authentication/spec.md) para verificar; solo lo reutiliza en los puntos de integración que se listan abajo.
 - Salidas: [plan](plan.md), [tareas](tasks.md), [ADR-0030](../../decisions/ADR-0030.md).
 
@@ -45,7 +45,7 @@ Fuera de este incremento:
 | --- | --- | --- |
 | VER-QR01 | La librería no hace red por sí sola: el resolver de claves y el cargador de contextos son puertos inyectados. Las reglas de host y redirects viven en el adaptador (VER-FR11). | Pruebas con resolver falso; el paquete no importa `net/http`. |
 | VER-QR02 | Solo contextos JSON-LD allowlisted durante una verificación (perfil §2.6). Un contexto no listado, o un contexto en línea (objeto), se rechaza con `format.context_not_allowed` sin salir a la red. Por defecto solo se admite el contexto base VCDM 2.0 (y el de presentación en una VP). | Prueba con contexto remoto no listado: se rechaza sin salir a la red; el paquete no puede hacer red (QR01). |
-| VER-QR03 | Comparaciones de thumbprint y de digest en tiempo constante. | Revisión de código y prueba de unidad sobre la función de comparación. |
+| VER-QR03 | Comparaciones de thumbprint, audience, nonce y state en tiempo constante. El módulo no compara digests: solo los produce. | Revisión de código y pruebas de coincidencia y discrepancia de la presentación. |
 | VER-QR04 | Sin dependencia del módulo de autenticación de la consola. | El paquete no importa `internal/authentication`. **No existe hoy ningún chequeo automático:** VER-T07 lo crea (prueba de imports o regla de lint) y lo ejecuta en CI. |
 | VER-QR05 | Propuesta: entrada acotada (tamaño máximo de JWS, número de VCs por VP, profundidad JSON). Los valores no están en el perfil y se fijan en VER-T02. | Pruebas de límites con entradas sobredimensionadas. |
 

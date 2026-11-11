@@ -16,6 +16,9 @@ const (
 	envelopedVCPrefix   = "data:application/vc+jwt,"
 )
 
+// presentationContexts are the only JSON-LD contexts a presentation may use.
+var presentationContexts = []string{vcdmBaseContext, presentationContext}
+
 // Request is what the verifier expects from the wallet's response.
 type Request struct {
 	Audience string
@@ -99,6 +102,9 @@ func parsePresentation(vp string, limits Limits) (*parsedPresentation, Code) {
 	if !hasBaseContext(payload["@context"]) || !hasType(payload["type"], "VerifiablePresentation") {
 		return nil, CodeFormatMalformed
 	}
+	if !contextsAllowed(payload["@context"], presentationContexts) {
+		return nil, CodeFormatContextNotAllowed
+	}
 	var entries []json.RawMessage
 	if json.Unmarshal(payload["verifiableCredential"], &entries) != nil || len(entries) == 0 || len(entries) > limits.MaxCredentials {
 		return nil, CodeFormatMalformed
@@ -108,6 +114,11 @@ func parsePresentation(vp string, limits Limits) (*parsedPresentation, Code) {
 		object, err := decodeStrictObject(entry, limits.MaxJSONDepth)
 		if err != nil || !hasType(object["type"], "EnvelopedVerifiableCredential") {
 			return nil, CodeFormatMalformed
+		}
+		if raw, present := object["@context"]; present {
+			if value, isString := stringValue(raw); !isString || value != vcdmBaseContext {
+				return nil, CodeFormatContextNotAllowed
+			}
 		}
 		id, ok := stringMember(object, "id")
 		if !ok || !strings.HasPrefix(id, envelopedVCPrefix) || len(id) == len(envelopedVCPrefix) {

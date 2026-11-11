@@ -72,6 +72,11 @@ type vectorFile struct {
 
 const vectorAudience = "https://verifier.example/synthetic"
 
+func mutatePayload(payload map[string]any, fn func(map[string]any)) map[string]any {
+	fn(payload)
+	return payload
+}
+
 func envelopedCredential(vc string) map[string]any {
 	return map[string]any{"@context": "https://www.w3.org/ns/credentials/v2", "type": "EnvelopedVerifiableCredential", "id": "data:application/vc+jwt," + vc}
 }
@@ -219,7 +224,7 @@ func generateVectors(t *testing.T) vectorFile {
 		return presentationVector{ID: id, Description: description, VP: compact(header, payload, signer), ResponseState: responseState, Request: req, EvaluationTime: evaluationTime, Expected: expected}
 	}
 	envelope := []any{envelopedCredential(validJWS)}
-	p01, p02, p03, p04, p05, p06, p07, p08, p09, p10 := request("p01"), request("p02"), request("p03"), request("p04"), request("p05"), request("p06"), request("p07"), request("p08"), request("p09"), request("p10")
+	p01, p02, p03, p04, p05, p06, p07, p08, p09, p10, p11 := request("p01"), request("p02"), request("p03"), request("p04"), request("p05"), request("p06"), request("p07"), request("p08"), request("p09"), request("p10"), request("p11")
 	tamperedVP := presentation("p06-vp-signature-tampered", "VP payload altered after signing; the holder signature no longer matches.", presentationHeader(holderPub), presentationPayload(vectorAudience, p06.Nonce, envelope...), holderKey, p06, p06.State, insideWindow, fail(CheckSignature, CodeSignatureInvalid))
 	vpParts := strings.Split(tamperedVP.VP, ".")
 	alteredPayload, _ := json.Marshal(presentationPayload(vectorAudience, "altered-nonce", envelope...))
@@ -234,6 +239,9 @@ func generateVectors(t *testing.T) vectorFile {
 		presentation("p07-credential-without-cnf", "The enveloped credential carries no cnf.jkt, so it cannot be bound to the holder.", presentationHeader(holderPub), presentationPayload(vectorAudience, p07.Nonce, envelopedCredential(noCNFJWS)), holderKey, p07, p07.State, insideWindow, fail(CheckHolderBinding, CodeBindingMissingCNF)),
 		presentation("p08-vp-header-typ-wrong", "VP header typ is JWT instead of vp+jwt.", mutate(presentationHeader(holderPub), func(h map[string]any) { h["typ"] = "JWT" }), presentationPayload(vectorAudience, p08.Nonce, envelope...), holderKey, p08, p08.State, insideWindow, fail(CheckFormat, CodeFormatHeaderTyp)),
 		presentation("p09-envelope-not-data-url", "The enveloped credential id is an https URL, not a data:application/vc+jwt URL.", presentationHeader(holderPub), presentationPayload(vectorAudience, p09.Nonce, map[string]any{"@context": "https://www.w3.org/ns/credentials/v2", "type": "EnvelopedVerifiableCredential", "id": "https://example.invalid/vc"}), holderKey, p09, p09.State, insideWindow, fail(CheckFormat, CodeFormatMalformed)),
+		presentation("p11-presentation-context-not-listed", "VP lists a JSON-LD context outside the allowlist.", presentationHeader(holderPub), mutatePayload(presentationPayload(vectorAudience, p11.Nonce, envelope...), func(p map[string]any) {
+			p["@context"] = []any{"https://www.w3.org/ns/credentials/v2", "https://schemas.hukid.pe/contexts/presentation/v1", "https://attacker.invalid/context"}
+		}), holderKey, p11, p11.State, insideWindow, fail(CheckFormat, CodeFormatContextNotAllowed)),
 		presentation("p10-credential-expired", "A well-formed, correctly bound presentation whose credential is expired at evaluation time.", presentationHeader(holderPub), presentationPayload(vectorAudience, p10.Nonce, envelope...), holderKey, p10, p10.State, "2027-06-01T00:00:00Z", fail(CheckValidity, CodeValidityExpired)),
 	}
 	file := vectorFile{
@@ -256,6 +264,12 @@ func generateVectors(t *testing.T) vectorFile {
 			{"v07-unknown-kid", "kid is not published by the issuer; signed with the issuer key.", compact(baseHeader("unknown-key"), valid(), issuerKey), insideWindow, fail(CheckIssuerKey, CodeKeyUnknownKID)},
 			{"v08-expired", "Valid credential evaluated after validUntil.", validJWS, "2027-06-01T00:00:00Z", fail(CheckValidity, CodeValidityExpired)},
 			{"v09-not-yet-valid", "Valid credential evaluated before validFrom.", validJWS, "2025-06-01T00:00:00Z", fail(CheckValidity, CodeValidityNotYetValid)},
+			{"v10-context-not-listed", "Credential lists a JSON-LD context outside the allowlist; it must be rejected without fetching it.", compact(baseHeader(kid), mutatePayload(valid(), func(p map[string]any) {
+				p["@context"] = []any{"https://www.w3.org/ns/credentials/v2", "https://attacker.invalid/context"}
+			}), issuerKey), insideWindow, fail(CheckFormat, CodeFormatContextNotAllowed)},
+			{"v11-issuer-mismatch", "Credential claims an issuer other than the owner of the key that signed it.", compact(baseHeader(kid), mutatePayload(valid(), func(p map[string]any) {
+				p["issuer"] = "https://issuer.hukid.pe/another-issuer"
+			}), issuerKey), insideWindow, fail(CheckIssuerKey, CodeKeyIssuerMismatch)},
 		},
 		Limitations: []string{
 			"The credential uses only the VCDM 2.0 base context. The profile defines cnf through a HukID context that does not exist for this lab type.",

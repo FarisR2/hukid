@@ -44,7 +44,7 @@ Fuera de este incremento:
 | ID | Restricción | Verificación |
 | --- | --- | --- |
 | VER-QR01 | La librería no hace red por sí sola: el resolver de claves y el cargador de contextos son puertos inyectados. Las reglas de host y redirects viven en el adaptador (VER-FR11). | Pruebas con resolver falso; el paquete no importa `net/http`. |
-| VER-QR02 | Solo contextos JSON-LD allowlisted durante una verificación (perfil §2.6). | Prueba con contexto remoto no listado: se rechaza sin salir a la red. |
+| VER-QR02 | Solo contextos JSON-LD allowlisted durante una verificación (perfil §2.6). Un contexto no listado, o un contexto en línea (objeto), se rechaza con `format.context_not_allowed` sin salir a la red. Por defecto solo se admite el contexto base VCDM 2.0 (y el de presentación en una VP). | Prueba con contexto remoto no listado: se rechaza sin salir a la red; el paquete no puede hacer red (QR01). |
 | VER-QR03 | Comparaciones de thumbprint y de digest en tiempo constante. | Revisión de código y prueba de unidad sobre la función de comparación. |
 | VER-QR04 | Sin dependencia del módulo de autenticación de la consola. | El paquete no importa `internal/authentication`. **No existe hoy ningún chequeo automático:** VER-T07 lo crea (prueba de imports o regla de lint) y lo ejecuta en CI. |
 | VER-QR05 | Propuesta: entrada acotada (tamaño máximo de JWS, número de VCs por VP, profundidad JSON). Los valores no están en el perfil y se fijan en VER-T02. | Pruebas de límites con entradas sobredimensionadas. |
@@ -58,6 +58,8 @@ Decisiones de diseño de este borrador que **no** vienen del perfil ni de la arq
 - Los límites de tamaño, número de VCs y profundidad JSON de VER-QR05. Valores implementados: 16 KiB por credencial, 8 niveles, 8 credenciales y 64 KiB por presentación.
 - La forma exacta de la VP (`aud` y `nonce` como miembros de primer nivel, credenciales envueltas en `verifiableCredential`, JWK del holder en el header). Se infiere de las secciones 2.3, 2.5 y 9.6 del perfil porque el ejemplo `vp-jwt-structure.json` no está en el repositorio; no se admite un `kid` del holder resuelto fuera del header.
 - La tolerancia de reloj de VER-FR04; HK-022 solo pide "clock skew limitado".
+- La lista de contextos permitidos por defecto: solo el contexto base VCDM 2.0 (y el de presentación en una VP). No se incluye el contexto `cpe/v1` del perfil, porque permitirlo por defecto prejuzgaría la decisión abierta #4 (qué documento va primero en el piloto); los contextos de cada tipo se añaden por definición (VER-T13).
+- El código nuevo `format.context_not_allowed` subió `CodesVersion` de 1 a 2, según la regla de que cambiar el conjunto cerrado exige nueva versión.
 
 ## Definition of Done aplicable
 

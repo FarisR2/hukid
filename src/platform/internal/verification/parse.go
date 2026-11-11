@@ -18,6 +18,42 @@ type Limits struct {
 	MaxJSONDepth         int
 	MaxCredentials       int
 	MaxPresentationBytes int
+	// Contexts lists the JSON-LD contexts a credential may use. Nil means
+	// DefaultCredentialContexts. No context is ever fetched: anything not
+	// listed is rejected (profile 2.6, VER-QR02).
+	Contexts []string
+}
+
+// DefaultCredentialContexts is deliberately minimal: only the VCDM 2.0 base
+// context. Contexts of specific credential types (for example the receipt
+// context of the profile) are added per definition when those exist, so that
+// no document type is allowed by default while that decision is open.
+var DefaultCredentialContexts = []string{vcdmBaseContext}
+
+// contextsAllowed reports whether every entry of a JSON-LD @context array is a
+// string present in allowed. Inline context objects are never allowed: they
+// would smuggle term definitions past the allowlist.
+func contextsAllowed(raw json.RawMessage, allowed []string) bool {
+	var entries []json.RawMessage
+	if json.Unmarshal(raw, &entries) != nil {
+		return false
+	}
+	for _, entry := range entries {
+		value, isString := stringValue(entry)
+		if !isString || !containsString(allowed, value) {
+			return false
+		}
+	}
+	return true
+}
+
+func containsString(list []string, want string) bool {
+	for _, s := range list {
+		if s == want {
+			return true
+		}
+	}
+	return false
 }
 
 // DefaultLimits are the proposed defaults: 16 KiB per compact credential JWS,
@@ -122,6 +158,13 @@ func ParseCredential(jws string, limits Limits) (*ParsedCredential, Check) {
 	issuer, ok := stringMember(payload, "issuer")
 	if !ok || issuer == "" || !hasBaseContext(payload["@context"]) || !hasType(payload["type"], "VerifiableCredential") {
 		return fail(CodeFormatMalformed)
+	}
+	allowedContexts := limits.Contexts
+	if allowedContexts == nil {
+		allowedContexts = DefaultCredentialContexts
+	}
+	if !contextsAllowed(payload["@context"], allowedContexts) {
+		return fail(CodeFormatContextNotAllowed)
 	}
 
 	parsed := &ParsedCredential{

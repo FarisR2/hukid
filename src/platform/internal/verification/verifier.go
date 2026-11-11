@@ -34,6 +34,14 @@ type Verifier struct {
 	trust     TrustPolicy
 }
 
+// WithCredentialContexts returns a copy that accepts the given JSON-LD contexts
+// in credentials, in place of the minimal default. Contexts are never fetched.
+func (v *Verifier) WithCredentialContexts(contexts ...string) *Verifier {
+	copied := *v
+	copied.limits.Contexts = append([]string{vcdmBaseContext}, contexts...)
+	return &copied
+}
+
 // WithTrustPolicy returns a copy of the verifier that records a trust decision
 // next to the technical result. Without a policy the reports carry no trust.
 func (v *Verifier) WithTrustPolicy(policy TrustPolicy) *Verifier {

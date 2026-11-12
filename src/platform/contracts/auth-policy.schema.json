@@ -127,6 +127,7 @@
     "scopes": {
       "const": [
         "openid",
+        "email",
         "offline_access",
         "operator:read"
       ]

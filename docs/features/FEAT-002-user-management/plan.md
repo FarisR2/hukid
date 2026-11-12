@@ -2,6 +2,8 @@
 
 Referencias: [spec](spec.md), [tareas](tasks.md), [FEAT-001](../FEAT-001-authentication/plan.md).
 
+USR-T01 materializa U0: [contrato y políticas](../../03-design/console-members-contract.md), [OpenAPI](../../../src/platform/contracts/console-members.openapi.json), schemas y reglas puras según [ADR-0011](../../decisions/ADR-0011.md). USR-T02 añade [persistencia/RLS y protocolo transaccional](../../03-design/console-members-persistence.md) según [ADR-0012](../../decisions/ADR-0012.md). USR-T03 conecta [cuatro lecturas autorizadas con filtros/cursor](../../03-design/console-members-directory.md) según [ADR-0013](../../decisions/ADR-0013.md); USR-T04 conecta [creación/revocación y entrega sintética](../../03-design/console-invitation-delivery.md) según ADR-0014. USR-T05 conecta [aceptación/reingreso y evidencia OIDC](../../03-design/console-invitation-acceptance.md) según [ADR-0015](../../decisions/ADR-0015.md). USR-T06 conecta [ambos PATCH con ETag y lock tenant](../../03-design/console-members-lifecycle.md), según [ADR-0016](../../decisions/ADR-0016.md). USR-T07 conecta [revalidación y reconciliación de contexto](../../03-design/console-authorization-revalidation.md), según [ADR-0017](../../decisions/ADR-0017.md). USR-T08 conecta la [UI de miembros](../../03-design/console-members-interface.md); USR-T09 cierra el [gate U4 de laboratorio](../../05-delivery/members-gate.md). Siguiente: DASH-T01.
+
 ## Estado inicial y módulos
 
 Partir del tenant/identidad/membership/session store de FEAT-001. Ampliar tenancy y autorización existentes; no crear un servicio users independiente ni un segundo sistema de login.
@@ -15,9 +17,9 @@ Partir del tenant/identidad/membership/session store de FEAT-001. Ampliar tenanc
 | Platform cmd/worker + notification port | Entrega de invitaciones con reintentos y payload sensible cifrado. No usar workers Events. |
 | Console src/user-management | Lista, filtros, invitación, edición y confirmaciones. |
 
-## Contratos propuestos
+## Baseline de contratos USR-T01
 
-Todas las rutas Management exigen Bearer operator conforme al perfil, membership válida y capacidad. El tenantId de ruta selecciona recurso; el servidor valida pertenencia. Browser usa rutas equivalentes bajo /console/api mediante cookie/CSRF; no expone access token.
+Management exige Bearer operator conforme al perfil. Las rutas tenant-scoped exigen membership válida y capacidad; aceptación tiene la excepción explícita descrita abajo. El tenantId de ruta selecciona recurso; el servidor valida pertenencia. Browser usa rutas equivalentes bajo /console/api mediante cookie/CSRF/Origin; no expone access token. El detalle normativo de campos, filtros, reintentos, scopes y errores vive sólo en la referencia del contrato USR-T01.
 
 | Ruta Management | Entrada / resultado |
 | --- | --- |
@@ -34,11 +36,11 @@ Comandos usan Idempotency-Key acotada por actor/operación/tenant y hash; accept
 
 ## Migraciones y concurrencia
 
-Añadir invitaciones y estados/roles/alcance necesarios mediante expand; conservar identidad única issuer/subject y membership lógica por tenant/identidad. USR-T01 define el modelo de reingreso tras revocación: conservar historial y usar una nueva revisión/lifecycle sin duplicar membership efectiva.
+La migración 0007 de USR-T02 añade invitaciones, lifecycle/archivo, alcance, deadlines y fingerprints idempotentes mediante expand, conservando identidad única issuer/subject y membership lógica por tenant/identidad. Registra binding opcional de generación/revocación objetivo y corte vigente de membership; USR-T05 los compara bajo lock al resolver la identidad verificada. El modelo de reingreso conserva historial y membershipId y abre lifecycle nuevo con revisión monotónica y grants explícitos, sin duplicar membership efectiva. USR-T04/T05 conectan los comandos de invitación y aceptación; USR-T06 conecta los cambios PATCH y el archivo de revocación bajo el mismo lock, sin migración nueva.
 
-Proteger mutaciones de administradores bloqueando el agregado tenant antes de contar tenant_admin activos y cambiar membership. Invitar/aceptar/promover/reactivar/degradar deben usar el mismo orden de locks para no eludir la invariante por otra ruta.
+WithMemberMutation bloquea el agregado tenant mediante advisory lock transaccional del UUID normalizado antes del callback; se prueba el guard de último admin con dos conexiones reales. Invitar/aceptar/promover/reactivar/degradar deben usar esta misma primitiva y orden de locks para no eludir la invariante por otra ruta. RLS del runtime de miembros aísla tenant; autorización de actor/capacidades sigue siendo obligación de cada handler/replay.
 
-Dentro de la transacción volver a validar revisión/capacidad del actor, cambios permitidos y tenant activo; persistir cambios, revisión de autorización, audit y outbox. Tras commit, FEAT-001 invalida/revalida el contexto. Mantener identidades/sesiones de otros tenants operables.
+Dentro de la transacción volver a validar revisión/capacidad del actor, cambios permitidos y tenant activo; persistir cambios, revisión de autorización, audit y outbox. Tras commit, FEAT-001 revalida cada API; USR-T07 reconcilia revisión/selección al leer la sesión, con locks family→generation y comparación del contexto observado. Mantener identidades/sesiones de otros tenants operables.
 
 Invite token se genera con CSPRNG, se guarda hasheado para canje y se transporta por envelope temporal cifrado al worker. Outbox no contiene token/email en claro; los reintentos del proveedor tienen deduplicación y errores seguros. Reenviar con token nuevo revoca el anterior; no recuperar el código desde un hash.
 
@@ -46,11 +48,11 @@ Invite token se genera con CSPRNG, se guarda hasheado para canje y se transporta
 
 | Hito | Dependencias | Gate |
 | --- | --- | --- |
-| U0 — Contrato y matriz | AUTH-T02/T03/T05/T07 | Permisos/campos/estados/modelo acordados; OpenAPI validado. |
-| U1 — Lectura/aislamiento | U0 | Tabla real con filtros/cursor y roles negativos probados. |
+| U0 — Contrato y matriz | AUTH-T02/T03/T05/T07 | Materializado en USR-T01; OpenAPI/schemas/ejemplos y reglas puras, sin handlers. |
+| U1 — Lectura/aislamiento | U0 | Lecturas API/BFF con filtros/cursor y roles negativos probados en USR-T03; tabla visual conectada en USR-T08. |
 | U2 — Invitación vertical | U1 + worker/IdP test | Admin invita, entrega sintética, identidad correcta acepta una vez. |
 | U3 — Ciclo de acceso | U2 | Roles/suspensión/revocación y último admin bajo concurrencia. |
-| U4 — UI y entrega | U3 | Journey con 412/403/expiración, auditoría y revalidación de sesión. |
+| U4 — UI y entrega | U3 | [UI USR-T08](../../03-design/console-members-interface.md) con journey, 412/403/expiración y revalidación; [gate integral/auditoría USR-T09](../../05-delivery/members-gate.md) completado en laboratorio. |
 
 ## Pruebas y reversión
 
@@ -62,4 +64,4 @@ Rollout tenant sintético, luego piloto. Deshabilitar escrituras si falla la val
 
 ## Riesgos
 
-IdP debe proporcionar identidad/email verificados conforme a política; no usar sólo igualdad de correo no verificado. El proveedor de notificación y TTL se concretan en USR-T01/T04. DB/RLS y consulta mínima de memberships del login deben coordinarse con AUTH para evitar circularidad o bypass global.
+IdP debe proporcionar identidad/email verificados conforme a política; no usar sólo igualdad de correo no verificado. TTL y puerto/evidencia están definidos en USR-T01; T04 implementa entrega sintética y T05 integra el perfil email sintético del IdP; no acredita un proveedor productivo. DB/RLS y consulta mínima de memberships del login deben coordinarse con AUTH para evitar circularidad o bypass global. La propiedad issuer necesita fuente confiable antes de habilitar grants issuerIds; no crear emisores ficticios ni ampliar permisos por esa dependencia.

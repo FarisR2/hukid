@@ -21,7 +21,7 @@ test('AUTH-T02 OpenAPI is valid and keeps browser and operator security separate
   assert.deepEqual(contract.paths['/console/auth/callback'].get.security, [{oidcTransaction:[]}]);
   assert.ok(contract.paths['/console/auth/callback'].get.parameters.find(p => p.name === 'iss' && p.required));
   for (const {route, method, op} of operations) {
-    assert.equal(op['x-implementation-status'], 'not-implemented');
+    assert.equal(op['x-implementation-status'], 'implemented-test-only');
     if (route.startsWith('/v1/')) {
       assert.deepEqual(op.security, [{operatorBearer:[]}]);
       assert.deepEqual(op['x-required-scopes'], ['operator:read']);
@@ -41,8 +41,10 @@ test('all request/response examples validate; extra fields cannot carry tokens o
         for (const media of Object.values(message?.content || {})) {
           const check = validate(media.schema);
           assert.equal(check(media.example), true, JSON.stringify(check.errors));
-          assert.equal(check({...media.example,accessToken:'synthetic-not-a-token'}), false);
-          assert.equal(check({...media.example,roles:['tenant_admin']}), false);
+          if (typeof media.example === 'object') {
+            assert.equal(check({...media.example,accessToken:'synthetic-not-a-token'}), false);
+            if (!media.schema?.$ref?.endsWith('/Context')) assert.equal(check({...media.example,roles:['tenant_admin']}), false);
+          }
           count++;
         }
       }
@@ -53,6 +55,10 @@ test('all request/response examples validate; extra fields cannot carry tokens o
   assert.equal(selection({tenantId:''}), false);
   const context = validate({$ref:'#/components/schemas/Context'});
   assert.equal(context({tenantId:'tenant-test-a',capabilities:['global:admin'],issuerIds:[],authorizationRevision:1}), false);
+  const base = {tenantId:'tenant-test-a',capabilities:['dashboard:read'],issuerIds:[],authorizationRevision:1};
+  assert.equal(context({...base,roles:['support_readonly']}), true);
+  assert.equal(context({...base,roles:['global_admin']}), false);
+  assert.equal(selection({tenantId:'tenant-test-a',roles:['tenant_admin']}), false);
 });
 
 test('test policy requires every field and cannot be promoted to production', () => {

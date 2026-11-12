@@ -45,7 +45,7 @@ Las rutas de origen son las que existían bajo docs al comenzar la reorganizaci�
 
 Producto: vision, scope y glossary. Requisitos: functional-requirements, non-functional-requirements, business-rules y user-stories. Diseño: architecture, data-model, api-contracts y ux-flows. Ingeniería: coding-standards, security y testing-strategy. Entrega: implementation-plan y definition-of-done. Decisiones: ADR-0001.
 
-README navega las categorías; AGENTS contiene instrucciones compartidas y CLAUDE las referencia. src/README reserva la futura implementación y no añade aplicación ficticia.
+README navega las categorías; AGENTS contiene instrucciones compartidas y CLAUDE las referencia. [src/README](../../src/README.md) describe la implementación real: Platform Go y panel React hasta AUTH-T08. Este mapa conserva procedencia de la reorganización; el [plan vigente](implementation-plan.md), el [índice de features](../features/README.md) y sus tasks.md mantienen la ruta y el estado actual. El [roadmap HukID](hukid-roadmap.md) conserva las fases de credenciales pendientes.
 
 ## Criterios de conservación
 

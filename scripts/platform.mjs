@@ -25,8 +25,8 @@ function run(args, capture = false, tool = executable) {
 }
 
 const command = process.argv[2];
-if (!['dev', 'check', 'build', 'test:postgres', 'migrate:test', 'bootstrap:test'].includes(command)) {
-  console.error('Uso: node scripts/platform.mjs dev|check|build|test:postgres|migrate:test|bootstrap:test');
+if (!['dev', 'worker:test', 'check', 'build', 'test:postgres', 'test:browser', 'migrate:test', 'bootstrap:test', 'invalidate-auth:test'].includes(command)) {
+  console.error('Uso: node scripts/platform.mjs dev|worker:test <actorId> <tenantId>|check|build|test:postgres|test:browser|migrate:test|bootstrap:test|invalidate-auth:test');
   process.exit(1);
 }
 const version = run(['version'], true).trim();
@@ -36,9 +36,12 @@ if (!/^go version go1\.27\.3\s/.test(version)) {
 }
 
 if (command === 'dev') run(['run', './cmd/api']);
+if (command === 'worker:test') run(['run', './cmd/worker', ...process.argv.slice(3)]);
 if (command === 'migrate:test') run(['run', './cmd/testdb', 'migrate']);
+if (command === 'invalidate-auth:test') run(['run', './cmd/testdb', 'invalidate-auth']);
 if (command === 'bootstrap:test') run(['run', './cmd/testdb', 'bootstrap']);
 if (command === 'test:postgres') run(['test', '-tags=integration', '-count=1', '-timeout=120s', './internal/adapters/postgres']);
+if (command === 'test:browser') run(['test', '-tags=integration,browser', '-run=^TestConsoleBrowser$', '-count=1', '-timeout=240s', './internal/adapters/postgres']);
 if (command === 'check') {
   const goroot = run(['env', 'GOROOT'], true).trim();
   const gofmt = path.join(goroot, 'bin', process.platform === 'win32' ? 'gofmt.exe' : 'gofmt');
@@ -54,4 +57,5 @@ if (command === 'build') {
   const output = path.join(root, '.cache', 'build');
   mkdirSync(output, { recursive: true });
   run(['build', '-trimpath', '-o', path.join(output, process.platform === 'win32' ? 'hukid-api.exe' : 'hukid-api'), './cmd/api']);
+  run(['build', '-trimpath', '-o', path.join(output, process.platform === 'win32' ? 'hukid-worker.exe' : 'hukid-worker'), './cmd/worker']);
 }

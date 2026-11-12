@@ -5,6 +5,8 @@
 | Events | Plataforma de publicación, participación, asistencia y certificación de actividades. |
 | Organización | Institución operativa y límite de autorización de Events; identificada por organization_id. |
 | Tenant HukID | Cliente contractual y límite administrativo de HukID; identificado por tenant_id. No se equipara automáticamente con organización Events. |
+| Consola / panel web HukID | Aplicación administrativa React que se usa en el navegador. No es la terminal de desarrollo ni la wallet Flutter. |
+| Terminal de desarrollo | Herramienta para ejecutar comandos de arranque, pruebas y mantenimiento autorizado; no es la interfaz del usuario final. |
 | Issuer | Entidad que respalda una afirmación y cuya clave firma la credencial. Un tenant puede tener varios. |
 | Sistema fuente | Events, POS, SIS u otro sistema que aporta datos y evidencia para una emisión. |
 | Integration client | Identidad de máquina autorizada para actuar sobre issuers/definitions concretos. |

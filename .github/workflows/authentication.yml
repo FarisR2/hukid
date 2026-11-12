@@ -1,0 +1,56 @@
+name: Authentication, members and dashboard laboratory
+on:
+  pull_request:
+  push:
+    branches: [develop, main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: auth-lab-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  auth-lab:
+    runs-on: windows-2025
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: '24.22.1'
+          package-manager-cache: false
+      - uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version: '1.27.3'
+          cache: false
+      - uses: actions/setup-python@83679a892e2d95755f2dac6acb0bfd1e9ac5d548 # v6.1.0
+        with:
+          python-version: '3.13'
+      - name: Install locked dependencies
+        run: |
+          npm install --global npm@11.19.1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm ci --ignore-scripts
+      - name: Verify portable PostgreSQL
+        run: ./scripts/install-test-postgres.ps1
+      - name: Grant runner access to disposable clusters
+        run: |
+          $clusterRoot = Join-Path $env:GITHUB_WORKSPACE '.cache/postgres-tests'
+          New-Item -ItemType Directory -Force -Path $clusterRoot | Out-Null
+          $runnerSid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+          icacls $clusterRoot /grant "*${runnerSid}:(OI)(CI)F" /Q
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Install browser test tooling
+        run: |
+          python -m venv .cache/browser-venv
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          .cache/browser-venv/Scripts/python.exe -m pip install -r tests/browser/requirements.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          .cache/browser-venv/Scripts/python.exe -m playwright install chromium
+      - name: Run authentication, members and dashboard laboratory gate
+        run: npm run test:dashboard:gate

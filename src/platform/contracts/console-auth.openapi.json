@@ -3,7 +3,7 @@
   "info": {
     "title": "HukID Console BFF and Operator — AUTH-T02",
     "version": "0.1.0-draft",
-    "description": "New console-owned contract, not the missing historical HukID OpenAPI. Executable schema baseline for isolated tests; no handlers or production interoperability are claimed. camelCase HTTP fields. Tenant authority comes from active local memberships, never browser role/tenant claims. Do not send console cookies to Management. CSRF is a synchronizer token, not an access token."
+    "description": "New console-owned contract, not the missing historical HukID OpenAPI. Executable schema baseline for isolated tests; AUTH-T04 login/callback handlers are implemented for isolated tests; no production interoperability is claimed. camelCase HTTP fields. Tenant authority comes from active local memberships, never browser role/tenant claims. Do not send console cookies to Management. CSRF is a synchronizer token, not an access token."
   },
   "servers": [
     {
@@ -17,7 +17,7 @@
       "get": {
         "operationId": "startLogin",
         "summary": "Iniciar OIDC Code + S256 PKCE",
-        "description": "AUTH-T02 contract only; handler is not implemented. All responses are no-store and correlated; codes/cookies/tokens must not be logged.",
+        "description": "AUTH-T04 handler implemented for the explicit isolated test profile. All responses are no-store and correlated; codes/cookies/tokens must not be logged.",
         "security": [],
         "parameters": [
           {
@@ -31,9 +31,67 @@
               ],
               "default": "/"
             }
+          },
+          {
+            "name": "Accept",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Exact application/json opts into 200 AuthorizationNavigation. Other values retain 303. Browser navigation follows the URL at top level."
           }
         ],
         "responses": {
+          "200": {
+            "description": "AUTH-T08: explicit JSON navigation; same transaction, cookies and security as 303.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "Referrer-Policy": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              },
+              "Set-Cookie": {
+                "description": "Opaque session/transaction cookies only. HttpOnly; SameSite=Lax; no Domain. This test profile permits HTTP loopback; production cookie policy is not approved.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Vary": {
+                "schema": {
+                  "type": "string",
+                  "const": "Accept"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthorizationNavigation"
+                },
+                "example": {
+                  "authorizationUrl": "http://127.0.0.1:19090/auth?client_id=hukid-console-test&response_type=code"
+                }
+              }
+            }
+          },
           "303": {
             "description": "Redirección controlada",
             "headers": {
@@ -70,6 +128,12 @@
                 "description": "Opaque session/transaction cookies only. HttpOnly; SameSite=Lax; no Domain. This test profile permits HTTP loopback; production cookie policy is not approved.",
                 "schema": {
                   "type": "string"
+                }
+              },
+              "Vary": {
+                "schema": {
+                  "type": "string",
+                  "const": "Accept"
                 }
               }
             }
@@ -212,15 +276,19 @@
             }
           }
         },
-        "x-implementation-status": "not-implemented"
+        "x-implementation-status": "implemented-test-only"
       }
     },
     "/console/auth/callback": {
       "get": {
         "operationId": "completeLogin",
         "summary": "Consumir transacción OIDC una vez",
-        "description": "AUTH-T02 contract only; handler is not implemented. All responses are no-store and correlated; codes/cookies/tokens must not be logged. Exactly one of code or error is required together with state and the HttpOnly transaction binding cookie. Reject duplicate parameters, invalid state/nonce/issuer/PKCE/replay. OAuth error_description is never reflected or logged. A valid ID token establishes identity only; Management requires its own access token.",
-        "security": [{ "oidcTransaction": [] }],
+        "description": "AUTH-T04 handler implemented for the explicit isolated test profile. All responses are no-store and correlated; codes/cookies/tokens must not be logged. Exactly one of code or error is required together with state and the HttpOnly transaction binding cookie. Reject duplicate parameters, invalid state/nonce/issuer/PKCE/replay. OAuth error_description is never reflected or logged. A valid ID token establishes identity only; Management requires its own access token. AUTH-T07 also consumes step_up transactions bound to the original session family/generation and verifies fresh MFA for the same identity before atomic rotation. AUTH-T08: browser requests accepting text/html receive a fixed recovery page on errors, preserving the status and private headers; no query, IdP detail or secret is rendered. Non-browser clients retain Problem Details.",
+        "security": [
+          {
+            "oidcTransaction": []
+          }
+        ],
         "parameters": [
           {
             "name": "code",
@@ -256,7 +324,10 @@
             "name": "iss",
             "in": "query",
             "required": true,
-            "schema": { "type": "string", "const": "http://127.0.0.1:19090" },
+            "schema": {
+              "type": "string",
+              "const": "http://127.0.0.1:19090"
+            },
             "description": "Exact issuer from the bound test transaction; the test IdP advertises RFC 9207 authorization response issuer identification."
           }
         ],
@@ -339,6 +410,113 @@
                   "code": "invalid_request",
                   "correlationId": "correlation-test-a"
                 }
+              },
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "<!doctype html><html lang=\"es\"><body><main><h1>No se pudo completar el acceso</h1><a href=\"/\">Volver a HukID</a></main></body></html>"
+              }
+            }
+          },
+          "401": {
+            "description": "Autenticación requerida",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "Referrer-Policy": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              },
+              "WWW-Authenticate": {
+                "required": false,
+                "schema": {
+                  "type": "string",
+                  "example": "Bearer error=\"invalid_token\""
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                },
+                "example": {
+                  "type": "about:blank",
+                  "title": "Autenticación requerida",
+                  "status": 401,
+                  "code": "invalid_session",
+                  "correlationId": "correlation-test-a"
+                }
+              },
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "<!doctype html><html lang=\"es\"><body><main><h1>No se pudo completar el acceso</h1><a href=\"/\">Volver a HukID</a></main></body></html>"
+              }
+            }
+          },
+          "403": {
+            "description": "Acceso denegado",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "Referrer-Policy": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                },
+                "example": {
+                  "type": "about:blank",
+                  "title": "Se requiere MFA",
+                  "status": 403,
+                  "code": "mfa_required",
+                  "correlationId": "correlation-test-a"
+                }
+              },
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "<!doctype html><html lang=\"es\"><body><main><h1>No se pudo completar el acceso</h1><a href=\"/\">Volver a HukID</a></main></body></html>"
               }
             }
           },
@@ -387,6 +565,12 @@
                   "code": "rate_limited",
                   "correlationId": "correlation-test-a"
                 }
+              },
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "<!doctype html><html lang=\"es\"><body><main><h1>No se pudo completar el acceso</h1><a href=\"/\">Volver a HukID</a></main></body></html>"
               }
             }
           },
@@ -435,18 +619,24 @@
                   "code": "dependency_unavailable",
                   "correlationId": "correlation-test-a"
                 }
+              },
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "<!doctype html><html lang=\"es\"><body><main><h1>No se pudo completar el acceso</h1><a href=\"/\">Volver a HukID</a></main></body></html>"
               }
             }
           }
         },
-        "x-implementation-status": "not-implemented"
+        "x-implementation-status": "implemented-test-only"
       }
     },
     "/console/auth/refresh": {
       "post": {
         "operationId": "refreshSession",
         "summary": "Renovar familia coordinada de sesión",
-        "description": "AUTH-T02 contract only; handler is not implemented. All responses are no-store and correlated; codes/cookies/tokens must not be logged.",
+        "description": "AUTH-T06 handler for the isolated test profile. Requires exact Origin and session-bound CSRF; tokens stay server-side. Refresh uses a persistent family lease and rotates cookie/CSRF; logout commits local invalidation before provider revocation. All responses are no-store and correlated; codes/cookies/tokens must not be logged.",
         "security": [
           {
             "consoleSession": [],
@@ -733,14 +923,14 @@
             }
           }
         },
-        "x-implementation-status": "not-implemented"
+        "x-implementation-status": "implemented-test-only"
       }
     },
     "/console/auth/logout": {
       "post": {
         "operationId": "logout",
         "summary": "Invalidar sesión local",
-        "description": "AUTH-T02 contract only; handler is not implemented. All responses are no-store and correlated; codes/cookies/tokens must not be logged. Requires same-origin and a session-bound CSRF proof. An already invalidated family returns 204 for authenticated retries while its CSRF tombstone is retained until the original absolute expiry; an absent/unverifiable proof returns 403 without side effects. A tombstone never authorizes protected reads. IdP outage cannot prevent local invalidation. No idempotency header for session commands.",
+        "description": "AUTH-T06 handler for the isolated test profile. Requires exact Origin and session-bound CSRF; tokens stay server-side. Refresh uses a persistent family lease and rotates cookie/CSRF; logout commits local invalidation before provider revocation. All responses are no-store and correlated; codes/cookies/tokens must not be logged.",
         "security": [
           {
             "consoleSession": [],
@@ -883,14 +1073,14 @@
             }
           }
         },
-        "x-implementation-status": "not-implemented"
+        "x-implementation-status": "implemented-test-only"
       }
     },
     "/console/auth/step-up": {
       "post": {
         "operationId": "stepUp",
         "summary": "Solicitar reautenticación MFA reciente",
-        "description": "AUTH-T02 contract only; handler is not implemented. All responses are no-store and correlated; codes/cookies/tokens must not be logged.",
+        "description": "AUTH-T07 laboratory implementation. Exact Origin, session-bound CSRF, strict bounded JSON and server-side authorization; no-store and correlated responses. Never logs credentials.",
         "security": [
           {
             "consoleSession": [],
@@ -907,9 +1097,67 @@
               "format": "uri"
             },
             "description": "Must exactly equal configured consoleOrigin; reject missing/null/foreign values before side effects."
+          },
+          {
+            "name": "Accept",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Exact application/json opts into 200 AuthorizationNavigation. Other values retain 303. Browser navigation follows the URL at top level."
           }
         ],
         "responses": {
+          "200": {
+            "description": "AUTH-T08: explicit JSON navigation; same transaction, cookies and security as 303.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "Referrer-Policy": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              },
+              "Set-Cookie": {
+                "description": "Opaque session/transaction cookies only. HttpOnly; SameSite=Lax; no Domain. This test profile permits HTTP loopback; production cookie policy is not approved.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Vary": {
+                "schema": {
+                  "type": "string",
+                  "const": "Accept"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthorizationNavigation"
+                },
+                "example": {
+                  "authorizationUrl": "http://127.0.0.1:19090/auth?client_id=hukid-console-test&response_type=code"
+                }
+              }
+            }
+          },
           "303": {
             "description": "Redirección controlada",
             "headers": {
@@ -947,46 +1195,11 @@
                 "schema": {
                   "type": "string"
                 }
-              }
-            }
-          },
-          "400": {
-            "description": "Solicitud inválida",
-            "headers": {
-              "Cache-Control": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "const": "no-store"
-                }
               },
-              "X-Correlation-Id": {
-                "required": true,
+              "Vary": {
                 "schema": {
                   "type": "string",
-                  "minLength": 1,
-                  "maxLength": 128
-                }
-              },
-              "Referrer-Policy": {
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "const": "no-referrer"
-                }
-              }
-            },
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                },
-                "example": {
-                  "type": "about:blank",
-                  "title": "Solicitud inválida",
-                  "status": 400,
-                  "code": "invalid_request",
-                  "correlationId": "correlation-test-a"
+                  "const": "Accept"
                 }
               }
             }
@@ -1075,6 +1288,47 @@
                   "title": "Acceso denegado",
                   "status": 403,
                   "code": "mfa_required",
+                  "correlationId": "correlation-test-a"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid command JSON or input",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "X-Correlation-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "Referrer-Policy": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                },
+                "example": {
+                  "type": "about:blank",
+                  "title": "Solicitud inválida",
+                  "status": 422,
+                  "code": "invalid_request",
                   "correlationId": "correlation-test-a"
                 }
               }
@@ -1177,7 +1431,7 @@
             }
           }
         },
-        "x-implementation-status": "not-implemented",
+        "x-implementation-status": "implemented-test-only",
         "requestBody": {
           "required": true,
           "content": {
@@ -1197,7 +1451,7 @@
       "post": {
         "operationId": "selectTenant",
         "summary": "Seleccionar membership activa y rotar contexto",
-        "description": "AUTH-T02 contract only; handler is not implemented. All responses are no-store and correlated; codes/cookies/tokens must not be logged.",
+        "description": "AUTH-T07 laboratory implementation. Exact Origin, session-bound CSRF, strict bounded JSON and server-side authorization; no-store and correlated responses. Never logs credentials.",
         "security": [
           {
             "consoleSession": [],
@@ -1381,7 +1635,7 @@
             }
           },
           "422": {
-            "description": "Datos inválidos",
+            "description": "Invalid command JSON or input",
             "headers": {
               "Cache-Control": {
                 "required": true,
@@ -1415,7 +1669,7 @@
                   "type": "about:blank",
                   "title": "Datos inválidos",
                   "status": 422,
-                  "code": "invalid_input",
+                  "code": "invalid_request",
                   "correlationId": "correlation-test-a"
                 }
               }
@@ -1518,7 +1772,7 @@
             }
           }
         },
-        "x-implementation-status": "not-implemented",
+        "x-implementation-status": "implemented-test-only",
         "requestBody": {
           "required": true,
           "content": {
@@ -1538,7 +1792,7 @@
       "get": {
         "operationId": "consoleMe",
         "summary": "Componer identidad y contexto de la sesión",
-        "description": "AUTH-T02 contract only; handler is not implemented. All responses are no-store and correlated; codes/cookies/tokens must not be logged.",
+        "description": "AUTH/USR-T07 isolated test handler. Revalidates selected membership and authorization revision on each session read. Lost tenant access clears stored selection and returns 200 with activeTenantId/context null and remaining accessible tenants, preserving authentication. Current roles/scopes drive capabilities; no cached authority. Extends idle activity only after authorization, within the original absolute deadline. All responses are no-store and correlated; credentials must not be logged.",
         "security": [
           {
             "consoleSession": []
@@ -1792,14 +2046,14 @@
             }
           }
         },
-        "x-implementation-status": "not-implemented"
+        "x-implementation-status": "implemented-test-only"
       }
     },
     "/v1/operator/me": {
       "get": {
         "operationId": "operatorMe",
         "summary": "Leer identidad y tenants propios sin contexto activo",
-        "description": "AUTH-T02 contract only; handler is not implemented. All responses are no-store and correlated; codes/cookies/tokens must not be logged.",
+        "description": "AUTH-T05 Bearer-only handler for the isolated test profile. Verifies operator authority before local identity discovery. All responses are no-store and correlated; codes/cookies/tokens must not be logged.",
         "security": [
           {
             "operatorBearer": []
@@ -2036,7 +2290,7 @@
             }
           }
         },
-        "x-implementation-status": "not-implemented",
+        "x-implementation-status": "implemented-test-only",
         "x-required-scopes": [
           "operator:read"
         ]
@@ -2046,7 +2300,7 @@
       "get": {
         "operationId": "operatorTenantContext",
         "summary": "Leer capacidades efectivas del propio operador",
-        "description": "AUTH-T02 contract only; handler is not implemented. All responses are no-store and correlated; codes/cookies/tokens must not be logged.",
+        "description": "AUTH/USR-T07 isolated test handler. Revalidates active local membership and tenant on every request. Roles, stored issuer scopes and authorization revision use one SQL snapshot with own-membership RLS. Missing/suspended/revoked access returns 404. No issuer ownership or assignment is granted by this projection. All responses are no-store and correlated; credentials must not be logged.",
         "security": [
           {
             "operatorBearer": []
@@ -2335,7 +2589,7 @@
             }
           }
         },
-        "x-implementation-status": "not-implemented",
+        "x-implementation-status": "implemented-test-only",
         "x-required-scopes": [
           "operator:read"
         ]
@@ -2408,6 +2662,20 @@
           "authorizationRevision": {
             "type": "integer",
             "minimum": 1
+          },
+          "roles": {
+            "type": "array",
+            "uniqueItems": true,
+            "description": "Roles actuales de la membresía autorizada; campo aditivo DASH-T04. No procede del JWT ni del navegador.",
+            "items": {
+              "type": "string",
+              "enum": [
+                "tenant_admin",
+                "security_admin",
+                "support_readonly",
+                "issuer_operator"
+              ]
+            }
           }
         }
       },
@@ -2554,6 +2822,20 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 128
+          }
+        }
+      },
+      "AuthorizationNavigation": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "authorizationUrl"
+        ],
+        "properties": {
+          "authorizationUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "Authorization URL constructed by the BFF from the configured IdP. Transient OIDC request parameters only; no issued tokens."
           }
         }
       }

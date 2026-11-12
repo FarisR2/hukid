@@ -1,0 +1,120 @@
+/* Preflight is deliberately omitted: retain native lists, fields and dialog. */
+@layer theme, base, legacy, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+
+/* Match the existing OS preference, including future portal content. */
+@custom-variant dark (@media (prefers-color-scheme: dark));
+
+@theme inline {
+  --font-sans: var(--font-body);
+  --font-heading: var(--font-body);
+  --font-mono: var(--font-code);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--hover);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+@layer legacy {
+:root {
+  color-scheme: light dark;
+  /* Shared semantic colors reuse the approved HukID palette. */
+  --background: var(--bg); --foreground: var(--text);
+  --card: var(--surface); --card-foreground: var(--text);
+  --popover: var(--surface); --popover-foreground: var(--text);
+  --primary-foreground: var(--on-primary);
+  --secondary: var(--badge-bg); --secondary-foreground: var(--badge-text);
+  --muted: var(--bg);
+  --accent: var(--badge-bg); --accent-foreground: var(--badge-text);
+  --destructive: var(--danger); --destructive-foreground: var(--surface);
+  --input: var(--control-border); --ring: var(--focus);
+
+  --font-body: 'Segoe UI', system-ui, sans-serif;
+  --font-code: ui-monospace, Consolas, monospace;
+  font-family: var(--font-body);
+  --bg: #f4f7fa; --surface: #fff; --text: #142d3d; --muted-foreground: #4e6270;
+  --border: #d0dbe2; --control-border: #687f8c; --primary: #075e67; --hover: #034650;
+  --on-primary: #fff; --badge-bg: #e1f0ef; --badge-text: #145b57; --focus: #1265b3; --danger: #a12435;
+  --s1: .25rem; --s2: .5rem; --s3: .75rem; --s4: 1rem; --s5: 1.5rem; --s6: 2rem; --s7: 3rem; --s8: 4rem;
+  --radius: .5rem; --control: 3rem;
+  --measure-prose: 65ch; --measure-editor: 48rem; --measure-acceptance: 36rem; --measure-dialog: 40rem;
+  --filter-basis: 16rem; --height-directory: 12rem;
+  --text-sm: .875rem; --text-base: 1rem; --text-region: 1.125rem;
+  --text-section: 1.5rem; --text-metric: 2rem; --text-title: clamp(2rem, 4vw, 2.75rem);
+  --weight-body: 400; --weight-emphasis: 600; --weight-metric: 650; --weight-title: 700;
+  --leading-body: 1.5; --leading-title: 1.15; --leading-note: 1.3;
+  --tracking-title: -.035em; --tracking-brand: -.04em; --tracking-note: -.025em;
+  --border-width: 1px; --border-accent: 2px; --border-strong: 4px;
+  --focus-width: 3px; --focus-offset: 4px; --layer-skip: 1; --opacity-disabled: .7;
+  --backdrop: #0009; --root-font-size: 16px;
+  font-size: var(--root-font-size); line-height: var(--leading-body); color: var(--text); background: var(--bg);
+}
+* { box-sizing: border-box; }
+body { margin: 0; }
+button:where(:not([data-slot])), select:where(:not([data-slot])) { font: inherit; }
+button:where(:not([data-slot])), select:where(:not([data-slot])), a { -webkit-tap-highlight-color: transparent; }
+button:where(:not([data-slot])), select:where(:not([data-slot])) { min-height: var(--control); border: var(--border-width) solid var(--control-border); border-radius: var(--radius); background: var(--surface); color: var(--text); padding: var(--s3) var(--s4); }
+button:where(:not([data-slot])) { cursor: pointer; font-weight: var(--weight-emphasis); }
+button:where(:not([data-slot])):hover { background: var(--badge-bg); }
+button:where(:not([data-slot])):disabled { cursor: wait; opacity: var(--opacity-disabled); }
+button:where(:not([data-slot])):focus-visible, select:where(:not([data-slot])):focus-visible, a:focus-visible { outline: var(--focus-width) solid var(--focus); outline-offset: var(--focus-offset); }
+h1:where(:not([data-slot])):focus { outline: none; }
+h1:where(:not([data-slot])) { font-size: var(--text-title); line-height: var(--leading-title); letter-spacing: var(--tracking-title); margin: var(--s3) 0 var(--s5); overflow-wrap: anywhere; }
+h2:where(:not([data-slot])) { font-size: var(--text-region); margin: 0 0 var(--s2); }
+p:where(:not([data-slot])) { margin: 0 0 var(--s5); max-width: var(--measure-prose); }
+.brand-mark { background: var(--primary); color: var(--on-primary); border-radius: var(--radius); width: var(--control); height: var(--control); text-align: center; line-height: var(--control); }
+.muted { color: var(--muted-foreground); }
+.badge { display: inline-block; background: var(--badge-bg); color: var(--badge-text); border-radius: var(--s1); padding: var(--s1) var(--s2); font-size: var(--text-sm); margin-bottom: var(--s5); }
+.primary { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
+.primary:hover { background: var(--hover); color: var(--on-primary); }
+.actions { display: flex; flex-wrap: wrap; gap: var(--s3); }
+form:where(:not([data-slot])) { display: flex; flex-direction: column; align-items: stretch; gap: var(--s3); }
+label:where(:not([data-slot])) { font-weight: var(--weight-emphasis); }
+select:where(:not([data-slot])) { width: 100%; text-overflow: ellipsis; }
+.field-error { color: var(--danger); margin: 0; }
+.skip { position: absolute; top: var(--s3); left: var(--s3); transform: translateY(-200%); padding: var(--s3); background: var(--surface); color: var(--text); z-index: var(--layer-skip); }
+.skip:focus { transform: none; }
+/* Native media queries cannot resolve CSS variables; mobile breakpoint is 768px. */
+@media (max-width: 767px) {
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #11212d; --surface: #182e3b; --text: #e6eff5; --muted-foreground: #b6c6d0; --border: #3f5968; --control-border: #819caa; --primary: #87d5d1; --hover: #abe9e5; --on-primary: #102c32; --badge-bg: #25454a; --badge-text: #b4e4df; --focus: #8bc1ff; --danger: #ffacb4; }
+}
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto; } }
+}
+
+@layer components {
+  /* Local control bases: preserve the native page without enabling Preflight. */
+  [data-slot='button'], [data-slot='native-select'] { border-style: solid; }
+  [data-slot='button']:focus-visible, [data-slot='native-select']:focus-visible {
+    outline: var(--focus-width) solid var(--focus);
+    outline-offset: var(--focus-offset);
+  }
+  [data-slot='button']:not(:disabled), [data-slot='native-select']:not(:disabled) { cursor: pointer; }
+  [data-slot='button']:disabled, [data-slot='native-select']:disabled { cursor: wait; }
+  [data-slot='field-label'] { color: var(--text); }
+}

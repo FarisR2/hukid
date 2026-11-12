@@ -11,8 +11,8 @@ import (
 )
 
 func main() {
-	if len(os.Args) != 2 || (os.Args[1] != "migrate" && os.Args[1] != "bootstrap") {
-		fmt.Fprintln(os.Stderr, "usage: testdb migrate|bootstrap (isolated test databases only)")
+	if len(os.Args) != 2 || (os.Args[1] != "migrate" && os.Args[1] != "bootstrap" && os.Args[1] != "invalidate-auth") {
+		fmt.Fprintln(os.Stderr, "usage: testdb migrate|bootstrap|invalidate-auth (isolated test databases only)")
 		os.Exit(1)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -22,8 +22,10 @@ func main() {
 		defer conn.Close(context.Background())
 		if os.Args[1] == "migrate" {
 			err = postgres.Migrate(ctx, conn)
-		} else {
+		} else if os.Args[1] == "bootstrap" {
 			err = postgres.BootstrapTest(ctx, conn)
+		} else {
+			err = postgres.InvalidateAuthTest(ctx, conn)
 		}
 	}
 	if err != nil {

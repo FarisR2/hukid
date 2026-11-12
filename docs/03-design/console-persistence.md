@@ -1,6 +1,8 @@
 # Persistencia de consola — AUTH-T03
 
-Estado: DDL nuevo ejecutado y probado en PostgreSQL 18.6 descartable. No es el DDL histórico del issuer ni conecta todavía HTTP con PostgreSQL. Login, repositorios de sesión operativos, validación OIDC Go y administración de miembros siguen en sus tareas posteriores.
+Estado: DDL nuevo ejecutado y probado en PostgreSQL 18.6 descartable; no es el DDL histórico del issuer. AUTH-T04 añade [login/callback, cifrado y sesión inicial](console-oidc-login.md), conectando HTTP con PostgreSQL. AUTH-T05 añade [lecturas autorizadas](console-operator-context.md) y AUTH-T06 [rotación, refresh/logout y purga](console-session-lifecycle.md); administración de miembros sigue pendiente. Este documento conserva el detalle de foundation AUTH-T03.
+
+USR-T02 añade la migración 0007 y la [foundation de persistencia de miembros](console-members-persistence.md), con credencial propia/RLS, archivo de lifecycles, invitaciones y primitiva de lock/audit/outbox. No habilita aún administración por HTTP. Los detalles AUTH-T03 de abajo conservan su alcance histórico.
 
 ## Artefactos y decisiones
 
@@ -42,7 +44,7 @@ erDiagram
 
 Todos los timestamps son `timestamptz`. Los índices cubren identidad estable, consulta de memberships por operador, lookup de cookie/state y expiración. No hay índices ni objetivos de rendimiento inventados para cargas todavía no medidas.
 
-Los registros de sesión/transacción guardan únicamente hashes de búsqueda y envelopes recuperables, no columnas de tokens/verifier en claro. El envelope de secretos de una generación agrupa access/refresh/CSRF; guarda ciphertext con tag, nonce de 12 bytes y key version, más digest de refresh separado. El ciphertext activo debe existir y los registros rotated/revoked/expired deben purgarlo. La familia puede quedar revocada antes de modificar generaciones sólo dentro de una transacción que haga ambos cambios: AUTH-T06 deberá implementar ese orden y su rollback.
+Los registros de sesión/transacción guardan únicamente hashes de búsqueda y envelopes recuperables, no columnas de tokens/verifier en claro. El envelope de secretos de una generación agrupa access/refresh/CSRF; guarda ciphertext con tag, nonce de 12 bytes y key version, más digest de refresh separado. El ciphertext activo debe existir y los registros rotated/revoked/expired deben purgarlo. La familia puede quedar revocada antes de modificar generaciones sólo dentro de una transacción que haga ambos cambios: AUTH-T06 implementa ese orden y prueba su rollback; véase el ciclo de sesión.
 
 Las CHECK verifican forma y coherencia del envelope, no autenticidad AES-GCM. El adaptador criptográfico productivo y gestión de claves quedan en AUTH-T04/T06; una prueba almacena un envelope sintético generado con AES-GCM para comprobar compatibilidad. Su key sólo vive en memoria. AAD debe incluir propósito, familia/generación (o transaction ID para verifier); no se guarda ni entrega una clave desde PostgreSQL. Las FK no prueban que una membership esté activa: esa autorización se vuelve a consultar, además del límite estructural.
 
@@ -60,7 +62,7 @@ La unicidad de membership y los estados son foundation. Terminalidad, reinvitaci
 
 Los cinco roles son NOSUPERUSER/NOCREATEDB/NOCREATEROLE/NOREPLICATION/NOBYPASSRLS. Los logins reales se provisionan fuera del SQL versionado; las pruebas crean logins y contraseñas aleatorias efímeras. `OpenRuntimePool` rechaza superuser, flags privilegiados directos/heredados, membership del owner/lector privilegiado y ownership de relaciones de los schemas de aplicación. Es una validación al abrir el pool, no monitorización continua de cambios administrativos.
 
-`FORCE ROW LEVEL SECURITY` se aplica a tenants, memberships, roles, audit y outbox. Audit/outbox aún no reciben grants runtime ni policies de lectura/escritura: esas superficies se ampliarán explícitamente en AUTH-T09/USR. Las tablas globales de identidad y sesión no usan tenant_id artificial; su protección se basa en roles separados, funciones mínimas y secretos cifrados.
+`FORCE ROW LEVEL SECURITY` se aplica a tenants, memberships, roles, audit y outbox. AUTH-T09 añade INSERT restringido para autenticación al runtime de sesión, con policies RLS y sin permisos de lectura/alteración/publicación; detalle en [auditoría de autenticación](console-auth-audit.md). Las tablas globales de identidad y sesión no usan tenant_id artificial; su protección se basa en roles separados, funciones mínimas y secretos cifrados.
 
 `WithTenant` abre transacción y usa `set_config(..., true)`, equivalente parametrizado de `SET LOCAL`, para actor y tenant. Commit, error, panic y cancelación terminan o descartan la transacción antes de reutilizar el pool. No se usa `SET` de sesión ni se interpolan identificadores recibidos. El fixture verifica una misma conexión física para A/A → A/B denegado → B/B, y ausencia de contexto tras los caminos de salida.
 
@@ -76,14 +78,32 @@ Los nombres `0001`/`0002` son la secuencia nueva de consola. No corresponden a l
 
 El CLI sólo acepta `HUKID_ENV=test`, `HUKID_TEST_DATABASE=1`, conexión explícita a IP loopback, base con prefijo `hukid_test_`, sin hosts fallback y `sslmode=disable` exclusivo del laboratorio local. No carga `.env` ni arranca desde la API. Un nombre con prefijo test no demuestra que una base esté vacía: el operador debe elegir una base de pruebas propia. El harness elimina esa ambigüedad creando sus propios clúster y bases nuevas.
 
-El bootstrap requiere además al administrador del clúster aislado. Inserta dos tenants con sus operadores/memberships administrativas y una identidad adicional sin membership para probar acceso pendiente, con issuer test, audit y outbox en una sola transacción. No crea passwords de operador, IdP, sesiones ni un endpoint de registro. Un advisory lock y dos eventos marcadores hacen repetible la operación; si ya se completó, no reactiva ni vuelve a conceder roles. Un conflicto parcial aborta y no sobreescribe datos. El alta de identidad tras la primera autenticación verificada aún debe conectarse en AUTH-T04; el descubrimiento actual sólo resuelve identidades ya provisionadas.
+El bootstrap requiere además al administrador del clúster aislado. Inserta dos tenants con sus operadores/memberships administrativas y una identidad adicional sin membership para probar acceso pendiente, con issuer test, audit y outbox en una sola transacción. No crea passwords de operador, IdP, sesiones ni un endpoint de registro. Un advisory lock y dos eventos marcadores hacen repetible la operación; si ya se completó, no reactiva ni vuelve a conceder roles. Un conflicto parcial aborta y no sobreescribe datos. AUTH-T04 añade alta de identidad tras validar OIDC mediante la migración 0003; el descubrimiento consulta identidades existentes y no concede membresías.
 
 ## Pruebas y límites
+
+Este apartado conserva la evidencia foundation de AUTH-T03. La suite acumulada también cubre login/callback, contexto, sesiones/comandos y upgrades posteriores, según [desarrollo local](../04-engineering/local-development.md). AUTH-T08 añade el [recorrido de navegador](console-auth-interface.md); las limitaciones históricas de AUTH-T03 no anulan esas pruebas posteriores.
 
 `npm run test:postgres` exige PostgreSQL 18.6; no salta pruebas si faltan binarios. Inicializa un clúster en `.cache/postgres-tests`, liga el listener sólo a loopback/puerto libre y genera un password administrativo efímero. Ejecuta ocho pruebas Go con build tag `integration`, incluido el CLI real de migración/bootstrap, cierra conexiones, elimina sólo las bases/logins que creó y detiene su servidor. El directorio del clúster queda ignorado para diagnóstico; no se instala un servicio ni se usa una DB existente.
 
 Se verifican: base vacía/upgrade con datos; checksums y versiones desconocidas; RLS y grants; dos tenants con un pool de una conexión; rollback/panic/cancelación; suspensión/revocación; descubrimiento mínimo; FK/unique/CHECK de identidad, tenant y sesiones; deadline absoluto; eliminación de secretos al invalidar/consumir; CAS de transacción OIDC; rollback de bootstrap por fallo de outbox; idempotencia sin regrant; rechazo de roles elevados y destinos/flags no test. La restricción de nonce/ciphertext no demuestra por sí sola cifrado productivo.
 
-No se han probado restauración/DR, perfiles de carga, migrations sobre DDL externo, workers, sesiones/refresh concurrentes del BFF ni cookies/CSRF en navegador. La capa HTTP sigue con liveness y 404 para autenticación. El siguiente incremento es AUTH-T04, usando esta base para el puerto OIDC/callback de un uso.
+No se han probado restauración/DR, perfiles de carga, migrations sobre DDL externo, workers, refresh concurrente ni cookies/CSRF en navegador. AUTH-T04 amplía esta foundation con login/callback HTTP, cifrado y sesión inicial; su evidencia y límites se mantienen en [login OIDC](console-oidc-login.md). La sesión operativa continúa en AUTH-T05/T06.
 
 Fuentes de implementación: [PostgreSQL RLS](https://www.postgresql.org/docs/18/ddl-rowsecurity.html), [funciones y SECURITY DEFINER](https://www.postgresql.org/docs/18/sql-createfunction.html), [pgx y su changelog](https://github.com/jackc/pgx/blob/master/CHANGELOG.md). Configuración local, versiones y evidencia: [desarrollo local](../04-engineering/local-development.md).
+
+## Migración AUTH-T06
+
+[0004_session_lifecycle.sql](../../src/platform/internal/adapters/postgres/migrations/0004_session_lifecycle.sql) añade lease/deadline coherentes e índice único de generación activa por familia. La semántica de rotación, bloqueo y mantenimiento se mantiene en [ciclo de sesión](console-session-lifecycle.md). Las migraciones anteriores permanecen inmutables.
+
+## Migración AUTH-T07 y panel AUTH-T08
+
+[0005_console_reauthentication.sql](../../src/platform/internal/adapters/postgres/migrations/0005_console_reauthentication.sql) liga transacciones step_up a una generación de sesión mediante FK y CHECK. El detalle y los upgrades probados están en [reautenticación](console-reauthentication.md). AUTH-T08 conecta el panel y sus pruebas sin nuevas migraciones ni ampliación de grants. La administración real de memberships conserva FEAT-002.
+
+## Migración AUTH-T09
+
+[0006_auth_audit.sql](../../src/platform/internal/adapters/postgres/migrations/0006_auth_audit.sql) conserva historia y permite hechos auth sin tenant, con FK de evento y scope generado para mantener igualdad de contexto incluso con null. Los cambios de sesión y sus eventos/outbox se confirman juntos. Diccionario, permisos, fallos y pruebas en [auditoría de autenticación](console-auth-audit.md). El esquema mínimo AUTH-T03 de arriba conserva su origen histórico; el estado vigente incluye esta ampliación. Retención y publicación siguen pendientes.
+
+## Mantenimiento AUTH-T10
+
+El CLI test-only invalidate-auth, descrito en el [runbook](../04-engineering/console-auth-runbook.md), requiere al administrador de la DB sintética y todas las instancias API detenidas. Revoca/purga autenticación y consume OIDC pendiente en una transacción, conserva memberships/esquema/auditoría y no añade DDL/grants. Su fallo no permite anunciar invalidación parcial como éxito. La reversión ensayada es retirada/reactivación, sin down/restore.

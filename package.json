@@ -18,13 +18,19 @@
     "check:docs": "node scripts/check-docs.mjs",
     "test:auth": "node scripts/test-auth.mjs",
     "test:postgres": "node scripts/test-postgres.mjs",
+    "test:browser": "node scripts/test-postgres.mjs --browser",
     "db:migrate:test": "node scripts/platform.mjs migrate:test",
     "db:bootstrap:test": "node scripts/platform.mjs bootstrap:test",
     "check": "npm run check:platform && npm run check:console && npm run test:auth && npm run check:docs",
     "build:platform": "node scripts/platform.mjs build",
     "build:console": "npm run build --workspace @hukid/console",
     "build": "npm run build:platform && npm run build:console",
-    "smoke": "node scripts/smoke-bootstrap.mjs"
+    "smoke": "node scripts/smoke-bootstrap.mjs",
+    "db:invalidate-auth:test": "node scripts/platform.mjs invalidate-auth:test",
+    "test:auth:gate": "node scripts/auth-gate.mjs",
+    "test:members:gate": "node scripts/auth-gate.mjs --members",
+    "test:dashboard:gate": "node scripts/auth-gate.mjs --dashboard",
+    "test:keycloak": "node scripts/test-keycloak.mjs"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "13.1.0",

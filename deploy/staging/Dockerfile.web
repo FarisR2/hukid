@@ -1,0 +1,22 @@
+# Console static build plus a Caddy front that mirrors the Vite proxy: /console/ goes to the
+# API, everything else is the SPA. Build context: the repository root.
+#   docker build -f deploy/staging/Dockerfile.web -t hukid-web:staging .
+FROM node:24.22.1 AS build
+WORKDIR /w
+COPY package.json package-lock.json ./
+COPY src/console/package.json src/console/package.json
+RUN npm ci --workspace @hukid/console --ignore-scripts
+COPY src/console src/console
+RUN node node_modules/vite/bin/vite.js build src/console --outDir /out --emptyOutDir
+
+FROM caddy:2.10-alpine
+# The stock binary carries cap_net_bind_service, which the kernel refuses to honour once
+# the compose file drops every capability. It listens on 8081, so the capability is dead
+# weight: strip it instead of handing privileges back to the container.
+RUN apk add --no-cache libcap-utils && setcap -r /usr/bin/caddy && apk del libcap-utils
+COPY --from=build /out /srv
+COPY deploy/staging/Caddyfile /etc/caddy/Caddyfile
+# Non-root: Caddy only needs writable XDG dirs, provided as tmpfs by the compose file.
+ENV XDG_DATA_HOME=/tmp/caddy-data XDG_CONFIG_HOME=/tmp/caddy-config
+USER 65532:65532
+EXPOSE 8081

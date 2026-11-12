@@ -2,6 +2,8 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createHash, randomBytes } from 'node:crypto';
+import { createServer } from 'node:net';
+import { once } from 'node:events';
 import { createLocalJWKSet, jwtVerify } from 'jose';
 import Ajv from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
@@ -13,6 +15,13 @@ const ajv = new Ajv(); addFormats(ajv);
 const checkClaims = ajv.compile(read('../../src/platform/contracts/operator-token.schema.json'));
 let idp, metadata, keys;
 before(async () => {
+  // Own a free loopback port instead of colliding with a manual lab on 19090.
+  const probe = createServer();
+  probe.listen(0, '127.0.0.1');
+  await once(probe, 'listening');
+  const port = probe.address().port;
+  await new Promise(resolve => probe.close(resolve));
+  policy.issuer = `http://127.0.0.1:${port}`;
   idp = await startTestIdp(policy);
   metadata = await (await fetch(`${policy.issuer}/.well-known/openid-configuration`)).json();
   assert.equal(metadata.issuer, policy.issuer);
@@ -93,6 +102,8 @@ test('real code/PKCE exchange emits signed operator token and a distinct ID toke
   await verifyAccess(tokens.access_token);
   const identity = await jwtVerify(tokens.id_token, keys, {issuer:policy.issuer,audience:policy.clientId,algorithms:['ES256']});
   assert.equal(identity.payload.nonce, tokens.request.nonce);
+  assert.equal(identity.payload.email, 'Lab+recipient@example.invalid');
+  assert.equal(identity.payload.email_verified, true);
   assert.equal(identity.payload.acr, policy.acceptedAcr[0]);
   assert.deepEqual(identity.payload.amr, policy.requiredAmr);
   assert.ok(Number.isInteger(identity.payload.auth_time));

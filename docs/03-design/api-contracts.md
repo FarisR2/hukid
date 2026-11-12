@@ -10,8 +10,10 @@
 | Events dependencias | [Contratos de integración](contracts/events-integration.md) |
 | HukID HTTP privado y ejemplos OpenID | [APIs HukID](hukid-api-contracts.md) |
 | HukID reglas de interoperabilidad | [Perfil v0.1-draft](hukid-profile.md) |
-| HukID consola — baseline ejecutable de autenticación | [Contrato y política AUTH-T02](console-auth-contract.md), [OpenAPI nuevo](../../src/platform/contracts/console-auth.openapi.json); handlers pendientes. |
-| HukID consola — contratos futuros | [Miembros](../features/FEAT-002-user-management/plan.md), [dashboard](../features/FEAT-003-dashboard/plan.md) |
+| HukID consola — autenticación ejecutable de laboratorio | [Contrato y política](console-auth-contract.md), [OpenAPI propio](../../src/platform/contracts/console-auth.openapi.json); sus nueve operaciones están implementadas, con [interfaz AUTH-T08](console-auth-interface.md). |
+| HukID consola — miembros USR-T01 y lecturas USR-T03 | [Contrato/políticas](console-members-contract.md), [OpenAPI propio](../../src/platform/contracts/console-members.openapi.json); [cuatro lecturas](console-members-directory.md) y [cuatro mutaciones de invitación](console-invitation-delivery.md) implementadas; USR-T05 conecta [dos aceptaciones](console-invitation-acceptance.md); USR-T06 conecta [dos PATCH de membresías](console-members-lifecycle.md); USR-T08 conecta la [UI administrativa y aceptación](console-members-interface.md). |
+| HukID consola — persistencia USR-T02 | [Modelo, RLS y protocolo transaccional](console-members-persistence.md); no habilita rutas HTTP. |
+| HukID consola — dashboard de laboratorio | [Contrato](console-dashboard-contract.md), [API/BFF DASH-T03](console-dashboard-http.md) y [OpenAPI](../../src/platform/contracts/console-dashboard.openapi.json); cuatro GET implemented-test e [interfaz base DASH-T04](console-dashboard-interface.md). |
 
 ## Frontera Events→HukID
 
@@ -33,7 +35,7 @@ En v0, el adaptador consulta GET /v1/issuance-requests/{id}. La documentación d
 
 No normalizar silenciosamente ambos contratos. El adaptador hace traducción y correlación sin reenviar tokens humanos como identidad del sistema.
 
-Las rutas /console/auth, /console/api y /v1/operator tienen baseline OpenAPI validada en AUTH-T02 según [ADR-0003](../decisions/ADR-0003.md), sin handlers implementados. El BFF usa cookies para navegador; Management mantiene Bearer operator, clase y audience del perfil. El nuevo claim de procedencia humana y las restricciones del laboratorio se documentan en el contrato de consola; no reinterpretan auth Events ni OID4VCI.
+Las rutas /console/auth, /console/api y /v1/operator tienen baseline OpenAPI validada en AUTH-T02 según [ADR-0003](../decisions/ADR-0003.md). AUTH-T04 implementa login/callback y AUTH-T05 [lecturas /me/context](console-operator-context.md) de laboratorio; AUTH-T06 añade [refresh/logout y sesión](console-session-lifecycle.md); AUTH-T07 implementa [step-up y tenant-context](console-reauthentication.md). AUTH-T08 conecta [pantallas y navegador](console-auth-interface.md), navegación JSON opcional de login/step-up y error HTML fijo del callback, conservando el 303 y Problem Details para sus consumidores originales. El BFF usa cookies para navegador; Management mantiene Bearer operator, clase y audience del perfil. El nuevo claim de procedencia humana y las restricciones del laboratorio se documentan en el contrato de consola; no reinterpretan auth Events ni OID4VCI.
 
 ## Estado de los artefactos
 

@@ -8,6 +8,8 @@
 
 # Local generated artifacts
 .cache/
+# Reproducible local audit screenshots; reports and source stay versioned.
+docs/frontend/audits/**/screens/
 
 # Toolchain output and local secrets
 node_modules/
@@ -16,3 +18,5 @@ dist/
 .env
 .env.*
 !.env.example
+# Staging Keycloak credentials (scripts/README.md); explicit even though .env.* already covers it.
+.env.staging

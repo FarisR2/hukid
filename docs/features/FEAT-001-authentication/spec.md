@@ -1,13 +1,15 @@
 # FEAT-001 — Autenticación de operadores
 
 - Producto: HukID Console / Team 5.
-- Estado: AUTH-T01/T02/T03 materializan bootstrap, baseline contractual y foundation PostgreSQL de laboratorio; login y handlers aún pendientes.
+- Estado: AUTH-T01–T05 materializan bootstrap, contratos, PostgreSQL, login/callback y [lecturas autorizadas /me](../../03-design/console-operator-context.md) de laboratorio. AUTH-T06 añade [ciclo de sesión, refresh/logout y purga](../../03-design/console-session-lifecycle.md). AUTH-T07 añade [MFA/step-up y cambio de tenant](../../03-design/console-reauthentication.md). AUTH-T08 conecta [interfaz y navegador](../../03-design/console-auth-interface.md). AUTH-T09 integra [auditoría y exclusión de secretos](../../03-design/console-auth-audit.md). AUTH-T10 aporta [runbook y gate de laboratorio](../../05-delivery/authentication-gate.md); producción sigue bloqueada.
 - Dependencias: IdP OIDC, tenant/membership mínimo, PostgreSQL y auditoría.
 - Salidas: [plan](plan.md), [tareas](tasks.md).
 
 ## Objetivo y actores
 
 Un operador autorizado inicia sesión, cumple MFA, selecciona un tenant permitido y accede a la consola. La identidad OIDC es el par issuer/subject; el correo no es clave de identidad ni autoriza una membresía.
+
+El [perfil Keycloak local](../../03-design/console-local-keycloak.md) concreta AC01–AC10 para factores reales en loopback, según [ADR-0026](../../decisions/ADR-0026.md). Enrolar TOTP no concede por sí solo MFA: se exige completar password/OTP antes de una sesión operativa. La evidencia de este perfil se registra separada de los gates sintéticos históricos.
 
 Actores: operador, IdP, BFF de consola, Management API y repositorio de tenants/memberships. Un usuario autenticado sin membresías activas sólo puede ver acceso pendiente, cerrar sesión o aceptar su invitación válida cuando FEAT-002 esté disponible.
 

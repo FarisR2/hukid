@@ -2,6 +2,8 @@
 
 Referencia: [spec](spec.md), [tareas](tasks.md), [autenticación](../FEAT-001-authentication/plan.md), [miembros](../FEAT-002-user-management/plan.md).
 
+DASH-T01 materializa el [contrato y reglas de lectura](../../03-design/console-dashboard-contract.md), con [ADR-0019](../../decisions/ADR-0019.md). Las rutas de la tabla ya tienen OpenAPI contract-only; DASH-T02 implementa caso de uso y store PostgreSQL según la [referencia de lectura](../../03-design/console-dashboard-reads.md) y [ADR-0020](../../decisions/ADR-0020.md). DASH-T03 conecta [HTTP/BFF y cursor autenticado](../../03-design/console-dashboard-http.md) según [ADR-0021](../../decisions/ADR-0021.md); DASH-T04 conecta [interfaz base y contexto](../../03-design/console-dashboard-interface.md) según [ADR-0022](../../decisions/ADR-0022.md).
+
 ## Arquitectura de lectura
 
 Añadir un caso de uso GetTenantOverview y puertos de lectura por dominio dentro del backend modular. No crear un microservicio de analytics ni leer la base Events.
@@ -43,9 +45,9 @@ No se requieren tablas de credenciales para el incremento base. Fuentes ausentes
 
 | Hito | Requisitos previos | Gate |
 | --- | --- | --- |
-| D0 — Contrato y fixtures | AUTH-T02/T05; USR-T01 | Métricas, permisos, límites y estados acordados. |
-| D1 — Shell con contexto | AUTH-T08 | Tenant, capacidades y navegación reales; sin métricas simuladas en runtime. |
-| D2 — Overview base | USR-T03/T07 y auditoría mínima | Miembros/actividad autorizada y estados de fuentes futuras. |
+| D0 — Contrato y fixtures | AUTH-T02/T05; USR-T01 | DASH-T01 completada: contrato, reglas puras y fixtures; sin handlers ni fuentes conectadas. |
+| D1 — Shell con contexto | AUTH-T08 | DASH-T04 conecta tenant, roles/capacidades y navegación reales; sin métricas simuladas en runtime. |
+| D2 — Overview base | USR-T03/T07 y auditoría mínima | DASH-T02 completa caso de uso/store autorizado y estados; DASH-T03 completa exposición API/BFF y cursor público autenticado en laboratorio. |
 | D3 — Fuentes por dominio | Módulo propietario implementado | Cada tarjeta cumple AC02/03/04/06 con dataset conocido. |
 | D4 — QA/operación | D1/D2 y fuentes comprometidas | Seguridad, respuestas tardías, accesibilidad, logs y DoD. |
 
@@ -60,3 +62,7 @@ Los comandos se toman del toolchain registrado en AUTH-T01. Medir consultas y la
 ## Rollout y reversión
 
 Activar shell/overview por tenant de pruebas; conectar fuentes gradualmente, con capability checks. Si una fuente falla se degrada esa sección; si falla autorización se bloquea el acceso completo. Revertir UI/adapter o deshabilitar sección sin borrar datos ni cambiar estados de emisión. No requiere KMS ni firma para el incremento base.
+
+## Operación del incremento base
+
+DASH-T08 documenta fuentes activas, rollout/retirada y evidencia de DoD en el [runbook](../../04-engineering/console-dashboard-runbook.md) y el [gate D4](../../05-delivery/dashboard-gate.md). No cambia contrato, grants ni fuentes; D3/DASH-T05 permanece abierto.

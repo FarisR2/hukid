@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "environment": {
+      "const": "test"
+    },
+    "defaultWindowSeconds": {
+      "const": 86400
+    },
+    "maxWindowSeconds": {
+      "const": 2678400
+    },
+    "defaultPageSize": {
+      "const": 25
+    },
+    "maxPageSize": {
+      "const": 100
+    },
+    "cursorSeconds": {
+      "const": 900
+    },
+    "staleAfterSeconds": {
+      "const": 300
+    },
+    "maxQueryBytes": {
+      "const": 4096
+    }
+  },
+  "required": [
+    "environment",
+    "defaultWindowSeconds",
+    "maxWindowSeconds",
+    "defaultPageSize",
+    "maxPageSize",
+    "cursorSeconds",
+    "staleAfterSeconds",
+    "maxQueryBytes"
+  ]
+}

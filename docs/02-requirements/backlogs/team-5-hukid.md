@@ -2,6 +2,8 @@
 
 ## Fuente normativa
 
+Estado de ejecución al 2026-11-05: AUTH-T01–T08 entregan una parte de foundation y el acceso al panel web en laboratorio; AUTH-T09 es la siguiente tarea. No significa que HK-001/HK-005 ni las fases del producto estén completadas. Los IDs HK siguientes describen el negocio completo; la relación con fases está en el [roadmap](../../05-delivery/hukid-roadmap.md) y el orden vigente para continuar en el [plan de implementación](../../05-delivery/implementation-plan.md). La consola administrativa es un cliente web distinto de la wallet y del verifier.
+
 Este backlog se complementa con la [arquitectura local de HukID](../../03-design/hukid-architecture.md). Las historias deben cumplir sus decisiones de arquitectura, contratos, perfil HukID v0, modelo PostgreSQL y separación wallet/backend. El estado de los artefactos ejecutables se registra en [pendientes](../../05-delivery/documentation-gaps.md).
 
 ## Épica HK-A — Tenant, issuer e integración

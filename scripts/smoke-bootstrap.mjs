@@ -32,11 +32,12 @@ try {
   for (const env of [
     { HUKID_ENV: 'production', HUKID_AUTH_POLICY: policyPath },
     { HUKID_ENV: 'test', HUKID_AUTH_POLICY: '' },
+    { HUKID_ENV: 'test', HUKID_AUTH_POLICY: policyPath },
   ]) {
     const rejected = spawnSync(binary, [], { cwd: root, env: { ...process.env, ...env }, encoding: 'utf8', timeout: 10000 });
     assert(rejected.status === 1, `Unsafe auth configuration did not stop before listening (status=${rejected.status}, error=${rejected.error?.code || 'none'}, signal=${rejected.signal || 'none'})`);
   }
-  start(binary, [], { ...process.env, HUKID_LISTEN_ADDR: '127.0.0.1:18080', HUKID_ENV: 'test', HUKID_AUTH_POLICY: policyPath });
+  start(binary, [], { ...process.env, HUKID_LISTEN_ADDR: '127.0.0.1:18080', HUKID_ENV: '', HUKID_AUTH_POLICY: '', HUKID_SESSION_DATABASE_URL: '', HUKID_OIDC_CLIENT_SECRET: '', HUKID_AUTH_KEY: '', HUKID_AUTH_KEY_VERSION: '' });
   start(process.execPath, ['node_modules/vite/bin/vite.js', 'preview', 'src/console', '--host', '127.0.0.1', '--port', '14173', '--strictPort']);
   const health = await ready('http://127.0.0.1:18080/healthz');
   assert(health.status === 204 && health.headers.get('cache-control') === 'no-store', 'Invalid liveness');
@@ -48,7 +49,7 @@ try {
   assert(page.status === 200 && html.includes('lang="es"') && match, 'Invalid console build');
   const asset = await fetch(new URL(match[1], 'http://127.0.0.1:14173'));
   assert(asset.status === 200, 'Console asset unavailable');
-  console.log('Smoke: invalid/production auth policy stops startup; valid test policy starts Go health 204/no-store; auth 404; console HTML and JS 200.');
+  console.log('Smoke: partial/production auth configuration stops startup; liveness-only Go health 204/no-store; disabled auth 404; console HTML and JS 200. Enabled OIDC/DB login is tested by test:postgres.');
 } finally {
   for (const child of children) child.kill();
 }

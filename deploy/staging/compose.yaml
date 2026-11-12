@@ -1,0 +1,90 @@
+# HukID staging on Dokploy. Build context is the repository root; env comes from Dokploy
+# (generate it with `node scripts/staging-secrets.mjs`, then paste .env.staging.compose).
+#
+# Traefik: in Dokploy's Domains tab, host hukid.zentrycore.com -> service `api`, port 8081, HTTPS.
+# The API only listens on 127.0.0.1:8080 (a deliberate guard), so `web` shares its network
+# namespace and is the sole listener Traefik reaches. Nothing is published on the host.
+#
+# One-off provisioning, run from this compose, in this order, after the first deploy:
+#   docker compose --profile tools run --rm tools migrate
+#   docker compose --profile tools run --rm tools runtime-logins
+#   docker compose --profile tools run --rm tools bootstrap <issuer> <subject> "<tenant name>"
+services:
+  api:
+    build: { context: ../.., dockerfile: deploy/staging/Dockerfile.api }
+    image: hukid-api:staging
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    networks: [dokploy-network]
+    # Distroless has no shell or wget, so the check is a subcommand of the binary itself. It only
+    # asks /healthz on the loopback listener (liveness, no DB or IdP) and reads HUKID_LISTEN_ADDR.
+    healthcheck:
+      test: ["CMD", "/app/hukid-api", "healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    environment:
+      HUKID_ENV: staging
+      HUKID_LISTEN_ADDR: 127.0.0.1:8080
+      HUKID_AUTH_POLICY: /app/config/auth.staging.json
+      HUKID_MEMBERS_POLICY: /app/config/user-management.test.json
+      HUKID_DASHBOARD_POLICY: /app/config/dashboard.test.json
+      HUKID_CONSOLE_PROXY_ORIGIN: https://hukid.zentrycore.com
+      HUKID_SESSION_DATABASE_URL: postgres://hukid_staging_session:${HUKID_RUNTIME_PASSWORD_SESSION:?}@hukid-staging-db-ggfxdz:5432/hukid_staging?sslmode=disable
+      HUKID_CONTEXT_DATABASE_URL: postgres://hukid_staging_context:${HUKID_RUNTIME_PASSWORD_CONTEXT:?}@hukid-staging-db-ggfxdz:5432/hukid_staging?sslmode=disable
+      HUKID_TENANT_DATABASE_URL: postgres://hukid_staging_tenant:${HUKID_RUNTIME_PASSWORD_TENANT:?}@hukid-staging-db-ggfxdz:5432/hukid_staging?sslmode=disable
+      HUKID_MEMBERS_DATABASE_URL: postgres://hukid_staging_members:${HUKID_RUNTIME_PASSWORD_MEMBERS:?}@hukid-staging-db-ggfxdz:5432/hukid_staging?sslmode=disable
+      HUKID_DASHBOARD_DATABASE_URL: postgres://hukid_staging_dashboard:${HUKID_RUNTIME_PASSWORD_DASHBOARD:?}@hukid-staging-db-ggfxdz:5432/hukid_staging?sslmode=disable
+      HUKID_OIDC_CLIENT_SECRET: ${HUKID_OIDC_CLIENT_SECRET:?}
+      HUKID_AUTH_KEY: ${HUKID_AUTH_KEY:?}
+      HUKID_AUTH_KEY_VERSION: ${HUKID_AUTH_KEY_VERSION:?}
+      HUKID_INVITATION_KEY: ${HUKID_INVITATION_KEY:?}
+      HUKID_INVITATION_HMAC_KEY: ${HUKID_INVITATION_HMAC_KEY:?}
+      HUKID_INVITATION_KEY_VERSION: ${HUKID_INVITATION_KEY_VERSION:?}
+      HUKID_MEMBERS_CURSOR_KEY: ${HUKID_MEMBERS_CURSOR_KEY:?}
+      HUKID_DASHBOARD_CURSOR_KEY: ${HUKID_DASHBOARD_CURSOR_KEY:?}
+
+  web:
+    build: { context: ../.., dockerfile: deploy/staging/Dockerfile.web }
+    image: hukid-web:staging
+    restart: unless-stopped
+    network_mode: "service:api"
+    # `web` joins the namespace of the running `api` container, so it must not start before
+    # `api` is healthy. This orders `compose up`; it does not re-attach `web` if `api` is
+    # recreated later (see docs/05-delivery/staging-operations.md).
+    depends_on:
+      api:
+        condition: service_healthy
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: ["/tmp"]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8081/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  tools:
+    profiles: [tools]
+    image: hukid-api:staging
+    entrypoint: ["/app/stagingdb"]
+    networks: [dokploy-network]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      HUKID_ENV: staging
+      HUKID_DATABASE_URL: postgres://hukid_admin:${HUKID_DB_ADMIN_PASSWORD:?}@hukid-staging-db-ggfxdz:5432/hukid_staging?sslmode=disable
+      HUKID_RUNTIME_PASSWORD_SESSION: ${HUKID_RUNTIME_PASSWORD_SESSION:-}
+      HUKID_RUNTIME_PASSWORD_CONTEXT: ${HUKID_RUNTIME_PASSWORD_CONTEXT:-}
+      HUKID_RUNTIME_PASSWORD_TENANT: ${HUKID_RUNTIME_PASSWORD_TENANT:-}
+      HUKID_RUNTIME_PASSWORD_MEMBERS: ${HUKID_RUNTIME_PASSWORD_MEMBERS:-}
+      HUKID_RUNTIME_PASSWORD_DASHBOARD: ${HUKID_RUNTIME_PASSWORD_DASHBOARD:-}
+
+networks:
+  dokploy-network:
+    external: true

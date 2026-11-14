@@ -177,8 +177,9 @@ func TestSessionStoreIndexesByHashedState(t *testing.T) {
 
 func TestEndToEndThroughTheStores(t *testing.T) {
 	l := newLab(t)
-	sessions, _ := NewSessionStore(10, nil)
-	replay, _ := NewScopedReplayStore("tenant-a", MaxTTL, 10, nil)
+	clock := &fakeClock{now: testNow}
+	sessions, _ := NewSessionStore(10, clock.Now)
+	replay, _ := NewScopedReplayStore("tenant-a", MaxTTL, 10, clock.Now)
 	started := testSession(t)
 	if err := sessions.Put(started); err != nil {
 		t.Fatal(err)

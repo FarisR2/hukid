@@ -177,8 +177,10 @@ func TestSessionStoreIndexesByHashedState(t *testing.T) {
 
 func TestEndToEndThroughTheStores(t *testing.T) {
 	l := newLab(t)
-	sessions, _ := NewSessionStore(10, nil)
-	replay, _ := NewScopedReplayStore("tenant-a", MaxTTL, 10, nil)
+	// The session is built at testNow, so the stores must read the same clock.
+	atTestNow := func() time.Time { return testNow }
+	sessions, _ := NewSessionStore(10, atTestNow)
+	replay, _ := NewScopedReplayStore("tenant-a", MaxTTL, 10, atTestNow)
 	started := testSession(t)
 	if err := sessions.Put(started); err != nil {
 		t.Fatal(err)

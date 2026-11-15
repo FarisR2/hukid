@@ -95,6 +95,9 @@ type SessionStore struct {
 	capacity int
 	now      func() time.Time
 	sessions map[string]*Session
+	// byKey indexes the same sessions by the hash of their response-encryption
+	// key id, the only identifier readable in an encrypted response.
+	byKey map[string]string
 }
 
 // ErrSessionNotFound reports an unknown, expired or already removed session.
@@ -108,7 +111,7 @@ func NewSessionStore(capacity int, now func() time.Time) (*SessionStore, error) 
 	if now == nil {
 		now = time.Now
 	}
-	return &SessionStore{capacity: capacity, now: now, sessions: map[string]*Session{}}, nil
+	return &SessionStore{capacity: capacity, now: now, sessions: map[string]*Session{}, byKey: map[string]string{}}, nil
 }
 
 // Put registers a session under its state. It fails closed when full.
@@ -122,14 +125,16 @@ func (s *SessionStore) Put(session *Session) error {
 	if len(s.sessions) >= s.capacity {
 		for key, held := range s.sessions {
 			if !now.Before(held.expiresAt) {
-				delete(s.sessions, key)
+				s.dropLocked(key, held)
 			}
 		}
 		if len(s.sessions) >= s.capacity {
 			return ErrStoreFull
 		}
 	}
-	s.sessions[scopedKey("state", session.state)] = session
+	key := scopedKey("state", session.state)
+	s.sessions[key] = session
+	s.byKey[scopedKey("kid", session.kid)] = key
 	return nil
 }
 
@@ -144,17 +149,44 @@ func (s *SessionStore) Get(state string) (*Session, error) {
 		return nil, ErrSessionNotFound
 	}
 	if !s.now().Before(held.expiresAt) {
-		delete(s.sessions, key)
+		s.dropLocked(key, held)
 		return nil, ErrSessionNotFound
 	}
 	return held, nil
+}
+
+// GetByKeyID returns the open session whose response-encryption key id is kid.
+func (s *SessionStore) GetByKeyID(kid string) (*Session, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	key, ok := s.byKey[scopedKey("kid", kid)]
+	if !ok {
+		return nil, ErrSessionNotFound
+	}
+	held, ok := s.sessions[key]
+	if !ok {
+		return nil, ErrSessionNotFound
+	}
+	if !s.now().Before(held.expiresAt) {
+		s.dropLocked(key, held)
+		return nil, ErrSessionNotFound
+	}
+	return held, nil
+}
+
+func (s *SessionStore) dropLocked(key string, held *Session) {
+	delete(s.sessions, key)
+	delete(s.byKey, scopedKey("kid", held.kid))
 }
 
 // Remove discards a session, typically once its response was verified.
 func (s *SessionStore) Remove(state string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	delete(s.sessions, scopedKey("state", state))
+	key := scopedKey("state", state)
+	if held, ok := s.sessions[key]; ok {
+		s.dropLocked(key, held)
+	}
 }
 
 // Len is the number of retained sessions, expired ones included until swept.

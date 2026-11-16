@@ -13,6 +13,10 @@
 
 No colocar rutas estándar debajo de `/v1` ni devolver Problem Details donde OpenID prescribe un error OAuth/OpenID.
 
+El [contrato de laboratorio wallet](wallet-laboratory-contract.md) fija una definición
+sintética separada y validación de modelo ejecutable (T2), sin endpoints de emisión.
+Sus excepciones de origen/firmante no modifican los ejemplos productivos siguientes.
+
 ## 2. Convenciones privadas
 
 - Base: `https://api.hukid.pe/v1`.

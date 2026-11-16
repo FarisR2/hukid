@@ -56,6 +56,29 @@ la emisión. T3 validará las condiciones del protocolo en backend; un canje o p
 válido no demuestra por sí solo consentimiento humano ni sustituye esa interfaz.
 T5 mantiene cifrado local completo, claves no exportables Android Keystore y
 persistencia segura tras reinicio.
+## T3a: ciclo puro de código preautorizado
+
+`src/platform/internal/issuance` añade `NewOfferStore(OfferConfig)`, `Create()` y
+`Redeem(code)`. Configuración explícita: `0 < TTL <= 300 s`, `Capacity > 0`;
+`Now` y `Random` opcionales usan reloj del sistema y `crypto/rand`. Las inyecciones
+se serializan y no deben reentrar al almacén. Cada oferta devuelve un código bearer
+aleatorio de 32 bytes y un ID independiente no secreto de 32 bytes, ambos base64url
+sin padding, más `ExpiresAt`. No registrar el código; sólo se devuelve al crearlo.
+
+Se retienen únicamente SHA-256 con separación de dominio, ID, expiración y estado.
+El canje es atómico y de un uso: devuelve `Redemption{ID, ExpiresAt}`, **no** access
+token, consentimiento, proof ni credencial. En la expiración exacta se rechaza.
+Desconocido, malformado, expirado y consumido producen `ErrInvalidCode`
+(`invalid pre-authorized code`). Configuración, capacidad, entropía y colisión
+usan `ErrConfig`, `ErrStoreFull`, `ErrEntropy`, `ErrCollision`, sin entrada cruda.
+Los fallos no insertan ni sobrescriben ofertas. La creación barre expirados;
+los consumidos cuentan hasta expirar y nunca se desalojan registros vivos.
+
+Sólo memoria de un proceso: reiniciar pierde todo; no hay coordinación de réplicas,
+HTTP, QR, JWT, signer ni emisión. Resolver la entrega recuperable del código y las
+garantías de reintento/reinicio queda pendiente para T3d. Rollback T3a: retirar
+`issuance/offers.go`, `issuance/offers_test.go` y esta sección; sin consumidores runtime.
+
 No se ha entregado una wallet funcional ni probado teléfono/interoperabilidad.
 Rollback T2: retirar el paquete, este contrato, ADR-0033 y el enlace de API;
 no hay estado persistido, migraciones ni consumidores runtime que deshabilitar.

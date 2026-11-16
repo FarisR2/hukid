@@ -46,8 +46,8 @@ func validIssuerKeys(t *testing.T) string {
 func labEnv(t *testing.T, overrides map[string]string) {
 	t.Helper()
 	values := map[string]string{
-		"HUKID_ENV":                     "local",
-		"HUKID_OID4VP_LAB":              "1",
+		"HUKID_ENV":                     "",
+		"HUKID_OID4VP_LAB":              "local",
 		"HUKID_OID4VP_LAB_CLIENT_ID":    "x509_san_dns:verifier.example",
 		"HUKID_OID4VP_LAB_RESPONSE_URI": "https://verifier.example/oid4vp/response",
 		"HUKID_OID4VP_LAB_ISSUER_KEYS":  validIssuerKeys(t),
@@ -82,17 +82,18 @@ func TestLabIsOffUnlessExplicitlyConfigured(t *testing.T) {
 
 func TestLabRejectsIncompleteOrUnsafeConfiguration(t *testing.T) {
 	cases := map[string]map[string]string{
-		"flag not 1":           {"HUKID_OID4VP_LAB": "true"},
-		"missing client id":    {"HUKID_OID4VP_LAB_CLIENT_ID": ""},
-		"missing response uri": {"HUKID_OID4VP_LAB_RESPONSE_URI": ""},
-		"missing keys":         {"HUKID_OID4VP_LAB_ISSUER_KEYS": ""},
-		"staging":              {"HUKID_ENV": "staging"},
-		"production":           {"HUKID_ENV": "production"},
-		"no environment":       {"HUKID_ENV": ""},
-		"http response uri":    {"HUKID_OID4VP_LAB_RESPONSE_URI": "http://verifier.example/oid4vp/response"},
-		"wrong path":           {"HUKID_OID4VP_LAB_RESPONSE_URI": "https://verifier.example/other"},
-		"query in uri":         {"HUKID_OID4VP_LAB_RESPONSE_URI": "https://verifier.example/oid4vp/response?x=1"},
-		"missing key file":     {"HUKID_OID4VP_LAB_ISSUER_KEYS": filepath.Join(t.TempDir(), "absent.json")},
+		"flag not an environment": {"HUKID_OID4VP_LAB": "1"},
+		"flag staging":            {"HUKID_OID4VP_LAB": "staging"},
+		"missing client id":       {"HUKID_OID4VP_LAB_CLIENT_ID": ""},
+		"missing response uri":    {"HUKID_OID4VP_LAB_RESPONSE_URI": ""},
+		"missing keys":            {"HUKID_OID4VP_LAB_ISSUER_KEYS": ""},
+		"staging":                 {"HUKID_ENV": "staging"},
+		"production":              {"HUKID_ENV": "production"},
+		"environment mismatch":    {"HUKID_ENV": "test"},
+		"http response uri":       {"HUKID_OID4VP_LAB_RESPONSE_URI": "http://verifier.example/oid4vp/response"},
+		"wrong path":              {"HUKID_OID4VP_LAB_RESPONSE_URI": "https://verifier.example/other"},
+		"query in uri":            {"HUKID_OID4VP_LAB_RESPONSE_URI": "https://verifier.example/oid4vp/response?x=1"},
+		"missing key file":        {"HUKID_OID4VP_LAB_ISSUER_KEYS": filepath.Join(t.TempDir(), "absent.json")},
 	}
 	for name, overrides := range cases {
 		t.Run(name, func(t *testing.T) {

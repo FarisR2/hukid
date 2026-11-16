@@ -79,6 +79,33 @@ HTTP, QR, JWT, signer ni emisión. Resolver la entrega recuperable del código y
 garantías de reintento/reinicio queda pendiente para T3d. Rollback T3a: retirar
 `issuance/offers.go`, `issuance/offers_test.go` y esta sección; sin consumidores runtime.
 
+## T3b: validador puro de proof (corte parcial)
+
+`issuance.ValidateProof(jwt, ProofExpectation) (string, error)` autentica ES256
+JOSE raw de 64 bytes y devuelve el JKT RFC7638 mediante `verification.JWKThumbprint`.
+El caller proporciona `Issuer` confiable (`{origin}/wallet-lab`, no endpoint),
+`Nonce` no vacío, `Now` explícito no cero (año 1–9999), `MaxAge > 0` y
+`ClockSkew >= 0`. Duraciones hasta el máximo de `time.Duration`; sin defaults
+ni política runtime implícita. `iat` es entero JSON int64 en años 1–9999;
+se acepta exactamente `Now - MaxAge - ClockSkew <= iat <= Now + ClockSkew`,
+incluidos extremos y precisión subsegundo de `Now`. Sumas separadas evitan
+el overflow de duraciones; no se restan timestamps enteros.
+
+Límites explícitos: `1 <= MaxBytes <= 16384` para el JWT completo y
+`1 <= MaxDepth <= 8` para contenedores JSON (raíz = 1). Se rechazan duplicados
+recursivos, propiedades desconocidas/case distinto, null, tipos incorrectos,
+JSON adicional, UTF-8 inválido y base64url no canónico. Header sólo `alg`, `typ`,
+`jwk`; payload sólo `aud`, `nonce`, `iat`; JWK sólo `kty`, `crv`, `x`, `y`.
+Se requieren `ES256`, `openid4vci-proof+jwt`, `aud` escalar exacto y nonce exacto;
+JWK pública EC P-256, coordenadas canónicas de 32 bytes y punto válido.
+Todo rechazo devuelve JKT vacío y error fijo `invalid issuance proof`, sin claims.
+
+No hay I/O, reloj implícito, estado, signer ni callbacks. **No es protección
+contra replay**: repetir el mismo proof válido devuelve el mismo JKT. El caller
+debe emitir el nonce, comprobar su vigencia y consumirlo atómicamente; sigue
+pendiente, igual que endpoints/emisión. Rollback de este corte: retirar
+`issuance/proof.go`, `issuance/proof_test.go` y esta sección; no hay consumidores.
+
 No se ha entregado una wallet funcional ni probado teléfono/interoperabilidad.
 Rollback T2: retirar el paquete, este contrato, ADR-0033 y el enlace de API;
 no hay estado persistido, migraciones ni consumidores runtime que deshabilitar.

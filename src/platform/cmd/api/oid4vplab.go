@@ -24,7 +24,8 @@ import (
 // The OpenID4VP laboratory mount (FEAT-004, VER-T10 increment e) exposes the
 // wallet-facing endpoints so an external wallet or verifier can be tried
 // against them. It is NOT the production mount: it is off unless
-// HUKID_OID4VP_LAB=1, refuses any environment other than test or local, seeds
+// HUKID_OID4VP_LAB=test|local (its own switch: setting HUKID_ENV would make the
+// API demand the full console authentication configuration), seeds
 // exactly one session at startup (there is no authenticated way to start
 // sessions until VER-T11), reads issuer keys from a file (there is no JWKS
 // resolver until VER-T12), keeps replay and sessions in memory, and uses an
@@ -104,10 +105,11 @@ func configureOID4VPLab(out io.Writer, now func() time.Time) (func(*http.ServeMu
 	if enabled == "" && clientID == "" && response == "" && keysPath == "" {
 		return nil, nil
 	}
-	if enabled != "1" || clientID == "" || response == "" || keysPath == "" {
+	if (enabled != "test" && enabled != "local") || clientID == "" || response == "" || keysPath == "" {
 		return nil, errLabConfig
 	}
-	if environment := os.Getenv("HUKID_ENV"); environment != "test" && environment != "local" {
+	// A different explicit environment (staging, production) refuses the lab.
+	if environment := os.Getenv("HUKID_ENV"); environment != "" && environment != enabled {
 		return nil, errLabConfig
 	}
 	parsed, err := url.Parse(response)

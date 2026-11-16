@@ -69,6 +69,10 @@ var (
 	ErrResourceNotFound = errors.New("resource not found")
 )
 
+// reservedSlugs cannot be issuer slugs: they are fixed first path segments of the
+// HukID HTTP surface ("/v1/..." and "/oauth2/...").
+var reservedSlugs = map[string]bool{"v1": true, "oauth2": true}
+
 // IssuerRecord models a logical issuer bound to one tenant (HK-001).
 type IssuerRecord struct {
 	TenantID    string
@@ -83,7 +87,7 @@ type IssuerRecord struct {
 // NewIssuerRecord validates inputs and constructs a logical issuer for tenantID.
 func NewIssuerRecord(tenantID, issuerID, slug, displayName string, now time.Time) (IssuerRecord, error) {
 	if strings.TrimSpace(tenantID) == "" || strings.TrimSpace(issuerID) == "" ||
-		strings.TrimSpace(displayName) == "" || !isValidSlug(slug) {
+		strings.TrimSpace(displayName) == "" || !isValidSlug(slug) || reservedSlugs[slug] {
 		return IssuerRecord{}, ErrInvalidFoundationInput
 	}
 	uri := IssuerPrefix + slug

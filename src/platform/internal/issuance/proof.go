@@ -112,6 +112,32 @@ func VerifyHolderProof(proofJWT, expectedIssuer, expectedNonce string, now time.
 	return jkt, holderKey, nil
 }
 
+// PeekProofNonce reads the nonce claim of a proof JWT without trusting it. The
+// nonce is only used to look up the challenge: VerifyHolderProof must still
+// authenticate the proof against it, and the challenge is burned afterwards.
+func PeekProofNonce(proofJWT string) (string, error) {
+	if len(proofJWT) == 0 || len(proofJWT) > maxProofBytes {
+		return "", ErrProofInvalid
+	}
+	parts := strings.Split(proofJWT, ".")
+	if len(parts) != 3 {
+		return "", ErrProofInvalid
+	}
+	payloadRaw, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return "", ErrProofInvalid
+	}
+	payload, err := decodeStrictObject(payloadRaw, maxJSONDepth)
+	if err != nil {
+		return "", ErrProofInvalid
+	}
+	nonce, ok := stringMember(payload, "nonce")
+	if !ok || nonce == "" {
+		return "", ErrProofInvalid
+	}
+	return nonce, nil
+}
+
 // BuildHolderProof constructs and signs an OpenID4VCI proof JWT for laboratory
 // tests using a P-256 holder key.
 func BuildHolderProof(holderKey *ecdsa.PrivateKey, issuer, nonce string, issuedAt time.Time, random io.Reader) (string, error) {

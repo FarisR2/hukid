@@ -1,24 +1,42 @@
-# HukID Wallet — modelo de recepción de laboratorio
+# HukID Wallet — Android de laboratorio
 
-Primer incremento del paquete Flutter: modelo de vista previa y consentimiento.
-La aplicación Android y sus pantallas se incorporan en la siguiente unidad.
+Base Flutter nativa, no versión HTML. Conserva la dirección violeta y española del
+[prototipo](../wallet-prototype/README.md), que no se modifica.
 
-## Alcance
+No hay emisor configurado: cualquier enlace devuelve integración no disponible;
+no se visita, no establece confianza y no se descarga ni guarda una credencial.
+No ingreses datos personales ni códigos reales. La vista de preview/consentimiento
+se comprueba exclusivamente con un adaptador en tests. No hay cámara, criptografía,
+almacenamiento ni permisos adicionales.
+La previsualización no acredita firma, estado ni confianza criptográfica.
 
-- Una vista previa no solicita ni guarda una credencial.
-- Solicitar requiere consentimiento explícito y sólo se ejecuta una vez por vista previa.
-- Cancelar descarta el flujo e invalida respuestas tardías.
-- El adaptador runtime no tiene emisor configurado ni confía en enlaces arbitrarios.
-- No hay cámara, red, validación criptográfica, claves ni almacenamiento.
-- Los adaptadores con datos ficticios existen sólo en pruebas.
+Identidad Android de laboratorio: `dev.example.hukid_wallet`; no es identidad de
+publicación. El scaffold usa Flutter 3.50.0 de `hukid-wallet-dev:local` existente.
 
-## Comprobar
+La UI importa `material_ui` **1.0.0**, paquete oficial del publisher `flutter.dev`,
+en lugar del import Material del SDK deprecado en Flutter 3.50. Se conserva la
+misma dirección visual. La versión directa es exacta y `pubspec.lock` fija las
+dependencias transitivas (incluido `cupertino_ui`, requerido por Material; no es
+una dependencia directa ni una nueva interfaz Cupertino).
 
-Desde la raíz con la imagen local existente y caché de paquetes preparada:
+## Checks
+
+Desde la raíz, montar **sólo** `src/wallet` en `/workspace`, con la imagen existente.
+El cache generado `.pub-cache/` está ignorado y autorizado dentro de esta unidad;
+la resolución inicial necesita red para paquetes oficiales y toolchain, no para
+peticiones de la app. El usuario Docker UID10001/GID1000 y `umask 002` conservan
+escritura por el grupo compartido; no ejecutar como root ni cambiar permisos:
 
 ```sh
+docker run --rm --user 10001:1000 -e PUB_CACHE=/workspace/.pub-cache -v "$PWD/src/wallet:/workspace" hukid-wallet-dev:local bash -eu -c 'umask 002; flutter pub get'
 docker run --rm --network none --user 10001:1000 -e PUB_CACHE=/workspace/.pub-cache -v "$PWD/src/wallet:/workspace" hukid-wallet-dev:local bash -eu -c 'umask 002; flutter test --no-pub test/issuance_test.dart'
+docker run --rm --network none --user 10001:1000 -e PUB_CACHE=/workspace/.pub-cache -v "$PWD/src/wallet:/workspace" hukid-wallet-dev:local bash -eu -c 'umask 002; flutter test --no-pub test/widget_test.dart'
+docker run --rm --network none --user 10001:1000 -e PUB_CACHE=/workspace/.pub-cache -v "$PWD/src/wallet:/workspace" hukid-wallet-dev:local bash -eu -c 'umask 002; flutter test --no-pub'
+docker run --rm --network none --user 10001:1000 -e PUB_CACHE=/workspace/.pub-cache -v "$PWD/src/wallet:/workspace" hukid-wallet-dev:local bash -eu -c 'umask 002; flutter analyze --no-pub'
 ```
 
-El paquete declara Flutter y `material_ui` 1.0.0 para la interfaz posterior;
-`pubspec.lock` fija las dependencias. APK, builds y cachés están ignorados.
+Cancelar o volver descarta el consentimiento sin solicitar recepción. Aceptar
+solicita como máximo una vez por preview; el único resultado de este corte es
+pendiente o no disponible, nunca «verificada» o «guardada». La wallet sigue vacía.
+Recepción real requiere issuer compatible, protocolo, validación, claves Android y
+persistencia cifrada en unidades posteriores. No se ha probado un teléfono.

@@ -4,6 +4,26 @@ Estado: diagramas del servicio de verificación de HukID (FEAT-004) tal como est
 
 Leyenda de color: verde, hecho y probado; amarillo, hecho sin conectar; rojo, falta; gris, actor externo al servicio.
 
+## Qué construimos, en una página
+
+El servicio de verificación es el **validador**: comprueba, por encargo de un verifier, que la credencial que muestra un usuario es auténtica, vigente y suya. **No emite credenciales y no valida el ticket QR de Events.**
+
+| Actor | Qué es | Qué hace aquí |
+| --- | --- | --- |
+| Usuario | Titular de la credencial | Usa el wallet y da su consentimiento. |
+| Wallet | Agente del usuario (Flutter, HukID u otra compatible) | Guarda la credencial y la presenta. Es el punto de entrada del usuario; **no es un puente** entre el validador y Events. |
+| Events | Sistema fuente (producto independiente) | Pide a HukID emitir una credencial a partir de un certificado. No participa en la verificación. |
+| HukID, emisión | Emite y firma la credencial | Genera el QR de **oferta**. |
+| Verifier | Comercio o tercero que acepta la credencial (el tenant que contrata el servicio) | Inicia una sesión y consulta el resultado. |
+| Validador | Este servicio | Recibe la presentación del wallet y devuelve pass o fail con códigos y digest. |
+
+Son **dos momentos separados**, con QR distintos:
+
+1. **Recibir la credencial.** Events pide la emisión, HukID crea la oferta y el wallet escanea el QR de oferta (OID4VCI). No interviene el validador.
+2. **Demostrar la credencial.** Un verifier inicia una sesión en el validador y recibe un QR o enlace de verificación (OID4VP). El wallet lo escanea y habla **solo con el validador**, en dos llamadas: pide el request y envía la respuesta cifrada. El verifier consulta después el resultado. El validador no llama a Events.
+
+El ticket QR de Events (check-in) lo valida Onsite, otro sistema. El wallet no lo escanea y el validador no lo recibe. Usarlo como entrada de una verificación no está documentado y sería una decisión nueva. Ver [Events y HukID](events-hukid-credential-flow.md) para los tres QR.
+
 ## 1. Arquitectura
 
 El servicio es un módulo del binario `cmd/api` ([ADR-0031](../decisions/ADR-0031.md) #1). Los endpoints del wallet son públicos; los del tenant exigen token de operador con MFA reciente.

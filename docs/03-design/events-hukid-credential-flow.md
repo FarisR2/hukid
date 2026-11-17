@@ -2,6 +2,8 @@
 
 Estado: diagramas de lectura, fechados el **2026-11-17**. Resumen visual de lo que ya documentan [api-contracts](api-contracts.md) (frontera Events→HukID), [ux-flows](ux-flows.md), [arquitectura](architecture.md), [events-integration](contracts/events-integration.md) y [events-architecture-spine](events-architecture-spine.md) (AD-11). No es contrato normativo ni prueba que el adaptador o la emisión estén implementados: el código de Events no está en este repositorio y la emisión HukID tampoco. Si difieren, mandan los documentos enlazados. Events y HukID siguen siendo productos independientes.
 
+Para el resumen en una página de qué hace cada actor y cuáles son los dos momentos (recibir y demostrar), ver [Qué construimos](credential-verification-architecture.md#qué-construimos-en-una-página).
+
 Leyenda de color: azul, Events; violeta, HukID; gris, actor externo.
 
 ## 1. Tres QR distintos

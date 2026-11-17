@@ -28,9 +28,13 @@ type IssuanceHandler struct {
 func (h *IssuanceHandler) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/issuance-requests", h.createRequest)
 	mux.HandleFunc("GET /v1/issuance-requests/{id}", h.getRequest)
+	mux.HandleFunc("POST /v1/credentials/{id}/suspensions", h.suspendCredential)
+	mux.HandleFunc("DELETE /v1/credentials/{id}/suspension", h.reactivateCredential)
+	mux.HandleFunc("POST /v1/credentials/{id}/revocations", h.revokeCredential)
 	mux.HandleFunc("POST /oauth2/token", h.token)
 	mux.HandleFunc("GET /.well-known/oauth-authorization-server", h.authorizationServer)
 	mux.HandleFunc("GET /{slug}/offers/{ref}", h.offer)
+	mux.HandleFunc("GET /{slug}/status/{purpose}/{listId}", h.statusList)
 	mux.HandleFunc("POST /{slug}/nonce", h.nonce)
 	mux.HandleFunc("POST /{slug}/credential", h.credential)
 }
@@ -166,6 +170,78 @@ func (h *IssuanceHandler) getRequest(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, "application/json", result)
 }
 
+func (h *IssuanceHandler) requireIntegrationCommand(w http.ResponseWriter, r *http.Request) (issuance.IntegrationToken, string, bool) {
+	if !h.ready() {
+		problem(w, http.StatusServiceUnavailable, "server_error", "Service unavailable", nil)
+		return issuance.IntegrationToken{}, "", false
+	}
+	raw, ok := bearer(r)
+	if !ok {
+		invalidIntegrationToken(w)
+		return issuance.IntegrationToken{}, "", false
+	}
+	token, err := h.Service.AuthenticateIntegration(raw)
+	if err != nil {
+		invalidIntegrationToken(w)
+		return issuance.IntegrationToken{}, "", false
+	}
+	key := r.Header.Get("Idempotency-Key")
+	if key == "" {
+		problem(w, http.StatusBadRequest, "idempotency_key_required", "Idempotency-Key header is required", nil)
+		return issuance.IntegrationToken{}, "", false
+	}
+	return token, key, true
+}
+
+func (h *IssuanceHandler) suspendCredential(w http.ResponseWriter, r *http.Request) {
+	h.mutateStatus(w, r, "suspend")
+}
+
+func (h *IssuanceHandler) reactivateCredential(w http.ResponseWriter, r *http.Request) {
+	h.mutateStatus(w, r, "reactivate")
+}
+
+func (h *IssuanceHandler) revokeCredential(w http.ResponseWriter, r *http.Request) {
+	h.mutateStatus(w, r, "revoke")
+}
+
+func (h *IssuanceHandler) mutateStatus(w http.ResponseWriter, r *http.Request, op string) {
+	token, key, ok := h.requireIntegrationCommand(w, r)
+	if !ok {
+		return
+	}
+	var in issuance.StatusChangeInput
+	if op != "reactivate" {
+		if !isJSON(r) || decodeBody(w, r, maxTokenBody, &in, true) != nil {
+			problem(w, http.StatusBadRequest, "malformed_request", "The request body is not valid", nil)
+			return
+		}
+	}
+	id := r.PathValue("id")
+	var (
+		res    issuance.StatusChangeResult
+		replay bool
+		err    error
+	)
+	switch op {
+	case "suspend":
+		res, replay, err = h.Service.SuspendCredential(token, key, id, in)
+	case "reactivate":
+		res, replay, err = h.Service.ReactivateCredential(token, key, id)
+	case "revoke":
+		res, replay, err = h.Service.RevokeCredential(token, key, id, in)
+	}
+	if err != nil {
+		writeIntegrationError(w, err)
+		return
+	}
+	status := http.StatusOK
+	if !replay {
+		status = http.StatusAccepted
+	}
+	writeJSON(w, status, "application/json", res)
+}
+
 func writeIntegrationError(w http.ResponseWriter, err error) {
 	var claims *issuance.ClaimValidationError
 	switch {
@@ -177,12 +253,16 @@ func writeIntegrationError(w http.ResponseWriter, err error) {
 		problem(w, http.StatusForbidden, "grant_denied", "The client is not authorized for this operation", nil)
 	case errors.Is(err, issuance.ErrIdempotencyConflict):
 		problem(w, http.StatusConflict, "idempotency_key_reused", "The Idempotency-Key was used with a different request", nil)
+	case errors.Is(err, issuance.ErrInvalidStatusTransition):
+		problem(w, http.StatusConflict, "invalid_state_transition", "The requested credential status transition is not permitted", nil)
 	case errors.Is(err, issuance.ErrDefinitionNotFound):
 		problem(w, http.StatusUnprocessableEntity, "definition_not_found", "The credential definition does not exist", nil)
 	case errors.Is(err, issuance.ErrDefinitionUnavailable):
 		problem(w, http.StatusUnprocessableEntity, "definition_not_published", "The credential definition cannot issue", nil)
 	case errors.Is(err, issuance.ErrUnsupportedDelivery):
 		problem(w, http.StatusUnprocessableEntity, "delivery_not_supported", "The delivery option is not supported", nil)
+	case errors.Is(err, issuance.ErrNoActiveKey):
+		problem(w, http.StatusServiceUnavailable, "server_error", "No active signing key", nil)
 	case errors.Is(err, issuance.ErrInvalidRequest):
 		problem(w, http.StatusBadRequest, "malformed_request", "The request is not valid", nil)
 	default:
@@ -280,6 +360,23 @@ func (h *IssuanceHandler) offer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, "application/json", offer)
+}
+
+func (h *IssuanceHandler) statusList(w http.ResponseWriter, r *http.Request) {
+	slug, ok := h.validSlug(w, r)
+	if !ok {
+		return
+	}
+	jwt, err := h.Service.ResolveStatusList(slug, r.PathValue("purpose"), r.PathValue("listId"))
+	if err != nil {
+		oauthError(w, http.StatusNotFound, "not_found")
+		return
+	}
+	w.Header().Set("Cache-Control", "public, max-age=60")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Content-Type", issuance.CredentialFormat)
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(jwt))
 }
 
 func (h *IssuanceHandler) nonce(w http.ResponseWriter, r *http.Request) {

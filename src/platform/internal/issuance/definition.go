@@ -85,6 +85,9 @@ type Definition struct {
 	Types           []string
 	Fields          map[string]FieldSpec
 	DefaultValidity time.Duration
+	// StatusPurposes enables Bitstring Status Lists for declared purposes
+	// ("revocation", "suspension") when set.
+	StatusPurposes []string
 
 	State       DefinitionState
 	Hash        string
@@ -124,6 +127,7 @@ func cloneDefinition(d *Definition) Definition {
 	c.Contexts = slices.Clone(d.Contexts)
 	c.Types = slices.Clone(d.Types)
 	c.Fields = cloneFields(d.Fields)
+	c.StatusPurposes = slices.Clone(d.StatusPurposes)
 	return c
 }
 
@@ -187,6 +191,16 @@ func validateDefinitionShape(d Definition) error {
 			return ErrInvalidFoundationInput
 		}
 	}
+	if len(d.StatusPurposes) > 2 {
+		return ErrInvalidFoundationInput
+	}
+	seenPurpose := map[string]bool{}
+	for _, p := range d.StatusPurposes {
+		if (p != PurposeRevocation && p != PurposeSuspension) || seenPurpose[p] {
+			return ErrInvalidFoundationInput
+		}
+		seenPurpose[p] = true
+	}
 	return validateFields(d.Fields, 1)
 }
 
@@ -212,7 +226,8 @@ func definitionHash(d *Definition) (string, error) {
 		Types           []string             `json:"types"`
 		Fields          map[string]FieldSpec `json:"fields"`
 		DefaultValidity int64                `json:"defaultValiditySeconds"`
-	}{d.ID, d.Version, d.ConfigurationID, d.Contexts, d.Types, d.Fields, int64(d.DefaultValidity / time.Second)}
+		StatusPurposes  []string             `json:"statusPurposes,omitempty"`
+	}{d.ID, d.Version, d.ConfigurationID, d.Contexts, d.Types, d.Fields, int64(d.DefaultValidity / time.Second), d.StatusPurposes}
 	raw, err := json.Marshal(canonical)
 	if err != nil {
 		return "", err

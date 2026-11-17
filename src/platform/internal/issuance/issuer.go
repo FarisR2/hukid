@@ -42,6 +42,7 @@ type CredentialInput struct {
 	ValidFrom         time.Time
 	ValidUntil        *time.Time
 	CredentialSubject map[string]any
+	CredentialStatus  []CredentialStatusEntry
 }
 
 // NewReceiptInput builds a Phase 0 electronic receipt credential input.
@@ -89,13 +90,6 @@ func IssueVCJWT(signer Signer, input CredentialInput, holderJKT string) (string,
 		return "", err
 	}
 
-	header := map[string]any{
-		"alg": "ES256",
-		"typ": "vc+jwt",
-		"cty": "vc",
-		"kid": signer.KeyID(),
-	}
-
 	subjectCopy := make(map[string]any, len(input.CredentialSubject))
 	maps.Copy(subjectCopy, input.CredentialSubject)
 
@@ -115,7 +109,20 @@ func IssueVCJWT(signer Signer, input CredentialInput, holderJKT string) (string,
 	if input.ValidUntil != nil {
 		payload["validUntil"] = input.ValidUntil.UTC().Format(time.RFC3339)
 	}
+	if len(input.CredentialStatus) > 0 {
+		payload["credentialStatus"] = input.CredentialStatus
+	}
 
+	return signCompactVC(signer, payload)
+}
+
+func signCompactVC(signer Signer, payload map[string]any) (string, error) {
+	header := map[string]any{
+		"alg": "ES256",
+		"typ": "vc+jwt",
+		"cty": "vc",
+		"kid": signer.KeyID(),
+	}
 	headerJSON, err := json.Marshal(header)
 	if err != nil {
 		return "", ErrInvalidCredentialInput

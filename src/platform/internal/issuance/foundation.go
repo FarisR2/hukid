@@ -47,6 +47,8 @@ const (
 	ScopeIssuanceCreate = "issuance:create"
 	// ScopeIssuanceRead allows reading issuance request status.
 	ScopeIssuanceRead = "issuance:read"
+	// ScopeStatusWrite allows suspending, reactivating and revoking issued credentials.
+	ScopeStatusWrite = "status:write"
 
 	// IntegrationTokenClass and IntegrationAudience bind M2M tokens (profile §6).
 	IntegrationTokenClass      = "integration"
@@ -426,7 +428,7 @@ func NewClientRegistry(audit *AuditLog) *ClientRegistry {
 }
 
 func allowedIntegrationScope(s string) bool {
-	return s == ScopeIssuanceCreate || s == ScopeIssuanceRead
+	return s == ScopeIssuanceCreate || s == ScopeIssuanceRead || s == ScopeStatusWrite
 }
 
 // AllowedIntegrationScope reports whether s is a permitted M2M scope in v0.

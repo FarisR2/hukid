@@ -322,3 +322,237 @@ func TestPersistentPEMAndSealedSignerRoundTrip(t *testing.T) {
 		t.Fatal("expected AAD mismatch to fail")
 	}
 }
+
+type serviceStatusResolver struct {
+	svc    *Service
+	prefix string
+}
+
+func (r *serviceStatusResolver) ResolveStatusList(credentialURL string) (string, error) {
+	rest, ok := strings.CutPrefix(credentialURL, r.prefix)
+	if !ok {
+		return "", verification.ErrStatusResolution
+	}
+	purpose, listID, ok := strings.Cut(rest, "/")
+	if !ok || listID == "" {
+		return "", verification.ErrStatusResolution
+	}
+	jwt, err := r.svc.ResolveStatusList("unas", purpose, listID)
+	if err != nil {
+		return "", verification.ErrStatusResolution
+	}
+	return jwt, nil
+}
+
+func hasFailedStatusCheck(report verification.Report, want verification.Code) bool {
+	for _, chk := range report.Checks {
+		if chk.Name == verification.CheckStatus && chk.Result == verification.Fail && chk.Code == want {
+			return true
+		}
+	}
+	return false
+}
+
+func TestServiceStatusListsSuspendReactivateRevokeAndIdempotency(t *testing.T) {
+	h := newServiceHarness(t)
+
+	def := sampleCertificateDefinition("tenant-unas", "iss_unas")
+	def.Version = "2.0.0"
+	def.ConfigurationID = "unas_certificate_status_v2"
+	def.StatusPurposes = []string{PurposeRevocation, PurposeSuspension}
+	if err := h.defs.CreateDraft(def, "admin-1", "cor-s1", h.clock.Now()); err != nil {
+		t.Fatalf("create status def draft: %v", err)
+	}
+	if _, err := h.defs.Publish("tenant-unas", "iss_unas", def.ID, def.Version, "admin-1", "cor-s2", h.clock.Now()); err != nil {
+		t.Fatalf("publish status def: %v", err)
+	}
+
+	if err := h.clients.RegisterClient(
+		"tenant-unas",
+		"cli_status",
+		"Events Status Writer",
+		"status-secret-0123456789abcdef",
+		[]string{"iss_unas"},
+		[]string{ScopeIssuanceCreate, ScopeIssuanceRead, ScopeStatusWrite},
+		nil,
+		"admin-1",
+		"cor-s3",
+		h.clock.Now(),
+	); err != nil {
+		t.Fatalf("register cli_status: %v", err)
+	}
+	if err := h.clients.RegisterClient(
+		"tenant-other",
+		"cli_other_status",
+		"Other Tenant Status Writer",
+		"other-status-0123456789abcdef",
+		[]string{"iss_other"},
+		[]string{ScopeIssuanceCreate, ScopeIssuanceRead, ScopeStatusWrite},
+		nil,
+		"admin-2",
+		"cor-s4",
+		h.clock.Now(),
+	); err != nil {
+		t.Fatalf("register cli_other_status: %v", err)
+	}
+
+	tokNoScope, err := h.svc.ClientCredentialsToken("cli_events", "events-secret-0123456789abcdef", []string{ScopeIssuanceCreate, ScopeIssuanceRead})
+	if err != nil {
+		t.Fatalf("cli_events token: %v", err)
+	}
+	noScopeAuth, err := h.svc.AuthenticateIntegration(tokNoScope.AccessToken)
+	if err != nil {
+		t.Fatalf("auth cli_events: %v", err)
+	}
+
+	tokStatus, err := h.svc.ClientCredentialsToken("cli_status", "status-secret-0123456789abcdef", []string{ScopeIssuanceCreate, ScopeIssuanceRead, ScopeStatusWrite})
+	if err != nil {
+		t.Fatalf("cli_status token: %v", err)
+	}
+	statusAuth, err := h.svc.AuthenticateIntegration(tokStatus.AccessToken)
+	if err != nil {
+		t.Fatalf("auth cli_status: %v", err)
+	}
+
+	tokOther, err := h.svc.ClientCredentialsToken("cli_other_status", "other-status-0123456789abcdef", []string{ScopeStatusWrite})
+	if err != nil {
+		t.Fatalf("cli_other_status token: %v", err)
+	}
+	otherAuth, err := h.svc.AuthenticateIntegration(tokOther.AccessToken)
+	if err != nil {
+		t.Fatalf("auth cli_other_status: %v", err)
+	}
+
+	res, _, err := h.svc.CreateIssuanceRequest(statusAuth, "status-request-key-0001", IssuanceRequestInput{
+		IssuerID:             "iss_unas",
+		CredentialDefinition: "unas-certificate@2.0.0",
+		Claims: map[string]any{
+			"participantName": "Lucia Paredes",
+			"eventName":       "Taller de Seguridad UNAS",
+			"hours":           8,
+		},
+		Source: &SourceInput{System: "events", Reference: "cert_status_001"},
+	})
+	if err != nil {
+		t.Fatalf("create issuance request: %v", err)
+	}
+	idx := strings.LastIndex(res.CredentialOfferURI, "ofr_")
+	if idx < 0 {
+		t.Fatalf("missing offer ref in %q", res.CredentialOfferURI)
+	}
+	offer, err := h.svc.ResolveOffer("unas", res.CredentialOfferURI[idx:])
+	if err != nil {
+		t.Fatalf("resolve offer: %v", err)
+	}
+	vciTok, err := h.svc.PreAuthorizedToken(offer.Grants[PreAuthorizedGrantType].PreAuthorizedCode)
+	if err != nil {
+		t.Fatalf("pre-authorized token: %v", err)
+	}
+	cNonce, err := h.svc.IssueNonce("unas")
+	if err != nil {
+		t.Fatalf("issue nonce: %v", err)
+	}
+	holderKey := mustGenerateKey(t)
+	proofJWT, err := BuildHolderProof(holderKey, h.issuer.IssuerURI, cNonce, h.clock.Now(), nil)
+	if err != nil {
+		t.Fatalf("build proof: %v", err)
+	}
+	credReq := CredentialRequest{CredentialIdentifier: vciTok.AuthorizationDetails[0].CredentialIdentifiers[0]}
+	credReq.Proofs.JWT = []string{proofJWT}
+	vcJWT, err := h.svc.IssueCredential("unas", vciTok.AccessToken, credReq)
+	if err != nil {
+		t.Fatalf("issue credential: %v", err)
+	}
+
+	polled, err := h.svc.GetRequest(statusAuth, res.ID)
+	if err != nil {
+		t.Fatalf("get issued request: %v", err)
+	}
+	if polled.IssuanceState != "issued" || !strings.HasPrefix(polled.CredentialID, "vc_") {
+		t.Fatalf("expected issued state and opaque vc_ credentialId, got %+v", polled)
+	}
+	if strings.Contains(polled.CredentialID, "Lucia") {
+		t.Fatalf("credentialId leaked PII: %q", polled.CredentialID)
+	}
+	credID := polled.CredentialID
+
+	resolver, err := h.ring.BuildResolver()
+	if err != nil {
+		t.Fatalf("build resolver: %v", err)
+	}
+	verifier, err := verification.NewVerifier(resolver, h.clock, verification.DefaultLimits, verification.DefaultClockSkew)
+	if err != nil {
+		t.Fatalf("new verifier: %v", err)
+	}
+	verifier = verifier.
+		WithCredentialContexts(CertificateContext).
+		WithReplayStore(verification.NewMemoryReplayStore()).
+		WithStatusResolver(&serviceStatusResolver{svc: h.svc, prefix: h.issuer.IssuerURI + "/status/"}, verification.StatusPolicy{})
+
+	report, err := verifier.Verify(vcJWT)
+	if err != nil || report.TechnicalResult != verification.Valid {
+		t.Fatalf("expected active credential Valid, got %+v err=%v", report, err)
+	}
+
+	// Missing status:write scope fails closed; cross-tenant fails as not found; reactivating active fails transition.
+	if _, _, err := h.svc.SuspendCredential(noScopeAuth, "no-scope-suspend-01", credID, StatusChangeInput{ReasonCode: "audit"}); !errors.Is(err, ErrClientUnauthorized) {
+		t.Fatalf("expected ErrClientUnauthorized without status:write, got %v", err)
+	}
+	if _, _, err := h.svc.SuspendCredential(otherAuth, "other-tenant-susp-01", credID, StatusChangeInput{ReasonCode: "audit"}); !errors.Is(err, ErrResourceNotFound) {
+		t.Fatalf("expected ErrResourceNotFound across tenants, got %v", err)
+	}
+	if _, _, err := h.svc.ReactivateCredential(statusAuth, "reactivate-active-01", credID); !errors.Is(err, ErrInvalidStatusTransition) {
+		t.Fatalf("expected ErrInvalidStatusTransition reactivating active credential, got %v", err)
+	}
+
+	// Suspend -> idempotent replay -> conflict -> verifier status.suspended.
+	suspRes, replay, err := h.svc.SuspendCredential(statusAuth, "idem-suspend-0001", credID, StatusChangeInput{ReasonCode: "review", Comment: "revisando"})
+	if err != nil || replay || suspRes.DesiredStatus != CredentialStatusSuspended || suspRes.PublishedStatus != CredentialStatusSuspended {
+		t.Fatalf("unexpected suspend result: res=%+v replay=%v err=%v", suspRes, replay, err)
+	}
+	suspReplay, replay2, err := h.svc.SuspendCredential(statusAuth, "idem-suspend-0001", credID, StatusChangeInput{ReasonCode: "review", Comment: "revisando"})
+	if err != nil || !replay2 || suspReplay.StatusListVersion != suspRes.StatusListVersion {
+		t.Fatalf("expected idempotent suspend replay, got res=%+v replay=%v err=%v", suspReplay, replay2, err)
+	}
+	if _, _, err := h.svc.SuspendCredential(statusAuth, "idem-suspend-0001", credID, StatusChangeInput{ReasonCode: "different"}); !errors.Is(err, ErrIdempotencyConflict) {
+		t.Fatalf("expected ErrIdempotencyConflict on body mismatch, got %v", err)
+	}
+	if _, _, err := h.svc.SuspendCredential(statusAuth, "idem-suspend-0002", credID, StatusChangeInput{ReasonCode: "review"}); !errors.Is(err, ErrInvalidStatusTransition) {
+		t.Fatalf("expected ErrInvalidStatusTransition suspending already-suspended credential, got %v", err)
+	}
+
+	report, err = verifier.Verify(vcJWT)
+	if err != nil || report.TechnicalResult != verification.Invalid || !hasFailedStatusCheck(report, verification.CodeStatusSuspended) {
+		t.Fatalf("expected Invalid with status.suspended, got %+v err=%v", report, err)
+	}
+
+	// Reactivate -> Valid again.
+	reactRes, replay, err := h.svc.ReactivateCredential(statusAuth, "idem-reactivate-0001", credID)
+	if err != nil || replay || reactRes.DesiredStatus != CredentialStatusActive || reactRes.PublishedStatus != CredentialStatusActive {
+		t.Fatalf("unexpected reactivate result: res=%+v replay=%v err=%v", reactRes, replay, err)
+	}
+	report, err = verifier.Verify(vcJWT)
+	if err != nil || report.TechnicalResult != verification.Valid {
+		t.Fatalf("expected Valid after reactivation, got %+v err=%v", report, err)
+	}
+
+	// Revoke -> idempotent replay -> terminal -> verifier status.revoked.
+	revRes, replay, err := h.svc.RevokeCredential(statusAuth, "idem-revoke-0001", credID, StatusChangeInput{ReasonCode: "certificate_revoked"})
+	if err != nil || replay || revRes.DesiredStatus != CredentialStatusRevoked || revRes.PublishedStatus != CredentialStatusRevoked {
+		t.Fatalf("unexpected revoke result: res=%+v replay=%v err=%v", revRes, replay, err)
+	}
+	if _, replay3, err := h.svc.RevokeCredential(statusAuth, "idem-revoke-0001", credID, StatusChangeInput{ReasonCode: "certificate_revoked"}); err != nil || !replay3 {
+		t.Fatalf("expected idempotent revoke replay, got replay=%v err=%v", replay3, err)
+	}
+	if _, _, err := h.svc.ReactivateCredential(statusAuth, "idem-reactivate-revoked", credID); !errors.Is(err, ErrInvalidStatusTransition) {
+		t.Fatalf("expected ErrInvalidStatusTransition reactivating revoked credential, got %v", err)
+	}
+	if _, _, err := h.svc.SuspendCredential(statusAuth, "idem-suspend-revoked", credID, StatusChangeInput{ReasonCode: "review"}); !errors.Is(err, ErrInvalidStatusTransition) {
+		t.Fatalf("expected ErrInvalidStatusTransition suspending revoked credential, got %v", err)
+	}
+
+	report, err = verifier.Verify(vcJWT)
+	if err != nil || report.TechnicalResult != verification.Invalid || !hasFailedStatusCheck(report, verification.CodeStatusRevoked) {
+		t.Fatalf("expected Invalid with status.revoked, got %+v err=%v", report, err)
+	}
+}

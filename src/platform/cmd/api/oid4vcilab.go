@@ -302,6 +302,7 @@ func configureOID4VCILab(ctx context.Context, address string, out io.Writer, now
 			Contexts:        []string{issuance.CertificateContext},
 			Types:           []string{issuance.CertificateType},
 			DefaultValidity: 365 * 24 * time.Hour,
+			StatusPurposes:  []string{issuance.PurposeRevocation, issuance.PurposeSuspension},
 			Fields: map[string]issuance.FieldSpec{
 				"participantName": {Type: "string", Required: true, MaxLength: 120},
 				"eventName":       {Type: "string", Required: true, MaxLength: 160},
@@ -320,7 +321,7 @@ func configureOID4VCILab(ctx context.Context, address string, out io.Writer, now
 			"Lab Events Client",
 			clientSecret,
 			[]string{vciLabDefaultIssuerID},
-			[]string{issuance.ScopeIssuanceCreate, issuance.ScopeIssuanceRead},
+			[]string{issuance.ScopeIssuanceCreate, issuance.ScopeIssuanceRead, issuance.ScopeStatusWrite},
 			nil,
 			"vci-lab-seed",
 			"cor-seed-c1",

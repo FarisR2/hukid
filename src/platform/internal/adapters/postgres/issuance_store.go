@@ -246,7 +246,7 @@ func scanDefinitionRow(row pgx.Row) (issuance.Definition, error) {
 	var pubAt, retAt *time.Time
 	err := row.Scan(&d.TenantID, &d.IssuerID, &d.ID, &d.Version, &d.ConfigurationID,
 		&d.DisplayName, &d.Locale, &d.Contexts, &d.Types, &fieldsRaw, &validitySecs,
-		&state, &d.Hash, &d.CreatedAt, &pubAt, &retAt)
+		&d.StatusPurposes, &state, &d.Hash, &d.CreatedAt, &pubAt, &retAt)
 	if err != nil {
 		return issuance.Definition{}, err
 	}
@@ -267,13 +267,14 @@ func scanDefinitionRow(row pgx.Row) (issuance.Definition, error) {
 	return d, nil
 }
 
+const selectDefinitionCols = `SELECT tenant_id::text,issuer_id::text,definition_id,version,configuration_id,display_name,locale,contexts,types,fields_json,default_validity_seconds,status_purposes,state,content_hash,created_at,published_at,retired_at FROM definition.definition_versions`
+
 func (t *postgresIssuanceTx) GetIssuableDefinition(issuerID, id, version string) (issuance.Definition, error) {
 	if !validID(issuerID) {
 		return issuance.Definition{}, issuance.ErrDefinitionNotFound
 	}
 	d, err := scanDefinitionRow(t.tx.QueryRow(t.ctx,
-		`SELECT tenant_id::text,issuer_id::text,definition_id,version,configuration_id,display_name,locale,contexts,types,fields_json,default_validity_seconds,state,content_hash,created_at,published_at,retired_at
-		 FROM definition.definition_versions WHERE issuer_id=$1 AND definition_id=$2 AND version=$3`,
+		selectDefinitionCols+` WHERE issuer_id=$1 AND definition_id=$2 AND version=$3`,
 		issuerID, id, version))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return issuance.Definition{}, issuance.ErrDefinitionNotFound
@@ -292,8 +293,7 @@ func (t *postgresIssuanceTx) ListPublishedDefinitions(issuerID string) ([]issuan
 		return nil, nil
 	}
 	rows, err := t.tx.Query(t.ctx,
-		`SELECT tenant_id::text,issuer_id::text,definition_id,version,configuration_id,display_name,locale,contexts,types,fields_json,default_validity_seconds,state,content_hash,created_at,published_at,retired_at
-		 FROM definition.definition_versions WHERE issuer_id=$1 AND state='published' ORDER BY definition_id,version`, issuerID)
+		selectDefinitionCols+` WHERE issuer_id=$1 AND state='published' ORDER BY definition_id,version`, issuerID)
 	if err != nil {
 		return nil, err
 	}
@@ -375,7 +375,7 @@ func scanStoredRequest(row pgx.Row) (issuance.StoredRequest, bool, error) {
 	var offerVer pgtype.Text
 	err := row.Scan(&r.ID, &r.TenantID, &r.IssuerID, &r.ClientID, &r.DefID, &r.DefVersion, &r.ConfigID,
 		&r.ClaimsCipher, &r.ClaimsNonce, &r.ClaimsKeyVer, &r.OfferRef, &r.OfferCipher, &r.OfferNonce, &offerVer,
-		&r.OfferState, &r.IssuanceState, &r.SourceSystem, &r.SourceReference, &r.CreatedAt, &r.ExpiresAt)
+		&r.OfferState, &r.IssuanceState, &r.IssuedCredentialID, &r.SourceSystem, &r.SourceReference, &r.CreatedAt, &r.ExpiresAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return issuance.StoredRequest{}, false, nil
 	}
@@ -388,7 +388,7 @@ func scanStoredRequest(row pgx.Row) (issuance.StoredRequest, bool, error) {
 	return r, true, nil
 }
 
-const selectRequestCols = `SELECT request_id,tenant_id::text,issuer_id::text,client_id::text,definition_id,definition_version,configuration_id,claims_ciphertext,claims_nonce,claims_key_version,offer_ref,offer_ciphertext,offer_nonce,offer_key_version,offer_state,issuance_state,source_system,source_reference,created_at,expires_at FROM issuance.issuance_requests`
+const selectRequestCols = `SELECT request_id,tenant_id::text,issuer_id::text,client_id::text,definition_id,definition_version,configuration_id,claims_ciphertext,claims_nonce,claims_key_version,offer_ref,offer_ciphertext,offer_nonce,offer_key_version,offer_state,issuance_state,issued_credential_id,source_system,source_reference,created_at,expires_at FROM issuance.issuance_requests`
 
 func (t *postgresIssuanceTx) GetRequestForClient(requestID, clientID string) (issuance.StoredRequest, bool, error) {
 	if !validID(clientID) || requestID == "" {
@@ -552,11 +552,11 @@ func (t *postgresIssuanceTx) LockTokenForCredential(tokenHash [32]byte) (issuanc
 	return t.queryToken(tokenHash, true)
 }
 
-func (t *postgresIssuanceTx) MarkIssued(requestID string, tokenHash [32]byte, now time.Time) error {
+func (t *postgresIssuanceTx) MarkIssued(requestID string, tokenHash [32]byte, issuedCredentialID string, now time.Time) error {
 	nowUTC := now.UTC()
 	tag, err := t.tx.Exec(t.ctx,
-		`UPDATE issuance.issuance_requests SET issuance_state='issued',issued_at=$2 WHERE request_id=$1 AND issuance_state='prepared'`,
-		requestID, nowUTC)
+		`UPDATE issuance.issuance_requests SET issuance_state='issued',issued_credential_id=$3,issued_at=$2 WHERE request_id=$1 AND issuance_state='prepared'`,
+		requestID, nowUTC, issuedCredentialID)
 	if err != nil || tag.RowsAffected() != 1 {
 		return issuance.ErrInvalidToken
 	}
@@ -567,6 +567,190 @@ func (t *postgresIssuanceTx) MarkIssued(requestID string, tokenHash [32]byte, no
 		return issuance.ErrInvalidToken
 	}
 	return nil
+}
+
+func (t *postgresIssuanceTx) AllocateStatusSlot(
+	issuerID, purpose string,
+	listSize int,
+	newListID func() (string, error),
+	signInitial func(listID string, rawBits []byte) (jwt string, validFrom, validUntil time.Time, err error),
+	now time.Time,
+) (string, int, error) {
+	if !validID(issuerID) || listSize <= 0 || listSize%8 != 0 {
+		return "", 0, issuance.ErrInvalidRequest
+	}
+	if _, err := t.tx.Exec(t.ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1||'|'||$2||'|'||$3,0))`, t.tenantID, issuerID, purpose); err != nil {
+		return "", 0, err
+	}
+	nowUTC := now.UTC()
+	var listID string
+	var nextIdx int
+	err := t.tx.QueryRow(t.ctx,
+		`SELECT list_id,next_index FROM status.status_lists
+		 WHERE issuer_id=$1 AND purpose=$2 AND next_index<bitstring_size
+		 ORDER BY updated_at DESC LIMIT 1 FOR UPDATE`, issuerID, purpose).Scan(&listID, &nextIdx)
+	if err == nil {
+		tag, updErr := t.tx.Exec(t.ctx,
+			`UPDATE status.status_lists SET next_index=next_index+1,updated_at=$3 WHERE issuer_id=$1 AND list_id=$2`,
+			issuerID, listID, nowUTC)
+		if updErr != nil || tag.RowsAffected() != 1 {
+			return "", 0, issuance.ErrStatusListFull
+		}
+		return listID, nextIdx, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return "", 0, err
+	}
+	listID, err = newListID()
+	if err != nil {
+		return "", 0, issuance.ErrInvalidRequest
+	}
+	rawBits := make([]byte, listSize/8)
+	jwt, validFrom, validUntil, err := signInitial(listID, rawBits)
+	if err != nil {
+		return "", 0, err
+	}
+	_, err = t.tx.Exec(t.ctx,
+		`INSERT INTO status.status_lists(tenant_id,issuer_id,list_id,purpose,bitstring_size,next_index,raw_bits,version,published_version,published_jwt,valid_from,valid_until,updated_at)
+		 VALUES($1,$2,$3,$4,$5,1,$6,1,1,$7,$8,$9,$10)`,
+		t.tenantID, issuerID, listID, purpose, listSize, rawBits, jwt, validFrom.UTC(), validUntil.UTC(), nowUTC)
+	if err != nil {
+		return "", 0, err
+	}
+	return listID, 0, nil
+}
+
+func (t *postgresIssuanceTx) SaveIssuedCredential(rec issuance.IssuedCredentialRecord) error {
+	_, err := t.tx.Exec(t.ctx,
+		`INSERT INTO status.issued_credentials(credential_id,tenant_id,issuer_id,request_id,client_id,jws_digest,revocation_list_id,revocation_index,suspension_list_id,suspension_index,desired_status,published_status,status_version,reason_code,issued_at)
+		 VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+		rec.CredentialID, rec.TenantID, rec.IssuerID, rec.RequestID, rec.ClientID, rec.Digest,
+		rec.RevocationListID, rec.RevocationIndex, rec.SuspensionListID, rec.SuspensionIndex,
+		rec.DesiredStatus, rec.PublishedStatus, rec.StatusVersion, rec.ReasonCode, rec.IssuedAt.UTC())
+	return err
+}
+
+func (t *postgresIssuanceTx) LockIssuedCredential(credentialID string) (issuance.IssuedCredentialRecord, bool, error) {
+	if credentialID == "" {
+		return issuance.IssuedCredentialRecord{}, false, nil
+	}
+	var rec issuance.IssuedCredentialRecord
+	var suspAt, revAt *time.Time
+	err := t.tx.QueryRow(t.ctx,
+		`SELECT credential_id,tenant_id::text,issuer_id::text,request_id,client_id::text,jws_digest,
+		        revocation_list_id,revocation_index,suspension_list_id,suspension_index,
+		        desired_status,published_status,status_version,reason_code,issued_at,suspended_at,revoked_at
+		 FROM status.issued_credentials WHERE credential_id=$1 FOR UPDATE`, credentialID).
+		Scan(&rec.CredentialID, &rec.TenantID, &rec.IssuerID, &rec.RequestID, &rec.ClientID, &rec.Digest,
+			&rec.RevocationListID, &rec.RevocationIndex, &rec.SuspensionListID, &rec.SuspensionIndex,
+			&rec.DesiredStatus, &rec.PublishedStatus, &rec.StatusVersion, &rec.ReasonCode, &rec.IssuedAt, &suspAt, &revAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return issuance.IssuedCredentialRecord{}, false, nil
+	}
+	if err != nil {
+		return issuance.IssuedCredentialRecord{}, false, err
+	}
+	rec.IssuedAt = rec.IssuedAt.UTC()
+	if suspAt != nil {
+		s := suspAt.UTC()
+		rec.SuspendedAt = &s
+	}
+	if revAt != nil {
+		r := revAt.UTC()
+		rec.RevokedAt = &r
+	}
+	return rec, true, nil
+}
+
+func scanStatusList(row pgx.Row) (issuance.StatusListRecord, bool, error) {
+	var l issuance.StatusListRecord
+	err := row.Scan(&l.TenantID, &l.IssuerID, &l.ListID, &l.Purpose, &l.BitstringSize, &l.NextIndex,
+		&l.RawBits, &l.Version, &l.PublishedVersion, &l.PublishedJWT, &l.ValidFrom, &l.ValidUntil, &l.UpdatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return issuance.StatusListRecord{}, false, nil
+	}
+	if err != nil {
+		return issuance.StatusListRecord{}, false, err
+	}
+	l.ValidFrom = l.ValidFrom.UTC()
+	l.ValidUntil = l.ValidUntil.UTC()
+	l.UpdatedAt = l.UpdatedAt.UTC()
+	return l, true, nil
+}
+
+const selectStatusListCols = `SELECT tenant_id::text,issuer_id::text,list_id,purpose,bitstring_size,next_index,raw_bits,version,published_version,published_jwt,valid_from,valid_until,updated_at FROM status.status_lists`
+
+func (t *postgresIssuanceTx) LockStatusList(issuerID, listID string) (issuance.StatusListRecord, bool, error) {
+	if !validID(issuerID) || listID == "" {
+		return issuance.StatusListRecord{}, false, nil
+	}
+	return scanStatusList(t.tx.QueryRow(t.ctx, selectStatusListCols+` WHERE issuer_id=$1 AND list_id=$2 FOR UPDATE`, issuerID, listID))
+}
+
+func (t *postgresIssuanceTx) GetPublishedStatusList(issuerID, purpose, listID string) (issuance.StatusListRecord, bool, error) {
+	if !validID(issuerID) || purpose == "" || listID == "" {
+		return issuance.StatusListRecord{}, false, nil
+	}
+	return scanStatusList(t.tx.QueryRow(t.ctx, selectStatusListCols+` WHERE issuer_id=$1 AND purpose=$2 AND list_id=$3`, issuerID, purpose, listID))
+}
+
+func (t *postgresIssuanceTx) SaveStatusListAndCredential(list issuance.StatusListRecord, cred issuance.IssuedCredentialRecord) error {
+	tag, err := t.tx.Exec(t.ctx,
+		`UPDATE status.status_lists SET raw_bits=$3,version=$4,published_version=$5,published_jwt=$6,valid_from=$7,valid_until=$8,updated_at=$9
+		 WHERE issuer_id=$1 AND list_id=$2 AND version=$10`,
+		list.IssuerID, list.ListID, list.RawBits, list.Version, list.PublishedVersion, list.PublishedJWT,
+		list.ValidFrom.UTC(), list.ValidUntil.UTC(), list.UpdatedAt.UTC(), list.Version-1)
+	if err != nil || tag.RowsAffected() != 1 {
+		return issuance.ErrInvalidStatusTransition
+	}
+	tag, err = t.tx.Exec(t.ctx,
+		`UPDATE status.issued_credentials SET desired_status=$2,published_status=$3,status_version=$4,reason_code=$5,suspended_at=$6,revoked_at=$7
+		 WHERE credential_id=$1 AND status_version=$8`,
+		cred.CredentialID, cred.DesiredStatus, cred.PublishedStatus, cred.StatusVersion, cred.ReasonCode,
+		cred.SuspendedAt, cred.RevokedAt, cred.StatusVersion-1)
+	if err != nil || tag.RowsAffected() != 1 {
+		return issuance.ErrInvalidStatusTransition
+	}
+	return nil
+}
+
+func (t *postgresIssuanceTx) LockStatusIdempotency(clientID string, keyHash [32]byte) (issuance.StatusIdempotencyRecord, bool, error) {
+	if !validID(clientID) {
+		return issuance.StatusIdempotencyRecord{}, false, nil
+	}
+	if _, err := t.tx.Exec(t.ctx, `SELECT pg_advisory_xact_lock(hashtextextended('status|'||$1||'|'||$2||'|'||encode($3,'hex'),0))`, t.tenantID, clientID, keyHash[:]); err != nil {
+		return issuance.StatusIdempotencyRecord{}, false, err
+	}
+	var out issuance.StatusIdempotencyRecord
+	var reqHash, rawResult []byte
+	err := t.tx.QueryRow(t.ctx,
+		`SELECT request_hash,result_json FROM status.status_idempotency WHERE client_id=$1 AND key_hash=$2`,
+		clientID, keyHash[:]).Scan(&reqHash, &rawResult)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return issuance.StatusIdempotencyRecord{}, false, nil
+	}
+	if err != nil {
+		return issuance.StatusIdempotencyRecord{}, false, err
+	}
+	if len(reqHash) != 32 || json.Unmarshal(rawResult, &out.Result) != nil {
+		return issuance.StatusIdempotencyRecord{}, false, issuance.ErrInvalidRequest
+	}
+	out.ClientID = clientID
+	out.KeyHash = keyHash
+	copy(out.RequestHash[:], reqHash)
+	return out, true, nil
+}
+
+func (t *postgresIssuanceTx) SaveStatusIdempotency(rec issuance.StatusIdempotencyRecord) error {
+	rawResult, err := json.Marshal(rec.Result)
+	if err != nil {
+		return err
+	}
+	_, err = t.tx.Exec(t.ctx,
+		`INSERT INTO status.status_idempotency(tenant_id,client_id,key_hash,request_hash,result_json,created_at)
+		 VALUES($1,$2,$3,$4,$5,$6)`,
+		t.tenantID, rec.ClientID, rec.KeyHash[:], rec.RequestHash[:], rawResult, rec.Result.EffectiveAt.UTC())
+	return err
 }
 
 func (t *postgresIssuanceTx) AppendAudit(rec issuance.AuditRecord) error {
@@ -754,6 +938,10 @@ func (b *IssuanceBackend) CreateDraftDefinition(ctx context.Context, def issuanc
 	if contexts == nil {
 		contexts = []string{}
 	}
+	purposes := def.StatusPurposes
+	if purposes == nil {
+		purposes = []string{}
+	}
 	ts := now.UTC()
 	err = WithIssuanceTenant(ctx, b.pool, def.TenantID, func(tx pgx.Tx) error {
 		if _, err := tx.Exec(ctx,
@@ -762,10 +950,10 @@ func (b *IssuanceBackend) CreateDraftDefinition(ctx context.Context, def issuanc
 			return err
 		}
 		_, err := tx.Exec(ctx,
-			`INSERT INTO definition.definition_versions(tenant_id,issuer_id,definition_id,version,configuration_id,display_name,locale,contexts,types,fields_json,default_validity_seconds,state,content_hash,created_at)
-			 VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'draft','',$12)`,
+			`INSERT INTO definition.definition_versions(tenant_id,issuer_id,definition_id,version,configuration_id,display_name,locale,contexts,types,fields_json,default_validity_seconds,status_purposes,state,content_hash,created_at)
+			 VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'draft','',$13)`,
 			def.TenantID, def.IssuerID, def.ID, def.Version, def.ConfigurationID, def.DisplayName,
-			def.Locale, contexts, def.Types, fieldsJSON, int64(def.DefaultValidity/time.Second), ts)
+			def.Locale, contexts, def.Types, fieldsJSON, int64(def.DefaultValidity/time.Second), purposes, ts)
 		if err != nil {
 			return err
 		}
@@ -787,6 +975,10 @@ func (b *IssuanceBackend) ReplaceDraftDefinition(ctx context.Context, def issuan
 	if contexts == nil {
 		contexts = []string{}
 	}
+	purposes := def.StatusPurposes
+	if purposes == nil {
+		purposes = []string{}
+	}
 	ts := now.UTC()
 	err = WithIssuanceTenant(ctx, b.pool, def.TenantID, func(tx pgx.Tx) error {
 		var state string
@@ -804,9 +996,9 @@ func (b *IssuanceBackend) ReplaceDraftDefinition(ctx context.Context, def issuan
 		}
 		_, err = tx.Exec(ctx,
 			`UPDATE definition.definition_versions
-			 SET configuration_id=$4,display_name=$5,locale=$6,contexts=$7,types=$8,fields_json=$9,default_validity_seconds=$10
+			 SET configuration_id=$4,display_name=$5,locale=$6,contexts=$7,types=$8,fields_json=$9,default_validity_seconds=$10,status_purposes=$11
 			 WHERE issuer_id=$1 AND definition_id=$2 AND version=$3`,
-			def.IssuerID, def.ID, def.Version, def.ConfigurationID, def.DisplayName, def.Locale, contexts, def.Types, fieldsJSON, int64(def.DefaultValidity/time.Second))
+			def.IssuerID, def.ID, def.Version, def.ConfigurationID, def.DisplayName, def.Locale, contexts, def.Types, fieldsJSON, int64(def.DefaultValidity/time.Second), purposes)
 		if err != nil {
 			return err
 		}
@@ -824,8 +1016,7 @@ func (b *IssuanceBackend) PublishDefinition(ctx context.Context, tenantID, issue
 	var out issuance.Definition
 	err := WithIssuanceTenant(ctx, b.pool, tenantID, func(tx pgx.Tx) error {
 		d, err := scanDefinitionRow(tx.QueryRow(ctx,
-			`SELECT tenant_id::text,issuer_id::text,definition_id,version,configuration_id,display_name,locale,contexts,types,fields_json,default_validity_seconds,state,content_hash,created_at,published_at,retired_at
-			 FROM definition.definition_versions WHERE issuer_id=$1 AND definition_id=$2 AND version=$3 FOR UPDATE`,
+			selectDefinitionCols+` WHERE issuer_id=$1 AND definition_id=$2 AND version=$3 FOR UPDATE`,
 			issuerID, id, version))
 		if errors.Is(err, pgx.ErrNoRows) {
 			return issuance.ErrDefinitionNotFound
@@ -896,8 +1087,7 @@ func (b *IssuanceBackend) GetDefinition(ctx context.Context, tenantID, issuerID,
 	var out issuance.Definition
 	err := WithIssuanceTenant(ctx, b.pool, tenantID, func(tx pgx.Tx) error {
 		d, err := scanDefinitionRow(tx.QueryRow(ctx,
-			`SELECT tenant_id::text,issuer_id::text,definition_id,version,configuration_id,display_name,locale,contexts,types,fields_json,default_validity_seconds,state,content_hash,created_at,published_at,retired_at
-			 FROM definition.definition_versions WHERE issuer_id=$1 AND definition_id=$2 AND version=$3`,
+			selectDefinitionCols+` WHERE issuer_id=$1 AND definition_id=$2 AND version=$3`,
 			issuerID, id, version))
 		if errors.Is(err, pgx.ErrNoRows) {
 			return issuance.ErrDefinitionNotFound

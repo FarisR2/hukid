@@ -30,26 +30,27 @@ type StoredClient struct {
 
 // StoredRequest is the tenant-scoped encrypted issuance request record.
 type StoredRequest struct {
-	ID              string
-	TenantID        string
-	IssuerID        string
-	ClientID        string
-	DefID           string
-	DefVersion      string
-	ConfigID        string
-	ClaimsCipher    []byte
-	ClaimsNonce     []byte
-	ClaimsKeyVer    string
-	OfferRef        string
-	OfferCipher     []byte
-	OfferNonce      []byte
-	OfferKeyVer     string
-	OfferState      string
-	IssuanceState   string
-	SourceSystem    string
-	SourceReference string
-	CreatedAt       time.Time
-	ExpiresAt       time.Time
+	ID                 string
+	TenantID           string
+	IssuerID           string
+	ClientID           string
+	DefID              string
+	DefVersion         string
+	ConfigID           string
+	ClaimsCipher       []byte
+	ClaimsNonce        []byte
+	ClaimsKeyVer       string
+	OfferRef           string
+	OfferCipher        []byte
+	OfferNonce         []byte
+	OfferKeyVer        string
+	OfferState         string
+	IssuanceState      string
+	IssuedCredentialID string
+	SourceSystem       string
+	SourceReference    string
+	CreatedAt          time.Time
+	ExpiresAt          time.Time
 }
 
 // StoredOffer carries the minimal request linkage returned when redeeming an offer.
@@ -80,6 +81,14 @@ type IdempotencyRecord struct {
 	KeyHash     [32]byte
 	RequestHash [32]byte
 	Result      IssuanceRequestResult
+}
+
+// StatusIdempotencyRecord snapshots an Idempotency-Key response for status transitions.
+type StatusIdempotencyRecord struct {
+	ClientID    string
+	KeyHash     [32]byte
+	RequestHash [32]byte
+	Result      StatusChangeResult
 }
 
 // Backend abstracts tenant-scoped issuance persistence. Implementations run Tx
@@ -113,7 +122,15 @@ type Tx interface {
 	LookupToken(tokenHash [32]byte) (StoredToken, bool, error)
 	LockTokenForCredential(tokenHash [32]byte) (StoredToken, bool, error)
 	LockRequest(requestID string) (StoredRequest, bool, error)
-	MarkIssued(requestID string, tokenHash [32]byte, now time.Time) error
+	MarkIssued(requestID string, tokenHash [32]byte, issuedCredentialID string, now time.Time) error
+	AllocateStatusSlot(issuerID, purpose string, listSize int, newListID func() (string, error), signInitial func(listID string, rawBits []byte) (jwt string, validFrom, validUntil time.Time, err error), now time.Time) (string, int, error)
+	SaveIssuedCredential(rec IssuedCredentialRecord) error
+	LockIssuedCredential(credentialID string) (IssuedCredentialRecord, bool, error)
+	LockStatusList(issuerID, listID string) (StatusListRecord, bool, error)
+	GetPublishedStatusList(issuerID, purpose, listID string) (StatusListRecord, bool, error)
+	SaveStatusListAndCredential(list StatusListRecord, cred IssuedCredentialRecord) error
+	LockStatusIdempotency(clientID string, keyHash [32]byte) (StatusIdempotencyRecord, bool, error)
+	SaveStatusIdempotency(rec StatusIdempotencyRecord) error
 	AppendAudit(rec AuditRecord) error
 }
 
@@ -202,33 +219,39 @@ type memoryTokenEntry struct {
 }
 
 type memoryBackend struct {
-	mu      sync.Mutex
-	clients *ClientRegistry
-	defs    *DefinitionRegistry
-	audit   *AuditLog
-	offers  *OfferStore
-	nonces  *NonceStore
-	byID    map[string]*issuerEntry
-	bySlug  map[string]*issuerEntry
-	reqs    map[string]*StoredRequest
-	byRef   map[string]*StoredRequest
-	idem    map[memoryIdemKey]IdempotencyRecord
-	tokens  map[[32]byte]*memoryTokenEntry
+	mu          sync.Mutex
+	clients     *ClientRegistry
+	defs        *DefinitionRegistry
+	audit       *AuditLog
+	offers      *OfferStore
+	nonces      *NonceStore
+	byID        map[string]*issuerEntry
+	bySlug      map[string]*issuerEntry
+	reqs        map[string]*StoredRequest
+	byRef       map[string]*StoredRequest
+	idem        map[memoryIdemKey]IdempotencyRecord
+	tokens      map[[32]byte]*memoryTokenEntry
+	statusLists map[string]*StatusListRecord
+	issuedCreds map[string]*IssuedCredentialRecord
+	statusIdem  map[memoryIdemKey]StatusIdempotencyRecord
 }
 
 func newMemoryBackend(cfg ServiceConfig) *memoryBackend {
 	return &memoryBackend{
-		clients: cfg.Clients,
-		defs:    cfg.Definitions,
-		audit:   cfg.Audit,
-		offers:  NewOfferStore(cfg.Random),
-		nonces:  NewNonceStore(DefaultNonceTTL, cfg.Random),
-		byID:    map[string]*issuerEntry{},
-		bySlug:  map[string]*issuerEntry{},
-		reqs:    map[string]*StoredRequest{},
-		byRef:   map[string]*StoredRequest{},
-		idem:    map[memoryIdemKey]IdempotencyRecord{},
-		tokens:  map[[32]byte]*memoryTokenEntry{},
+		clients:     cfg.Clients,
+		defs:        cfg.Definitions,
+		audit:       cfg.Audit,
+		offers:      NewOfferStore(cfg.Random),
+		nonces:      NewNonceStore(DefaultNonceTTL, cfg.Random),
+		byID:        map[string]*issuerEntry{},
+		bySlug:      map[string]*issuerEntry{},
+		reqs:        map[string]*StoredRequest{},
+		byRef:       map[string]*StoredRequest{},
+		idem:        map[memoryIdemKey]IdempotencyRecord{},
+		tokens:      map[[32]byte]*memoryTokenEntry{},
+		statusLists: map[string]*StatusListRecord{},
+		issuedCreds: map[string]*IssuedCredentialRecord{},
+		statusIdem:  map[memoryIdemKey]StatusIdempotencyRecord{},
 	}
 }
 
@@ -486,7 +509,7 @@ func (t *memoryTx) LockRequest(requestID string) (StoredRequest, bool, error) {
 	return *rec, true, nil
 }
 
-func (t *memoryTx) MarkIssued(requestID string, tokenHash [32]byte, _ time.Time) error {
+func (t *memoryTx) MarkIssued(requestID string, tokenHash [32]byte, issuedCredentialID string, _ time.Time) error {
 	rec, ok := t.m.reqs[requestID]
 	if !ok || rec.TenantID != t.tenantID {
 		return ErrInvalidToken
@@ -496,7 +519,113 @@ func (t *memoryTx) MarkIssued(requestID string, tokenHash [32]byte, _ time.Time)
 		return ErrInvalidToken
 	}
 	rec.IssuanceState = issuanceIssued
+	rec.IssuedCredentialID = issuedCredentialID
 	tok.record.Used = true
+	return nil
+}
+
+func (t *memoryTx) AllocateStatusSlot(
+	issuerID, purpose string,
+	listSize int,
+	newListID func() (string, error),
+	signInitial func(listID string, rawBits []byte) (jwt string, validFrom, validUntil time.Time, err error),
+	now time.Time,
+) (string, int, error) {
+	if listSize <= 0 || listSize%8 != 0 {
+		return "", 0, ErrInvalidRequest
+	}
+	for _, list := range t.m.statusLists {
+		if list.TenantID == t.tenantID && list.IssuerID == issuerID && list.Purpose == purpose && list.NextIndex < list.BitstringSize {
+			idx := list.NextIndex
+			list.NextIndex++
+			list.UpdatedAt = now.UTC()
+			return list.ListID, idx, nil
+		}
+	}
+	listID, err := newListID()
+	if err != nil {
+		return "", 0, ErrInvalidRequest
+	}
+	rawBits := make([]byte, listSize/8)
+	jwt, validFrom, validUntil, err := signInitial(listID, rawBits)
+	if err != nil {
+		return "", 0, err
+	}
+	t.m.statusLists[listID] = &StatusListRecord{
+		TenantID:         t.tenantID,
+		IssuerID:         issuerID,
+		ListID:           listID,
+		Purpose:          purpose,
+		BitstringSize:    listSize,
+		NextIndex:        1,
+		RawBits:          rawBits,
+		Version:          1,
+		PublishedVersion: 1,
+		PublishedJWT:     jwt,
+		ValidFrom:        validFrom.UTC(),
+		ValidUntil:       validUntil.UTC(),
+		UpdatedAt:        now.UTC(),
+	}
+	return listID, 0, nil
+}
+
+func (t *memoryTx) SaveIssuedCredential(rec IssuedCredentialRecord) error {
+	copyRec := rec
+	t.m.issuedCreds[rec.CredentialID] = &copyRec
+	return nil
+}
+
+func (t *memoryTx) LockIssuedCredential(credentialID string) (IssuedCredentialRecord, bool, error) {
+	rec, ok := t.m.issuedCreds[credentialID]
+	if !ok || rec.TenantID != t.tenantID {
+		return IssuedCredentialRecord{}, false, nil
+	}
+	return *rec, true, nil
+}
+
+func (t *memoryTx) LockStatusList(issuerID, listID string) (StatusListRecord, bool, error) {
+	list, ok := t.m.statusLists[listID]
+	if !ok || list.TenantID != t.tenantID || list.IssuerID != issuerID {
+		return StatusListRecord{}, false, nil
+	}
+	copied := *list
+	copied.RawBits = slices.Clone(list.RawBits)
+	return copied, true, nil
+}
+
+func (t *memoryTx) GetPublishedStatusList(issuerID, purpose, listID string) (StatusListRecord, bool, error) {
+	list, ok := t.m.statusLists[listID]
+	if !ok || list.TenantID != t.tenantID || list.IssuerID != issuerID || list.Purpose != purpose {
+		return StatusListRecord{}, false, nil
+	}
+	copied := *list
+	copied.RawBits = slices.Clone(list.RawBits)
+	return copied, true, nil
+}
+
+func (t *memoryTx) SaveStatusListAndCredential(list StatusListRecord, cred IssuedCredentialRecord) error {
+	existing, ok := t.m.statusLists[list.ListID]
+	if !ok || existing.TenantID != t.tenantID || existing.IssuerID != list.IssuerID {
+		return ErrResourceNotFound
+	}
+	if existing.Version != list.Version-1 {
+		return ErrInvalidStatusTransition
+	}
+	copyList := list
+	copyList.RawBits = slices.Clone(list.RawBits)
+	t.m.statusLists[list.ListID] = &copyList
+	copyCred := cred
+	t.m.issuedCreds[cred.CredentialID] = &copyCred
+	return nil
+}
+
+func (t *memoryTx) LockStatusIdempotency(clientID string, keyHash [32]byte) (StatusIdempotencyRecord, bool, error) {
+	rec, ok := t.m.statusIdem[memoryIdemKey{t.tenantID, clientID, keyHash}]
+	return rec, ok, nil
+}
+
+func (t *memoryTx) SaveStatusIdempotency(rec StatusIdempotencyRecord) error {
+	t.m.statusIdem[memoryIdemKey{t.tenantID, rec.ClientID, rec.KeyHash}] = rec
 	return nil
 }
 

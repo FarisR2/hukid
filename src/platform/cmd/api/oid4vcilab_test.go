@@ -19,6 +19,7 @@ import (
 
 	"github.com/go-jose/go-jose/v4"
 
+	"hukid.local/platform/internal/adapters/verifierhttp"
 	"hukid.local/platform/internal/bootstrap"
 	"hukid.local/platform/internal/issuance"
 	"hukid.local/platform/internal/verification"
@@ -198,7 +199,7 @@ func TestVCILabPersistentKeyAndDualMountE2E(t *testing.T) {
 		"grant_type":    {"client_credentials"},
 		"client_id":     {clientID},
 		"client_secret": {clientSecret},
-		"scope":         {issuance.ScopeIssuanceCreate + " " + issuance.ScopeIssuanceRead},
+		"scope":         {issuance.ScopeIssuanceCreate + " " + issuance.ScopeIssuanceRead + " " + issuance.ScopeStatusWrite},
 	}
 	tokReq := httptest.NewRequest(http.MethodPost, "/oauth2/token", strings.NewReader(form.Encode()))
 	tokReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -301,41 +302,35 @@ func TestVCILabPersistentKeyAndDualMountE2E(t *testing.T) {
 		t.Fatalf("unexpected credential payload: %s", credRec.Body.String())
 	}
 
-	// 5. Verify emitted vc+jwt against the public JWKS endpoint.
-	jwksRec := httptest.NewRecorder()
-	handler.ServeHTTP(jwksRec, httptest.NewRequest(http.MethodGet, "/unas/.well-known/jwks.json", nil))
-	if jwksRec.Code != http.StatusOK {
-		t.Fatalf("jwks failed: %d", jwksRec.Code)
-	}
-	var jwksDoc issuance.JWKS
-	if err := json.Unmarshal(jwksRec.Body.Bytes(), &jwksDoc); err != nil || len(jwksDoc.Keys) != 1 {
-		t.Fatalf("bad jwks: %s", jwksRec.Body.String())
-	}
-	pub, err := issuance.DecodePublicJWK(jwksDoc.Keys[0])
+	// 5. Verify emitted vc+jwt (with credentialStatus) over real HTTP via VER-T12 + VER-T09!
+	srv := httptest.NewServer(handler)
+	defer srv.Close()
+
+	httpResolver, err := verifierhttp.NewResolver(verifierhttp.Config{TransportBase: srv.URL})
 	if err != nil {
 		t.Fatal(err)
 	}
-	resolver := verification.NewMemoryKeyResolver()
-	if err := resolver.Add("https://issuer.hukid.pe/unas", jwksDoc.Keys[0].Kid, pub); err != nil {
-		t.Fatal(err)
-	}
-	verifier, err := verification.NewVerifier(resolver, verification.ClockFunc(clk), verification.DefaultLimits, 0)
+	verifier, err := verification.NewVerifier(httpResolver, verification.ClockFunc(clk), verification.DefaultLimits, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
+	verifier = verifier.
+		WithCredentialContexts(issuance.CertificateContext).
+		WithStatusResolver(httpResolver, verification.StatusPolicy{MaxStaleness: 10 * time.Minute})
+
 	holderJKT, err := verification.JWKThumbprint(&holder.PublicKey)
 	if err != nil {
 		t.Fatal(err)
 	}
-	verifier = verifier.WithCredentialContexts(issuance.CertificateContext)
-	report, err := verifier.Verify(issuedBody.Credentials[0].Credential)
+	vcJWT := issuedBody.Credentials[0].Credential
+	report, err := verifier.Verify(vcJWT)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if report.TechnicalResult != verification.Valid {
 		t.Fatalf("verified vc+jwt expected valid, got %+v", report)
 	}
-	parts := strings.Split(issuedBody.Credentials[0].Credential, ".")
+	parts := strings.Split(vcJWT, ".")
 	if len(parts) != 3 {
 		t.Fatalf("invalid compact JWS")
 	}
@@ -350,5 +345,64 @@ func TestVCILabPersistentKeyAndDualMountE2E(t *testing.T) {
 	}
 	if err := json.Unmarshal(rawPayload, &claims); err != nil || claims.Cnf.JKT != holderJKT {
 		t.Fatalf("expected cnf.jkt=%s, got %+v err=%v", holderJKT, claims, err)
+	}
+
+	// 6. Poll GET /v1/issuance-requests/{id} to obtain opaque credentialId -> suspend -> reactivate -> revoke!
+	pollReq := httptest.NewRequest(http.MethodGet, "/v1/issuance-requests/"+created.ID, nil)
+	pollReq.Header.Set("Authorization", "Bearer "+m2m.AccessToken)
+	pollRec := httptest.NewRecorder()
+	handler.ServeHTTP(pollRec, pollReq)
+	if pollRec.Code != http.StatusOK {
+		t.Fatalf("poll request failed: %d %s", pollRec.Code, pollRec.Body.String())
+	}
+	var polled issuance.IssuanceRequestResult
+	if err := json.Unmarshal(pollRec.Body.Bytes(), &polled); err != nil || polled.CredentialID == "" || polled.IssuanceState != "issued" {
+		t.Fatalf("expected issued credentialId, got %+v err=%v", polled, err)
+	}
+
+	statusAction := func(method, target, idem string, body map[string]string) int {
+		var rdr *bytes.Reader
+		if body != nil {
+			raw, _ := json.Marshal(body)
+			rdr = bytes.NewReader(raw)
+		} else {
+			rdr = bytes.NewReader(nil)
+		}
+		req := httptest.NewRequest(method, target, rdr)
+		req.Header.Set("Authorization", "Bearer "+m2m.AccessToken)
+		req.Header.Set("Idempotency-Key", idem)
+		if body != nil {
+			req.Header.Set("Content-Type", "application/json")
+		}
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		return rec.Code
+	}
+
+	if code := statusAction(http.MethodPost, "/v1/credentials/"+polled.CredentialID+"/suspensions", "lab-suspend-idem-001", map[string]string{"reasonCode": "audit_review"}); code != http.StatusAccepted {
+		t.Fatalf("suspend expected 202, got %d", code)
+	}
+	suspRep, err := verifier.Verify(vcJWT)
+	if err != nil || suspRep.TechnicalResult != verification.Invalid {
+		t.Fatalf("expected suspended invalid, got %+v err=%v", suspRep, err)
+	}
+
+	if code := statusAction(http.MethodDelete, "/v1/credentials/"+polled.CredentialID+"/suspension", "lab-reactivate-idem-001", nil); code != http.StatusAccepted {
+		t.Fatalf("reactivate expected 202, got %d", code)
+	}
+	reactRep, err := verifier.Verify(vcJWT)
+	if err != nil || reactRep.TechnicalResult != verification.Valid {
+		t.Fatalf("expected reactivated valid, got %+v err=%v", reactRep, err)
+	}
+
+	if code := statusAction(http.MethodPost, "/v1/credentials/"+polled.CredentialID+"/revocations", "lab-revoke-idem-001", map[string]string{"reasonCode": "superseded"}); code != http.StatusAccepted {
+		t.Fatalf("revoke expected 202, got %d", code)
+	}
+	revRep, err := verifier.Verify(vcJWT)
+	if err != nil || revRep.TechnicalResult != verification.Invalid {
+		t.Fatalf("expected revoked invalid, got %+v err=%v", revRep, err)
+	}
+	if code := statusAction(http.MethodDelete, "/v1/credentials/"+polled.CredentialID+"/suspension", "lab-reactivate-after-rev", nil); code != http.StatusConflict {
+		t.Fatalf("expected 409 reactivating revoked credential, got %d", code)
 	}
 }

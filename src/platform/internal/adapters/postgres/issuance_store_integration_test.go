@@ -587,3 +587,190 @@ func TestIssuanceBackendDefinitionImmutabilityKeyRotationAndRLS(t *testing.T) {
 	expectCode(t, err, "42501")
 	assertCleared(t, fx.pool)
 }
+
+type pgStatusResolver struct {
+	svc *issuance.Service
+}
+
+func (r pgStatusResolver) ResolveStatusList(credURL string) (string, error) {
+	const marker = "/status/"
+	idx := strings.Index(credURL, marker)
+	if idx < 0 {
+		return "", errors.New("bad status url")
+	}
+	slugStart := strings.LastIndex(credURL[:idx], "/")
+	if slugStart < 0 {
+		return "", errors.New("missing slug")
+	}
+	slug := credURL[slugStart+1 : idx]
+	rest := credURL[idx+len(marker):]
+	purpose, listID, ok := strings.Cut(rest, "/")
+	if !ok {
+		return "", errors.New("bad status path")
+	}
+	return r.svc.ResolveStatusList(slug, purpose, listID)
+}
+
+func TestIssuanceBackendStatusListsRevocationAndVerifier(t *testing.T) {
+	db := newTestDatabase(t)
+	mustMigrate(t, db)
+	mustBootstrap(t, db)
+
+	now := time.Date(2026, 11, 16, 21, 30, 0, 0, time.UTC)
+	clk := func() time.Time { return now }
+	pool := db.poolWithConns(t, "hukid_issuance_runtime", 6)
+	backend, err := NewIssuanceBackend(pool)
+	if err != nil {
+		t.Fatal(err)
+	}
+	vault := newTestKMSVault()
+	issID := "11111111-1111-4111-8111-111111111111"
+	cliID := "33333333-3333-4333-8333-333333333333"
+	secret := "events-status-secret-0123456789"
+	claimsK := make([]byte, 32)
+	if _, err := rand.Read(claimsK); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := backend.CreateIssuer(testContext, TestTenantA, issID, "unas", "IncubaUNAS", now); err != nil {
+		t.Fatal(err)
+	}
+	_, jwk1 := vault.generate(t, "kms://unas/status-k1")
+	if err := backend.RegisterKey(testContext, TestTenantA, issID, "unas-key-1", "kms://unas/status-k1", jwk1, TestActorA, "cor-sk1", now); err != nil {
+		t.Fatal(err)
+	}
+	def := sampleCertificateDefPG(TestTenantA, issID)
+	def.StatusPurposes = []string{issuance.PurposeRevocation, issuance.PurposeSuspension}
+	if err := backend.CreateDraftDefinition(testContext, def, TestActorA, "cor-sd1", now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := backend.PublishDefinition(testContext, TestTenantA, issID, def.ID, def.Version, TestActorA, "cor-sd2", now); err != nil {
+		t.Fatal(err)
+	}
+	if err := backend.RegisterClient(testContext, TestTenantA, cliID, "Events Status", secret,
+		[]string{issID}, []string{issuance.ScopeIssuanceCreate, issuance.ScopeIssuanceRead, issuance.ScopeStatusWrite}, nil, TestActorA, "cor-sc1", now); err != nil {
+		t.Fatal(err)
+	}
+
+	newSvc := func() *issuance.Service {
+		s, err := issuance.NewService(issuance.ServiceConfig{
+			ClaimsKey: claimsK, ClaimsKeyVersion: "pg-s1",
+			Backend: backend, Signers: vault.resolve, Now: clk,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return s
+	}
+
+	svc1 := newSvc()
+	tok, err := svc1.ClientCredentialsToken(cliID, secret, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	intTok, err := svc1.AuthenticateIntegration(tok.AccessToken)
+	if err != nil {
+		t.Fatal(err)
+	}
+	created, _, err := svc1.CreateIssuanceRequest(intTok, "pg-status-ir-0001", issuance.IssuanceRequestInput{
+		IssuerID:             issID,
+		CredentialDefinition: "unas-certificate@1.0.0",
+		Claims:               map[string]any{"participantName": "Luis Torres", "eventName": "Cloud Day"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	offer, err := svc1.ResolveOffer("unas", created.CredentialOfferURI[strings.LastIndex(created.CredentialOfferURI, "ofr_"):])
+	if err != nil {
+		t.Fatal(err)
+	}
+	oidTok, err := svc1.PreAuthorizedToken(offer.Grants[issuance.PreAuthorizedGrantType].PreAuthorizedCode)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nonce, err := svc1.IssueNonce("unas")
+	if err != nil {
+		t.Fatal(err)
+	}
+	holder, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	credReq := issuance.CredentialRequest{CredentialIdentifier: oidTok.AuthorizationDetails[0].CredentialIdentifiers[0]}
+	credReq.Proofs.JWT = []string{signTestProofJWT(t, holder, "https://issuer.hukid.pe/unas", nonce, now)}
+	vcJWT, err := svc1.IssueCredential("unas", oidTok.AccessToken, credReq)
+	if err != nil {
+		t.Fatalf("issue vc with status: %v", err)
+	}
+
+	// Simulate restart: svc2 queries credentialId via GetRequest and operates status transitions.
+	svc2 := newSvc()
+	polled, err := svc2.GetRequest(intTok, created.ID)
+	if err != nil || polled.CredentialID == "" {
+		t.Fatalf("expected persisted credentialId, got %+v err=%v", polled, err)
+	}
+
+	jwksDoc, ok := svc2.IssuerJWKS("unas")
+	if !ok || len(jwksDoc.Keys) != 1 {
+		t.Fatal("missing jwks")
+	}
+	keyRes := verification.NewMemoryKeyResolver()
+	pub, _ := issuance.DecodePublicJWK(jwksDoc.Keys[0])
+	_ = keyRes.Add("https://issuer.hukid.pe/unas", jwksDoc.Keys[0].Kid, pub)
+	verifier, _ := verification.NewVerifier(keyRes, verification.ClockFunc(clk), verification.DefaultLimits, 0)
+	verifier = verifier.WithCredentialContexts(issuance.CertificateContext).WithStatusResolver(pgStatusResolver{svc: svc2}, verification.StatusPolicy{})
+
+	// 1. Initially active -> valid.
+	rep1, err := verifier.Verify(vcJWT)
+	if err != nil || rep1.TechnicalResult != verification.Valid {
+		t.Fatalf("expected valid initial vc, got %+v err=%v", rep1, err)
+	}
+
+	// 2. Suspend + idempotent replay across restart -> verifier fails with status.suspended.
+	suspRes, replay, err := svc2.SuspendCredential(intTok, "pg-susp-idem-0001", polled.CredentialID, issuance.StatusChangeInput{ReasonCode: "review"})
+	if err != nil || replay || suspRes.PublishedStatus != issuance.CredentialStatusSuspended {
+		t.Fatalf("suspend failed: res=%+v replay=%v err=%v", suspRes, replay, err)
+	}
+	svc3 := newSvc()
+	suspReplay, replay2, err := svc3.SuspendCredential(intTok, "pg-susp-idem-0001", polled.CredentialID, issuance.StatusChangeInput{ReasonCode: "review"})
+	if err != nil || !replay2 || suspReplay.StatusListVersion != suspRes.StatusListVersion {
+		t.Fatalf("suspend replay failed across restart: %+v replay=%v err=%v", suspReplay, replay2, err)
+	}
+	rep2, err := verifier.Verify(vcJWT)
+	if err != nil || rep2.TechnicalResult != verification.Invalid {
+		t.Fatalf("expected suspended vc to fail, got %+v err=%v", rep2, err)
+	}
+	var foundCode verification.Code
+	for _, c := range rep2.Checks {
+		if c.Name == verification.CheckStatus {
+			foundCode = c.Code
+		}
+	}
+	if foundCode != verification.CodeStatusSuspended {
+		t.Fatalf("expected status.suspended, got %s (%+v)", foundCode, rep2.Checks)
+	}
+
+	// 3. Reactivate -> valid again.
+	if _, _, err := svc3.ReactivateCredential(intTok, "pg-react-idem-0001", polled.CredentialID); err != nil {
+		t.Fatalf("reactivate: %v", err)
+	}
+	rep3, err := verifier.Verify(vcJWT)
+	if err != nil || rep3.TechnicalResult != verification.Valid {
+		t.Fatalf("expected reactivated vc valid, got %+v err=%v", rep3, err)
+	}
+
+	// 4. Revoke -> status.revoked; reactivation rejected permanently.
+	if _, _, err := svc3.RevokeCredential(intTok, "pg-revk-idem-0001", polled.CredentialID, issuance.StatusChangeInput{ReasonCode: "superseded"}); err != nil {
+		t.Fatalf("revoke: %v", err)
+	}
+	rep4, err := verifier.Verify(vcJWT)
+	if err != nil || rep4.TechnicalResult != verification.Invalid {
+		t.Fatalf("expected revoked vc to fail, got %+v err=%v", rep4, err)
+	}
+	for _, c := range rep4.Checks {
+		if c.Name == verification.CheckStatus && c.Code != verification.CodeStatusRevoked {
+			t.Fatalf("expected status.revoked, got %s", c.Code)
+		}
+	}
+	if _, _, err := svc3.ReactivateCredential(intTok, "pg-react-revoked-01", polled.CredentialID); !errors.Is(err, issuance.ErrInvalidStatusTransition) {
+		t.Fatalf("expected ErrInvalidStatusTransition after revoke, got %v", err)
+	}
+	assertCleared(t, pool)
+}

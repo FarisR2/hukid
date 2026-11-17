@@ -546,3 +546,201 @@ func TestIssuanceHTTPNegativeAndTokenClassIsolation(t *testing.T) {
 		t.Fatalf("expected 401 when integration token hits /credential, got %d", wrongClassRec.Code)
 	}
 }
+
+func TestIssuanceHTTPStatusNegativeAndPublicEndpoint(t *testing.T) {
+	env := setupHTTPTestEnv(t)
+
+	// Publish a status-enabled v2 definition and add a client with status:write.
+	def := issuance.Definition{
+		TenantID:        "tenant-unas",
+		IssuerID:        "iss_unas",
+		ID:              "unas-certificate",
+		Version:         "2.0.0",
+		ConfigurationID: "unas_certificate_status_http_v2",
+		DisplayName:     "Certificado con Status HTTP",
+		Locale:          "es-PE",
+		Contexts:        []string{issuance.CertificateContext},
+		Types:           []string{issuance.CertificateType},
+		DefaultValidity: 365 * 24 * time.Hour,
+		StatusPurposes:  []string{issuance.PurposeRevocation, issuance.PurposeSuspension},
+		Fields: map[string]issuance.FieldSpec{
+			"participantName": {Type: "string", Required: true, MaxLength: 120},
+			"eventName":       {Type: "string", Required: true, MaxLength: 160},
+		},
+	}
+	if err := env.defs.CreateDraft(def, "admin-1", "cor-h1", env.now); err != nil {
+		t.Fatalf("create draft: %v", err)
+	}
+	if _, err := env.defs.Publish("tenant-unas", "iss_unas", def.ID, def.Version, "admin-1", "cor-h2", env.now); err != nil {
+		t.Fatalf("publish def: %v", err)
+	}
+	if err := env.clients.RegisterClient(
+		"tenant-unas", "cli_status_http", "Status HTTP Writer", "status-http-secret-0123456789ab",
+		[]string{"iss_unas"}, []string{issuance.ScopeIssuanceCreate, issuance.ScopeIssuanceRead, issuance.ScopeStatusWrite},
+		nil, "admin-1", "cor-h3", env.now,
+	); err != nil {
+		t.Fatalf("register status client: %v", err)
+	}
+
+	getToken := func(id, secret string) string {
+		form := url.Values{
+			"grant_type":    {"client_credentials"},
+			"client_id":     {id},
+			"client_secret": {secret},
+		}
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/oauth2/token", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		env.mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("token %s status=%d body=%s", id, rec.Code, rec.Body.String())
+		}
+		var out issuance.TokenResponse
+		_ = json.Unmarshal(rec.Body.Bytes(), &out)
+		return out.AccessToken
+	}
+
+	eventsTok := getToken("cli_events", "events-client-secret-0123456789abcdef")
+	statusTok := getToken("cli_status_http", "status-http-secret-0123456789ab")
+
+	createReq := httptest.NewRequest(http.MethodPost, "/v1/issuance-requests", strings.NewReader(`{"issuerId":"iss_unas","credentialDefinition":"unas-certificate@2.0.0","claims":{"participantName":"Carlos Ruiz","eventName":"Lab UNAS"}}`))
+	createReq.Header.Set("Authorization", "Bearer "+statusTok)
+	createReq.Header.Set("Idempotency-Key", "http-status-create-01")
+	createReq.Header.Set("Content-Type", "application/json")
+	createRec := httptest.NewRecorder()
+	env.mux.ServeHTTP(createRec, createReq)
+	if createRec.Code != http.StatusCreated {
+		t.Fatalf("create request status=%d body=%s", createRec.Code, createRec.Body.String())
+	}
+	var created issuance.IssuanceRequestResult
+	_ = json.Unmarshal(createRec.Body.Bytes(), &created)
+
+	ref := created.CredentialOfferURI[strings.LastIndex(created.CredentialOfferURI, "ofr_"):]
+	offerRec := httptest.NewRecorder()
+	env.mux.ServeHTTP(offerRec, httptest.NewRequest(http.MethodGet, "/unas/offers/"+ref, nil))
+	var offerMap map[string]any
+	_ = json.Unmarshal(offerRec.Body.Bytes(), &offerMap)
+	grants := offerMap["grants"].(map[string]any)
+	preAuth := grants[issuance.PreAuthorizedGrantType].(map[string]any)
+	preCode := preAuth["pre-authorized_code"].(string)
+
+	vciTokRec := httptest.NewRecorder()
+	vciForm := url.Values{"grant_type": {issuance.PreAuthorizedGrantType}, "pre-authorized_code": {preCode}}
+	vciTokReq := httptest.NewRequest(http.MethodPost, "/oauth2/token", strings.NewReader(vciForm.Encode()))
+	vciTokReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	env.mux.ServeHTTP(vciTokRec, vciTokReq)
+	var vciTok issuance.TokenResponse
+	_ = json.Unmarshal(vciTokRec.Body.Bytes(), &vciTok)
+
+	nonceRec := httptest.NewRecorder()
+	env.mux.ServeHTTP(nonceRec, httptest.NewRequest(http.MethodPost, "/unas/nonce", nil))
+	var nonceResp map[string]string
+	_ = json.Unmarshal(nonceRec.Body.Bytes(), &nonceResp)
+
+	holderKey := mustKey(t)
+	proofJWT, err := issuance.BuildHolderProof(holderKey, "https://issuer.hukid.pe/unas", nonceResp["c_nonce"], env.now, nil)
+	if err != nil {
+		t.Fatalf("build proof: %v", err)
+	}
+	credBody, _ := json.Marshal(map[string]any{
+		"credential_identifier": vciTok.AuthorizationDetails[0].CredentialIdentifiers[0],
+		"proofs":                map[string]any{"jwt": []string{proofJWT}},
+	})
+	credRec := httptest.NewRecorder()
+	credReq := httptest.NewRequest(http.MethodPost, "/unas/credential", strings.NewReader(string(credBody)))
+	credReq.Header.Set("Authorization", "Bearer "+vciTok.AccessToken)
+	credReq.Header.Set("Content-Type", "application/json")
+	env.mux.ServeHTTP(credRec, credReq)
+	if credRec.Code != http.StatusOK {
+		t.Fatalf("issue credential status=%d body=%s", credRec.Code, credRec.Body.String())
+	}
+
+	pollRec := httptest.NewRecorder()
+	pollReq := httptest.NewRequest(http.MethodGet, "/v1/issuance-requests/"+created.ID, nil)
+	pollReq.Header.Set("Authorization", "Bearer "+statusTok)
+	env.mux.ServeHTTP(pollRec, pollReq)
+	var polled issuance.IssuanceRequestResult
+	_ = json.Unmarshal(pollRec.Body.Bytes(), &polled)
+	if polled.CredentialID == "" {
+		t.Fatalf("expected non-empty credentialId, got %+v", polled)
+	}
+
+	// 1. Missing Idempotency-Key -> 400.
+	noKeyRec := httptest.NewRecorder()
+	noKeyReq := httptest.NewRequest(http.MethodPost, "/v1/credentials/"+polled.CredentialID+"/suspensions", strings.NewReader(`{}`))
+	noKeyReq.Header.Set("Authorization", "Bearer "+statusTok)
+	noKeyReq.Header.Set("Content-Type", "application/json")
+	env.mux.ServeHTTP(noKeyRec, noKeyReq)
+	if noKeyRec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 missing Idempotency-Key, got %d", noKeyRec.Code)
+	}
+
+	// 2. Client without status:write scope -> 403.
+	noScopeRec := httptest.NewRecorder()
+	noScopeReq := httptest.NewRequest(http.MethodPost, "/v1/credentials/"+polled.CredentialID+"/suspensions", strings.NewReader(`{"reasonCode":"audit"}`))
+	noScopeReq.Header.Set("Authorization", "Bearer "+eventsTok)
+	noScopeReq.Header.Set("Idempotency-Key", "http-no-scope-susp-01")
+	noScopeReq.Header.Set("Content-Type", "application/json")
+	env.mux.ServeHTTP(noScopeRec, noScopeReq)
+	if noScopeRec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403 without status:write scope, got %d body=%s", noScopeRec.Code, noScopeRec.Body.String())
+	}
+
+	// 3. Suspend -> 202, replay -> 200, second suspend -> 409 invalid_state_transition, public status list -> 200 application/vc+jwt.
+	suspRec := httptest.NewRecorder()
+	suspReq := httptest.NewRequest(http.MethodPost, "/v1/credentials/"+polled.CredentialID+"/suspensions", strings.NewReader(`{"reasonCode":"review"}`))
+	suspReq.Header.Set("Authorization", "Bearer "+statusTok)
+	suspReq.Header.Set("Idempotency-Key", "http-susp-valid-0001")
+	suspReq.Header.Set("Content-Type", "application/json")
+	env.mux.ServeHTTP(suspRec, suspReq)
+	if suspRec.Code != http.StatusAccepted {
+		t.Fatalf("expected 202 on suspend, got %d body=%s", suspRec.Code, suspRec.Body.String())
+	}
+
+	replayRec := httptest.NewRecorder()
+	replayReq := httptest.NewRequest(http.MethodPost, "/v1/credentials/"+polled.CredentialID+"/suspensions", strings.NewReader(`{"reasonCode":"review"}`))
+	replayReq.Header.Set("Authorization", "Bearer "+statusTok)
+	replayReq.Header.Set("Idempotency-Key", "http-susp-valid-0001")
+	replayReq.Header.Set("Content-Type", "application/json")
+	env.mux.ServeHTTP(replayRec, replayReq)
+	if replayRec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on suspend replay, got %d", replayRec.Code)
+	}
+
+	doubleRec := httptest.NewRecorder()
+	doubleReq := httptest.NewRequest(http.MethodPost, "/v1/credentials/"+polled.CredentialID+"/suspensions", strings.NewReader(`{"reasonCode":"review"}`))
+	doubleReq.Header.Set("Authorization", "Bearer "+statusTok)
+	doubleReq.Header.Set("Idempotency-Key", "http-susp-double-0002")
+	doubleReq.Header.Set("Content-Type", "application/json")
+	env.mux.ServeHTTP(doubleRec, doubleReq)
+	if doubleRec.Code != http.StatusConflict {
+		t.Fatalf("expected 409 on double suspend, got %d body=%s", doubleRec.Code, doubleRec.Body.String())
+	}
+
+	var credResp map[string]any
+	_ = json.Unmarshal(credRec.Body.Bytes(), &credResp)
+	vcJWT := credResp["credentials"].([]any)[0].(map[string]any)["credential"].(string)
+	parts := strings.Split(vcJWT, ".")
+	payloadBytes, _ := base64.RawURLEncoding.DecodeString(parts[1])
+	var vcPayload map[string]any
+	_ = json.Unmarshal(payloadBytes, &vcPayload)
+	statuses := vcPayload["credentialStatus"].([]any)
+	statusCredURL := statuses[0].(map[string]any)["statusListCredential"].(string)
+	u, _ := url.Parse(statusCredURL)
+
+	listRec := httptest.NewRecorder()
+	env.mux.ServeHTTP(listRec, httptest.NewRequest(http.MethodGet, u.Path, nil))
+	if listRec.Code != http.StatusOK || listRec.Header().Get("Content-Type") != issuance.CredentialFormat {
+		t.Fatalf("expected 200 application/vc+jwt on public status list %q, got %d ct=%q", u.Path, listRec.Code, listRec.Header().Get("Content-Type"))
+	}
+	if !strings.HasPrefix(listRec.Body.String(), "eyJ") {
+		t.Fatalf("expected compact JWT body, got %q", listRec.Body.String())
+	}
+
+	// Unknown status purpose -> 404.
+	badPurposeRec := httptest.NewRecorder()
+	env.mux.ServeHTTP(badPurposeRec, httptest.NewRequest(http.MethodGet, "/unas/status/unknown/lst_1", nil))
+	if badPurposeRec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for unknown status purpose, got %d", badPurposeRec.Code)
+	}
+}

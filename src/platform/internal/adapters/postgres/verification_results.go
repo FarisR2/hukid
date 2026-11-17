@@ -30,6 +30,13 @@ const maxResultCodes = 32
 // through verification.complete_session.
 type VerificationResultStore struct{ Pool *pgxpool.Pool }
 
+// Deliver satisfies oid4vphttp.Results but always refuses: this store records
+// results only for sessions bound to a persisted tenant session, which the
+// handler routes to DeliverSession. A request without one has nowhere to go.
+func (s *VerificationResultStore) Deliver(string, verification.PresentationReport) error {
+	return ErrResultNotStored
+}
+
 // DeliverSession implements oid4vphttp.SessionResults.
 func (s *VerificationResultStore) DeliverSession(sessionID string, report verification.PresentationReport) error {
 	if s == nil || s.Pool == nil || !validID(sessionID) {

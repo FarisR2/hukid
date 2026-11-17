@@ -199,10 +199,11 @@ type KeyMetadata struct {
 }
 
 type ringEntry struct {
-	meta   KeyMetadata
-	jwk    PublicJWK
-	rawPub *ecdsa.PublicKey
-	signer *MemorySigner
+	meta      KeyMetadata
+	jwk       PublicJWK
+	kmsKeyRef string
+	rawPub    *ecdsa.PublicKey
+	signer    *MemorySigner
 }
 
 // KeyRing manages ES256 signing keys, rotation and compromise handling for one
@@ -238,32 +239,24 @@ func (r *KeyRing) RegisterKey(kid string, key *ecdsa.PrivateKey, actorID, correl
 	if err != nil {
 		return err
 	}
-
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if _, exists := r.keys[kid]; exists {
-		return ErrKeyConflict
-	}
-	for _, existing := range r.keys {
-		if existing.meta.State == KeyActive {
-			return ErrKeyConflict
-		}
-	}
-	r.order = append(r.order, kid)
 	jwk, _ := signer.JWK()
-	r.keys[kid] = &ringEntry{
-		meta: KeyMetadata{
-			KID:       kid,
-			IssuerURI: r.issuer,
-			State:     KeyActive,
-			CreatedAt: now.UTC(),
-		},
-		jwk:    jwk,
-		rawPub: signer.PublicKey(),
-		signer: signer,
+	return r.installKey(kid, "memory://"+kid, jwk, signer.PublicKey(), signer, false, actorID, correlationID, now)
+}
+
+// RegisterKeyMetadata registers an initial active externally-managed key (e.g. KMS)
+// when no active key exists yet (HK-002).
+func (r *KeyRing) RegisterKeyMetadata(kid, kmsKeyRef string, jwk PublicJWK, actorID, correlationID string, now time.Time) error {
+	if strings.TrimSpace(kid) == "" || strings.TrimSpace(kmsKeyRef) == "" {
+		return ErrInvalidFoundationInput
 	}
-	r.audit.Record(r.tenantID, actorID, "issuer_key.registered", kid, "succeeded", correlationID, now)
-	return nil
+	pub, err := DecodePublicJWK(jwk)
+	if err != nil {
+		return err
+	}
+	jwk.Kid = kid
+	jwk.Alg = "ES256"
+	jwk.Use = "sig"
+	return r.installKey(kid, kmsKeyRef, jwk, pub, nil, false, actorID, correlationID, now)
 }
 
 // RotateKey retires any currently active key (keeping it in JWKS so existing
@@ -273,35 +266,8 @@ func (r *KeyRing) RotateKey(newKID string, newKey *ecdsa.PrivateKey, actorID, co
 	if err != nil {
 		return err
 	}
-	ts := now.UTC()
-
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if _, exists := r.keys[newKID]; exists {
-		return ErrKeyConflict
-	}
-	for _, entry := range r.keys {
-		if entry.meta.State == KeyActive {
-			entry.meta.State = KeyRetired
-			retired := ts
-			entry.meta.RetiredAt = &retired
-		}
-	}
-	r.order = append(r.order, newKID)
 	jwk, _ := signer.JWK()
-	r.keys[newKID] = &ringEntry{
-		meta: KeyMetadata{
-			KID:       newKID,
-			IssuerURI: r.issuer,
-			State:     KeyActive,
-			CreatedAt: ts,
-		},
-		jwk:    jwk,
-		rawPub: signer.PublicKey(),
-		signer: signer,
-	}
-	r.audit.Record(r.tenantID, actorID, "issuer_key.rotated", newKID, "succeeded", correlationID, now)
-	return nil
+	return r.installKey(newKID, "memory://"+newKID, jwk, signer.PublicKey(), signer, true, actorID, correlationID, now)
 }
 
 // RotateKeyMetadata retires the active key and installs an externally signed
@@ -317,32 +283,52 @@ func (r *KeyRing) RotateKeyMetadata(newKID, kmsKeyRef string, jwk PublicJWK, act
 	jwk.Kid = newKID
 	jwk.Alg = "ES256"
 	jwk.Use = "sig"
-	ts := now.UTC()
+	return r.installKey(newKID, kmsKeyRef, jwk, pub, nil, true, actorID, correlationID, now)
+}
 
+func (r *KeyRing) installKey(
+	kid, kmsKeyRef string,
+	jwk PublicJWK,
+	pub *ecdsa.PublicKey,
+	signer *MemorySigner,
+	rotate bool,
+	actorID, correlationID string,
+	now time.Time,
+) error {
+	ts := now.UTC()
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if _, exists := r.keys[newKID]; exists {
+	if _, exists := r.keys[kid]; exists {
 		return ErrKeyConflict
 	}
 	for _, entry := range r.keys {
 		if entry.meta.State == KeyActive {
+			if !rotate {
+				return ErrKeyConflict
+			}
 			entry.meta.State = KeyRetired
 			retired := ts
 			entry.meta.RetiredAt = &retired
 		}
 	}
-	r.order = append(r.order, newKID)
-	r.keys[newKID] = &ringEntry{
+	r.order = append(r.order, kid)
+	r.keys[kid] = &ringEntry{
 		meta: KeyMetadata{
-			KID:       newKID,
+			KID:       kid,
 			IssuerURI: r.issuer,
 			State:     KeyActive,
 			CreatedAt: ts,
 		},
-		jwk:    jwk,
-		rawPub: pub,
+		jwk:       jwk,
+		kmsKeyRef: kmsKeyRef,
+		rawPub:    pub,
+		signer:    signer,
 	}
-	r.audit.Record(r.tenantID, actorID, "issuer_key.rotated", newKID, "succeeded", correlationID, now)
+	action := "issuer_key.registered"
+	if rotate {
+		action = "issuer_key.rotated"
+	}
+	r.audit.Record(r.tenantID, actorID, action, kid, "succeeded", correlationID, now)
 	return nil
 }
 
@@ -368,14 +354,20 @@ func (r *KeyRing) CompromiseKey(kid, actorID, correlationID string, now time.Tim
 
 // ActiveKeyMetadata returns the currently active key metadata and JWK.
 func (r *KeyRing) ActiveKeyMetadata() (KeyMetadata, PublicJWK, error) {
+	meta, jwk, _, err := r.ActiveKeyInfo()
+	return meta, jwk, err
+}
+
+// ActiveKeyInfo returns the active key metadata, public JWK and KMS key reference.
+func (r *KeyRing) ActiveKeyInfo() (KeyMetadata, PublicJWK, string, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	for _, kid := range r.order {
 		if entry := r.keys[kid]; entry.meta.State == KeyActive {
-			return entry.meta, entry.jwk, nil
+			return entry.meta, entry.jwk, entry.kmsKeyRef, nil
 		}
 	}
-	return KeyMetadata{}, PublicJWK{}, ErrNoActiveKey
+	return KeyMetadata{}, PublicJWK{}, "", ErrNoActiveKey
 }
 
 // ActiveSigner returns the currently active Signer or ErrNoActiveKey if none is active.
@@ -515,6 +507,48 @@ func HashClientSecret(rawSecret string) ([32]byte, error) {
 	return sha256.Sum256([]byte(rawSecret)), nil
 }
 
+// ClientSummary is the secret-free administrative view of an M2M client (HK-004).
+type ClientSummary struct {
+	ClientID       string      `json:"clientId"`
+	TenantID       string      `json:"tenantId"`
+	ClientName     string      `json:"clientName"`
+	AllowedIssuers []string    `json:"allowedIssuers"`
+	Scopes         []string    `json:"scopes"`
+	State          ClientState `json:"state"`
+	CreatedAt      time.Time   `json:"createdAt"`
+	ExpiresAt      *time.Time  `json:"expiresAt,omitempty"`
+	RevokedAt      *time.Time  `json:"revokedAt,omitempty"`
+}
+
+func summarizeClientRecord(rec *clientRecord) ClientSummary {
+	issuers := slices.Sorted(maps.Keys(rec.allowedIssuers))
+	if issuers == nil {
+		issuers = []string{}
+	}
+	scopes := slices.Sorted(maps.Keys(rec.scopes))
+	if scopes == nil {
+		scopes = []string{}
+	}
+	out := ClientSummary{
+		ClientID:       rec.clientID,
+		TenantID:       rec.tenantID,
+		ClientName:     rec.clientName,
+		AllowedIssuers: issuers,
+		Scopes:         scopes,
+		State:          rec.state,
+		CreatedAt:      rec.createdAt,
+	}
+	if rec.expiresAt != nil {
+		t := *rec.expiresAt
+		out.ExpiresAt = &t
+	}
+	if rec.revokedAt != nil {
+		t := *rec.revokedAt
+		out.RevokedAt = &t
+	}
+	return out
+}
+
 // RegisterClient creates a client storing only the SHA-256 hash of rawSecret.
 func (r *ClientRegistry) RegisterClient(
 	tenantID, clientID, clientName, rawSecret string,
@@ -523,9 +557,24 @@ func (r *ClientRegistry) RegisterClient(
 	actorID, correlationID string,
 	now time.Time,
 ) error {
+	secretHash, err := HashClientSecret(rawSecret)
+	if err != nil {
+		return err
+	}
+	return r.RegisterHashedClient(tenantID, clientID, clientName, secretHash, allowedIssuers, scopes, expiresAt, actorID, correlationID, now)
+}
+
+// RegisterHashedClient persists a pre-hashed client secret without handling raw credentials.
+func (r *ClientRegistry) RegisterHashedClient(
+	tenantID, clientID, clientName string,
+	secretHash [32]byte,
+	allowedIssuers, scopes []string,
+	expiresAt *time.Time,
+	actorID, correlationID string,
+	now time.Time,
+) error {
 	if strings.TrimSpace(tenantID) == "" || strings.TrimSpace(clientID) == "" ||
-		strings.TrimSpace(clientName) == "" || len(rawSecret) < minClientSecretBytes ||
-		len(allowedIssuers) == 0 || len(scopes) == 0 {
+		strings.TrimSpace(clientName) == "" || len(allowedIssuers) == 0 || len(scopes) == 0 {
 		return ErrInvalidFoundationInput
 	}
 	if expiresAt != nil && !expiresAt.UTC().After(now.UTC()) {
@@ -560,7 +609,7 @@ func (r *ClientRegistry) RegisterClient(
 		clientID:       clientID,
 		tenantID:       tenantID,
 		clientName:     clientName,
-		secretHash:     sha256.Sum256([]byte(rawSecret)),
+		secretHash:     secretHash,
 		allowedIssuers: issuerSet,
 		scopes:         scopeSet,
 		state:          ClientActive,
@@ -569,6 +618,32 @@ func (r *ClientRegistry) RegisterClient(
 	}
 	r.audit.Record(tenantID, actorID, "integration_client.registered", clientID, "succeeded", correlationID, now)
 	return nil
+}
+
+// ListByTenant returns secret-free client summaries within tenantID ordered by createdAt/clientID.
+func (r *ClientRegistry) ListByTenant(tenantID string) []ClientSummary {
+	if r == nil || strings.TrimSpace(tenantID) == "" {
+		return nil
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var out []ClientSummary
+	for _, rec := range r.clients {
+		if rec.tenantID != tenantID {
+			continue
+		}
+		out = append(out, summarizeClientRecord(rec))
+	}
+	slices.SortFunc(out, func(a, b ClientSummary) int {
+		if !a.CreatedAt.Equal(b.CreatedAt) {
+			if a.CreatedAt.Before(b.CreatedAt) {
+				return -1
+			}
+			return 1
+		}
+		return strings.Compare(a.ClientID, b.ClientID)
+	})
+	return out
 }
 
 // AuthenticateClient validates clientID + clientSecret in constant time and issues
@@ -662,9 +737,15 @@ func (r *ClientRegistry) AuthorizeIssuerAccess(token IntegrationToken, tenantID,
 
 // RotateSecret replaces a client's secret hash within its owning tenant (404 cross-tenant).
 func (r *ClientRegistry) RotateSecret(tenantID, clientID, newSecret, actorID, correlationID string, now time.Time) error {
-	if len(newSecret) < minClientSecretBytes {
-		return ErrInvalidFoundationInput
+	secretHash, err := HashClientSecret(newSecret)
+	if err != nil {
+		return err
 	}
+	return r.RotateSecretHash(tenantID, clientID, secretHash, actorID, correlationID, now)
+}
+
+// RotateSecretHash replaces a client's SHA-256 secret hash within tenantID.
+func (r *ClientRegistry) RotateSecretHash(tenantID, clientID string, newSecretHash [32]byte, actorID, correlationID string, now time.Time) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	rec, ok := r.clients[clientID]
@@ -674,7 +755,7 @@ func (r *ClientRegistry) RotateSecret(tenantID, clientID, newSecret, actorID, co
 	if rec.state != ClientActive {
 		return ErrClientUnauthorized
 	}
-	rec.secretHash = sha256.Sum256([]byte(newSecret))
+	rec.secretHash = newSecretHash
 	r.audit.Record(tenantID, actorID, "integration_client.secret_rotated", clientID, "succeeded", correlationID, now)
 	return nil
 }

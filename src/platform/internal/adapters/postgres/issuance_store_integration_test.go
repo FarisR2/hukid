@@ -964,3 +964,125 @@ func TestIssuanceBackendEtapaADeferredCancelCompromiseAndSchema(t *testing.T) {
 		t.Fatalf("expected only pg-key-2 in JWKS after compromise, got %+v", jwksAfter)
 	}
 }
+
+func TestIssuanceBackendAdminAPIsAndTenantIsolation(t *testing.T) {
+	db := newTestDatabase(t)
+	mustMigrate(t, db)
+	mustBootstrap(t, db)
+
+	now := time.Date(2026, 11, 16, 22, 0, 0, 0, time.UTC)
+	pool := db.poolWithConns(t, "hukid_issuance_runtime", 4)
+	backend, err := NewIssuanceBackend(pool)
+	if err != nil {
+		t.Fatal(err)
+	}
+	claimsKey := make([]byte, 32)
+	_, _ = rand.Read(claimsKey)
+
+	svc, err := issuance.NewService(issuance.ServiceConfig{
+		ClaimsKey:           claimsKey,
+		ClaimsKeyVersion:    "pg-admin-1",
+		Backend:             backend,
+		AuthorizationServer: "https://auth.hukid.pe",
+		Now:                 func() time.Time { return now },
+		KeyProvisioner: func(_, _, kid string) (string, issuance.PublicJWK, error) {
+			priv, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+			jwk, _ := issuance.ExportPublicJWK(&priv.PublicKey, kid)
+			return "vault://transit/hukid-" + kid + "#v1", jwk, nil
+		},
+		Signers: func(_, _, _, _, _ string, _ *ecdsa.PublicKey) (issuance.Signer, error) {
+			return nil, issuance.ErrNoActiveKey
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	iss, jwk, err := svc.CreateIssuer(TestTenantA, "", "fiis", "Facultad IIyS", "fiis-k1", TestActorA, "cor-adm-1")
+	if err != nil || iss.Slug != "fiis" || jwk.Kid != "fiis-k1" {
+		t.Fatalf("CreateIssuer failed: %+v err=%v", iss, err)
+	}
+	listA, err := svc.ListIssuers(TestTenantA)
+	if err != nil || len(listA) != 1 || listA[0].IssuerID != iss.IssuerID {
+		t.Fatalf("ListIssuers tenant A failed: %+v err=%v", listA, err)
+	}
+	listB, err := svc.ListIssuers(TestTenantB)
+	if err != nil || len(listB) != 0 {
+		t.Fatalf("expected 0 issuers in tenant B, got %+v err=%v", listB, err)
+	}
+
+	if _, err := svc.ProvisionAndRotateIssuerKey(TestTenantB, iss.IssuerID, "fiis-k2", TestActorB, "cor-cross"); !errors.Is(err, issuance.ErrResourceNotFound) {
+		t.Fatalf("expected ErrResourceNotFound cross-tenant rotate, got %v", err)
+	}
+	rotJWK, err := svc.ProvisionAndRotateIssuerKey(TestTenantA, iss.IssuerID, "fiis-k2", TestActorA, "cor-rot-2")
+	if err != nil || rotJWK.Kid != "fiis-k2" {
+		t.Fatalf("ProvisionAndRotateIssuerKey failed: %+v err=%v", rotJWK, err)
+	}
+
+	draft := issuance.Definition{
+		TenantID: TestTenantA, IssuerID: iss.IssuerID, ID: "grad-cert", Version: "1.0.0",
+		ConfigurationID: "fiis_grad_1", DisplayName: "Constancia FIIS", Locale: "es-PE",
+		Contexts: []string{issuance.CertificateContext}, Types: []string{issuance.CertificateType},
+		DefaultValidity: 365 * 24 * time.Hour, StatusPurposes: []string{issuance.PurposeRevocation}, PublishSchema: true,
+		Fields: map[string]issuance.FieldSpec{"participantName": {Type: "string", Required: true, MaxLength: 100}},
+	}
+	createdDef, err := svc.CreateDraftDefinition(draft, TestActorA, "cor-def-1")
+	if err != nil || createdDef.State != issuance.DefinitionDraft {
+		t.Fatalf("CreateDraftDefinition failed: %+v err=%v", createdDef, err)
+	}
+	if _, err := svc.ReplaceDraftDefinition(draft, `"wrong-etag"`, TestActorA, "cor-def-bad"); !errors.Is(err, issuance.ErrETagMismatch) {
+		t.Fatalf("expected ErrETagMismatch, got %v", err)
+	}
+	draft.DisplayName = "Constancia FIIS Editada"
+	replacedDef, err := svc.ReplaceDraftDefinition(draft, issuance.DefinitionETag(createdDef), TestActorA, "cor-def-2")
+	if err != nil || replacedDef.DisplayName != "Constancia FIIS Editada" {
+		t.Fatalf("ReplaceDraftDefinition failed: %+v err=%v", replacedDef, err)
+	}
+	pubDef, err := svc.PublishDefinition(TestTenantA, iss.IssuerID, draft.ID, draft.Version, TestActorA, "cor-def-3")
+	if err != nil || pubDef.State != issuance.DefinitionPublished || len(pubDef.Hash) != 64 {
+		t.Fatalf("PublishDefinition failed: %+v err=%v", pubDef, err)
+	}
+	retDef, err := svc.RetireDefinition(TestTenantA, iss.IssuerID, draft.ID, draft.Version, TestActorA, "cor-def-4")
+	if err != nil || retDef.State != issuance.DefinitionRetired {
+		t.Fatalf("RetireDefinition failed: %+v err=%v", retDef, err)
+	}
+	defsB, err := svc.ListDefinitions(TestTenantB, iss.IssuerID)
+	if !errors.Is(err, issuance.ErrResourceNotFound) || len(defsB) != 0 {
+		t.Fatalf("expected ErrResourceNotFound cross-tenant defs, got %v", err)
+	}
+
+	cli, sec1, err := svc.RegisterIntegrationClient(TestTenantA, "", "POS FIIS", "", []string{iss.IssuerID}, []string{issuance.ScopeIssuanceCreate, issuance.ScopeIssuanceRead}, nil, TestActorA, "cor-cli-1")
+	if err != nil || len(sec1) < 16 {
+		t.Fatalf("RegisterIntegrationClient failed: %+v err=%v", cli, err)
+	}
+	tokResp, err := svc.ClientCredentialsToken(cli.ClientID, sec1, nil)
+	if err != nil || tokResp.AccessToken == "" {
+		t.Fatalf("client token failed: %v", err)
+	}
+	sec2, err := svc.RotateIntegrationClientSecret(TestTenantA, cli.ClientID, "", TestActorA, "cor-cli-2")
+	if err != nil || sec2 == sec1 {
+		t.Fatalf("RotateIntegrationClientSecret failed: err=%v", err)
+	}
+	if _, err := svc.ClientCredentialsToken(cli.ClientID, sec1, nil); !errors.Is(err, issuance.ErrClientUnauthorized) {
+		t.Fatalf("old client secret still works: %v", err)
+	}
+	if _, err := svc.ClientCredentialsToken(cli.ClientID, sec2, nil); err != nil {
+		t.Fatalf("rotated client secret failed: %v", err)
+	}
+	if err := svc.RevokeIntegrationClient(TestTenantA, cli.ClientID, TestActorA, "cor-cli-3"); err != nil {
+		t.Fatalf("RevokeIntegrationClient failed: %v", err)
+	}
+	clientsA, err := svc.ListIntegrationClients(TestTenantA)
+	if err != nil || len(clientsA) != 1 || clientsA[0].State != issuance.ClientRevoked {
+		t.Fatalf("ListIntegrationClients unexpected: %+v err=%v", clientsA, err)
+	}
+	auditA, err := svc.ListAuditEvents(TestTenantA, "")
+	if err != nil || len(auditA) < 9 {
+		t.Fatalf("expected >= 9 audit events, got %d err=%v", len(auditA), err)
+	}
+	auditB, err := svc.ListAuditEvents(TestTenantB, "")
+	if err != nil || len(auditB) != 0 {
+		t.Fatalf("expected 0 audit events in tenant B, got %d err=%v", len(auditB), err)
+	}
+	assertCleared(t, pool)
+}

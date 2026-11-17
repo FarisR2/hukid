@@ -43,6 +43,8 @@ var (
 	ErrDefinitionUnavailable = errors.New("definition is not published")
 	// ErrClaimValidation reports claims that do not satisfy the definition.
 	ErrClaimValidation = errors.New("claims do not satisfy the definition")
+	// ErrETagMismatch reports an optimistic-concurrency If-Match failure on a definition draft.
+	ErrETagMismatch = errors.New("definition etag mismatch")
 
 	semverPattern   = regexp.MustCompile(`^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$`)
 	definitionIDRe  = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$`)
@@ -370,6 +372,32 @@ func (r *DefinitionRegistry) ListPublished(tenantID, issuerID string) []Definiti
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Ref() < out[j].Ref() })
 	return out
+}
+
+// ListByIssuer returns all definition versions (draft, published, retired) for an issuer ordered by ref.
+func (r *DefinitionRegistry) ListByIssuer(tenantID, issuerID string) []Definition {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var out []Definition
+	for k, d := range r.items {
+		if k.tenant == tenantID && k.issuer == issuerID {
+			out = append(out, cloneDefinition(d))
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Ref() < out[j].Ref() })
+	return out
+}
+
+// DefinitionETag computes the canonical RFC 7232 quoted ETag for a definition version.
+func DefinitionETag(d Definition) string {
+	if d.Hash != "" {
+		return `"` + d.Hash + `"`
+	}
+	h, err := ComputeDefinitionHash(d)
+	if err != nil || len(h) < 16 {
+		return `"` + d.Version + `"`
+	}
+	return `"draft-` + h[:16] + `"`
 }
 
 // GetPublic returns a published or retired definition, excluding drafts.

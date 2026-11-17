@@ -10,7 +10,10 @@
       "members:revoke",
       "invitations:read",
       "invitations:revoke",
-      "audit:read"
+      "audit:read",
+      "issuers:manage",
+      "definitions:manage",
+      "clients:manage"
     ],
     "security_admin": [
       "dashboard:read",
@@ -28,7 +31,10 @@
     "members:invite",
     "members:update",
     "members:revoke",
-    "invitations:revoke"
+    "invitations:revoke",
+    "issuers:manage",
+    "definitions:manage",
+    "clients:manage"
   ],
   "restrictions": {
     "issuer_operator": "Only assigned issuerIds; no member directory or claims by default.",

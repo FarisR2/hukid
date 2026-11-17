@@ -86,6 +86,7 @@ type ServiceConfig struct {
 	Audit            *AuditLog
 	Backend          Backend
 	Signers          SignerResolver
+	KeyProvisioner   KeyProvisioner
 	// AuthorizationServer is the public base URL of the token endpoint host.
 	AuthorizationServer string
 	Now                 func() time.Time
@@ -161,6 +162,10 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	if cfg.Backend != nil {
 		svc.backend = cfg.Backend
 	} else {
+		if cfg.Audit == nil {
+			cfg.Audit = NewAuditLog(cfg.Random)
+			svc.cfg.Audit = cfg.Audit
+		}
 		svc.mem = newMemoryBackend(cfg)
 		svc.backend = svc.mem
 	}
@@ -1520,6 +1525,404 @@ func (s *Service) resolveDefinitionArtifact(slug, id, version string, build func
 	})
 	if err != nil {
 		return nil, ErrResourceNotFound
+	}
+	return out, nil
+}
+
+// CreateIssuer creates a new tenant-scoped logical issuer and optionally provisions
+// an initial active KMS signing key when initialKID is provided (HK-001, HK-002).
+func (s *Service) CreateIssuer(tenantID, issuerID, slug, displayName, initialKID, actorID, correlationID string) (IssuerRecord, PublicJWK, error) {
+	if strings.TrimSpace(tenantID) == "" {
+		return IssuerRecord{}, PublicJWK{}, ErrInvalidFoundationInput
+	}
+	if strings.TrimSpace(issuerID) == "" {
+		var err error
+		issuerID, err = newUUID(s.cfg.Random)
+		if err != nil {
+			return IssuerRecord{}, PublicJWK{}, ErrInvalidFoundationInput
+		}
+	}
+	now := s.now()
+	rec, err := NewIssuerRecord(tenantID, issuerID, slug, displayName, now)
+	if err != nil {
+		return IssuerRecord{}, PublicJWK{}, err
+	}
+	var kmsKeyRef string
+	var jwk PublicJWK
+	if initialKID != "" {
+		if len(initialKID) > 128 || strings.TrimSpace(initialKID) != initialKID || strings.ContainsAny(initialKID, " \t\r\n") {
+			return IssuerRecord{}, PublicJWK{}, ErrInvalidFoundationInput
+		}
+		if s.cfg.KeyProvisioner == nil {
+			return IssuerRecord{}, PublicJWK{}, ErrNoActiveKey
+		}
+		kmsKeyRef, jwk, err = s.cfg.KeyProvisioner(tenantID, issuerID, initialKID)
+		if err != nil {
+			return IssuerRecord{}, PublicJWK{}, err
+		}
+	}
+	if err := s.backend.WithTenantTx(tenantID, func(tx Tx) error {
+		return tx.CreateIssuer(rec, initialKID, kmsKeyRef, jwk, actorID, correlationID, now)
+	}); err != nil {
+		return IssuerRecord{}, PublicJWK{}, err
+	}
+	return rec, jwk, nil
+}
+
+// ListIssuers returns all logical issuers owned by tenantID (HK-001).
+func (s *Service) ListIssuers(tenantID string) ([]IssuerRecord, error) {
+	if strings.TrimSpace(tenantID) == "" {
+		return nil, ErrInvalidFoundationInput
+	}
+	var out []IssuerRecord
+	err := s.backend.WithTenantTx(tenantID, func(tx Tx) error {
+		items, err := tx.ListIssuers()
+		if err != nil {
+			return err
+		}
+		out = items
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if out == nil {
+		out = []IssuerRecord{}
+	}
+	return out, nil
+}
+
+// ProvisionAndRotateIssuerKey creates a new P-256 KMS key for newKID and rotates it into active state (HK-002).
+func (s *Service) ProvisionAndRotateIssuerKey(tenantID, issuerID, newKID, actorID, correlationID string) (PublicJWK, error) {
+	if strings.TrimSpace(tenantID) == "" || strings.TrimSpace(issuerID) == "" {
+		return PublicJWK{}, ErrResourceNotFound
+	}
+	if newKID == "" || len(newKID) > 128 || strings.TrimSpace(newKID) != newKID || strings.ContainsAny(newKID, " \t\r\n") {
+		return PublicJWK{}, ErrInvalidFoundationInput
+	}
+	if s.cfg.KeyProvisioner == nil {
+		return PublicJWK{}, ErrNoActiveKey
+	}
+	if err := s.backend.WithTenantTx(tenantID, func(tx Tx) error {
+		if _, found, err := tx.GetIssuerByID(issuerID); err != nil {
+			return err
+		} else if !found {
+			return ErrResourceNotFound
+		}
+		return nil
+	}); err != nil {
+		return PublicJWK{}, err
+	}
+	kmsKeyRef, jwk, err := s.cfg.KeyProvisioner(tenantID, issuerID, newKID)
+	if err != nil {
+		return PublicJWK{}, err
+	}
+	now := s.now()
+	if err := s.backend.WithTenantTx(tenantID, func(tx Tx) error {
+		return tx.RotateKey(issuerID, newKID, kmsKeyRef, jwk, actorID, correlationID, now)
+	}); err != nil {
+		return PublicJWK{}, err
+	}
+	return jwk, nil
+}
+
+// CreateDraftDefinition registers a new draft credential definition version (HK-003).
+func (s *Service) CreateDraftDefinition(def Definition, actorID, correlationID string) (Definition, error) {
+	if strings.TrimSpace(def.TenantID) == "" || strings.TrimSpace(def.IssuerID) == "" {
+		return Definition{}, ErrInvalidFoundationInput
+	}
+	if err := ValidateDefinition(def); err != nil {
+		return Definition{}, err
+	}
+	now := s.now()
+	var created Definition
+	err := s.backend.WithTenantTx(def.TenantID, func(tx Tx) error {
+		if err := tx.CreateDraftDefinition(def, actorID, correlationID, now); err != nil {
+			return err
+		}
+		d, err := tx.GetDefinition(def.IssuerID, def.ID, def.Version)
+		if err != nil {
+			return err
+		}
+		created = d
+		return nil
+	})
+	if err != nil {
+		return Definition{}, err
+	}
+	return created, nil
+}
+
+// ReplaceDraftDefinition updates an existing draft version when expectedETag matches (HK-003).
+func (s *Service) ReplaceDraftDefinition(def Definition, expectedETag, actorID, correlationID string) (Definition, error) {
+	if strings.TrimSpace(def.TenantID) == "" || strings.TrimSpace(def.IssuerID) == "" {
+		return Definition{}, ErrInvalidFoundationInput
+	}
+	if strings.TrimSpace(expectedETag) == "" {
+		return Definition{}, ErrETagMismatch
+	}
+	if err := ValidateDefinition(def); err != nil {
+		return Definition{}, err
+	}
+	now := s.now()
+	var updated Definition
+	err := s.backend.WithTenantTx(def.TenantID, func(tx Tx) error {
+		current, err := tx.GetDefinition(def.IssuerID, def.ID, def.Version)
+		if err != nil {
+			return err
+		}
+		if current.State != DefinitionDraft {
+			return ErrDefinitionImmutable
+		}
+		if DefinitionETag(current) != expectedETag {
+			return ErrETagMismatch
+		}
+		if err := tx.ReplaceDraftDefinition(def, actorID, correlationID, now); err != nil {
+			return err
+		}
+		d, err := tx.GetDefinition(def.IssuerID, def.ID, def.Version)
+		if err != nil {
+			return err
+		}
+		updated = d
+		return nil
+	})
+	if err != nil {
+		return Definition{}, err
+	}
+	return updated, nil
+}
+
+// PublishDefinition freezes a draft definition version with its SHA-256 content hash (HK-003).
+func (s *Service) PublishDefinition(tenantID, issuerID, id, version, actorID, correlationID string) (Definition, error) {
+	if strings.TrimSpace(tenantID) == "" || strings.TrimSpace(issuerID) == "" {
+		return Definition{}, ErrDefinitionNotFound
+	}
+	now := s.now()
+	var out Definition
+	err := s.backend.WithTenantTx(tenantID, func(tx Tx) error {
+		d, err := tx.PublishDefinition(issuerID, id, version, actorID, correlationID, now)
+		if err != nil {
+			return err
+		}
+		out = d
+		return nil
+	})
+	if err != nil {
+		return Definition{}, err
+	}
+	return out, nil
+}
+
+// RetireDefinition marks a published definition version retired (HK-003).
+func (s *Service) RetireDefinition(tenantID, issuerID, id, version, actorID, correlationID string) (Definition, error) {
+	if strings.TrimSpace(tenantID) == "" || strings.TrimSpace(issuerID) == "" {
+		return Definition{}, ErrDefinitionNotFound
+	}
+	now := s.now()
+	var out Definition
+	err := s.backend.WithTenantTx(tenantID, func(tx Tx) error {
+		d, err := tx.RetireDefinition(issuerID, id, version, actorID, correlationID, now)
+		if err != nil {
+			return err
+		}
+		out = d
+		return nil
+	})
+	if err != nil {
+		return Definition{}, err
+	}
+	return out, nil
+}
+
+// GetDefinition reads any definition version owned by tenantID/issuerID.
+func (s *Service) GetDefinition(tenantID, issuerID, id, version string) (Definition, error) {
+	if strings.TrimSpace(tenantID) == "" || strings.TrimSpace(issuerID) == "" {
+		return Definition{}, ErrDefinitionNotFound
+	}
+	var out Definition
+	err := s.backend.WithTenantTx(tenantID, func(tx Tx) error {
+		d, err := tx.GetDefinition(issuerID, id, version)
+		if err != nil {
+			return err
+		}
+		out = d
+		return nil
+	})
+	if err != nil {
+		return Definition{}, err
+	}
+	return out, nil
+}
+
+// ListDefinitions returns all definition versions for an issuer in tenantID.
+func (s *Service) ListDefinitions(tenantID, issuerID string) ([]Definition, error) {
+	if strings.TrimSpace(tenantID) == "" || strings.TrimSpace(issuerID) == "" {
+		return nil, ErrResourceNotFound
+	}
+	var out []Definition
+	err := s.backend.WithTenantTx(tenantID, func(tx Tx) error {
+		items, err := tx.ListDefinitions(issuerID)
+		if err != nil {
+			return err
+		}
+		out = items
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if out == nil {
+		out = []Definition{}
+	}
+	return out, nil
+}
+
+func (s *Service) newClientSecret() (string, error) {
+	buf := make([]byte, 24)
+	if _, err := io.ReadFull(s.cfg.Random, buf); err != nil {
+		return "", err
+	}
+	return "hks_" + base64.RawURLEncoding.EncodeToString(buf), nil
+}
+
+// RegisterIntegrationClient registers a tenant-scoped M2M client and returns its secret once (HK-004).
+func (s *Service) RegisterIntegrationClient(
+	tenantID, clientID, clientName, rawSecret string,
+	allowedIssuers, scopes []string,
+	expiresAt *time.Time,
+	actorID, correlationID string,
+) (ClientSummary, string, error) {
+	if strings.TrimSpace(tenantID) == "" || strings.TrimSpace(clientName) == "" || len(allowedIssuers) == 0 || len(scopes) == 0 {
+		return ClientSummary{}, "", ErrInvalidFoundationInput
+	}
+	if strings.TrimSpace(clientID) == "" {
+		var err error
+		clientID, err = newUUID(s.cfg.Random)
+		if err != nil {
+			return ClientSummary{}, "", ErrInvalidFoundationInput
+		}
+	}
+	if rawSecret == "" {
+		var err error
+		rawSecret, err = s.newClientSecret()
+		if err != nil {
+			return ClientSummary{}, "", ErrInvalidFoundationInput
+		}
+	}
+	secretHash, err := HashClientSecret(rawSecret)
+	if err != nil {
+		return ClientSummary{}, "", err
+	}
+	now := s.now()
+	if expiresAt != nil && !expiresAt.UTC().After(now) {
+		return ClientSummary{}, "", ErrInvalidFoundationInput
+	}
+	issuersCopy := slices.Clone(allowedIssuers)
+	slices.Sort(issuersCopy)
+	scopesCopy := slices.Clone(scopes)
+	slices.Sort(scopesCopy)
+	var expCopy *time.Time
+	if expiresAt != nil {
+		t := expiresAt.UTC()
+		expCopy = &t
+	}
+	summary := ClientSummary{
+		ClientID:       clientID,
+		TenantID:       tenantID,
+		ClientName:     clientName,
+		AllowedIssuers: issuersCopy,
+		Scopes:         scopesCopy,
+		State:          ClientActive,
+		CreatedAt:      now,
+		ExpiresAt:      expCopy,
+	}
+	if err := s.backend.WithTenantTx(tenantID, func(tx Tx) error {
+		return tx.RegisterClient(summary, secretHash, actorID, correlationID, now)
+	}); err != nil {
+		return ClientSummary{}, "", err
+	}
+	return summary, rawSecret, nil
+}
+
+// ListIntegrationClients returns secret-free M2M client summaries for tenantID (HK-004).
+func (s *Service) ListIntegrationClients(tenantID string) ([]ClientSummary, error) {
+	if strings.TrimSpace(tenantID) == "" {
+		return nil, ErrInvalidFoundationInput
+	}
+	var out []ClientSummary
+	err := s.backend.WithTenantTx(tenantID, func(tx Tx) error {
+		items, err := tx.ListClients()
+		if err != nil {
+			return err
+		}
+		out = items
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if out == nil {
+		out = []ClientSummary{}
+	}
+	return out, nil
+}
+
+// RotateIntegrationClientSecret replaces an active client's secret within tenantID and returns it once (HK-004).
+func (s *Service) RotateIntegrationClientSecret(tenantID, clientID, newSecret, actorID, correlationID string) (string, error) {
+	if strings.TrimSpace(tenantID) == "" || strings.TrimSpace(clientID) == "" {
+		return "", ErrResourceNotFound
+	}
+	if newSecret == "" {
+		var err error
+		newSecret, err = s.newClientSecret()
+		if err != nil {
+			return "", ErrInvalidFoundationInput
+		}
+	}
+	secretHash, err := HashClientSecret(newSecret)
+	if err != nil {
+		return "", err
+	}
+	now := s.now()
+	if err := s.backend.WithTenantTx(tenantID, func(tx Tx) error {
+		return tx.RotateClientSecret(clientID, secretHash, actorID, correlationID, now)
+	}); err != nil {
+		return "", err
+	}
+	return newSecret, nil
+}
+
+// RevokeIntegrationClient marks an M2M integration client revoked inside tenantID (HK-004).
+func (s *Service) RevokeIntegrationClient(tenantID, clientID, actorID, correlationID string) error {
+	if strings.TrimSpace(tenantID) == "" || strings.TrimSpace(clientID) == "" {
+		return ErrResourceNotFound
+	}
+	now := s.now()
+	return s.backend.WithTenantTx(tenantID, func(tx Tx) error {
+		return tx.RevokeClient(clientID, actorID, correlationID, now)
+	})
+}
+
+// ListAuditEvents lists immutable secret-free issuance audit entries for tenantID (HK-005).
+func (s *Service) ListAuditEvents(tenantID, actionFilter string) ([]AuditRecord, error) {
+	if strings.TrimSpace(tenantID) == "" {
+		return nil, ErrInvalidFoundationInput
+	}
+	var out []AuditRecord
+	err := s.backend.WithTenantTx(tenantID, func(tx Tx) error {
+		items, err := tx.ListAuditEvents(actionFilter)
+		if err != nil {
+			return err
+		}
+		out = items
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if out == nil {
+		out = []AuditRecord{}
 	}
 	return out, nil
 }

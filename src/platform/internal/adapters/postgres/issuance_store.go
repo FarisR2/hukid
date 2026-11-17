@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"slices"
 	"strings"
 	"time"
 
@@ -138,6 +139,32 @@ func (t *postgresIssuanceTx) GetIssuerBySlug(slug string) (issuance.IssuerRecord
 	return t.scanIssuer(`SELECT tenant_id::text,issuer_id::text,slug,issuer_uri,display_name,state,created_at FROM tenancy.issuers WHERE slug=$1`, slug)
 }
 
+func (t *postgresIssuanceTx) CreateIssuer(rec issuance.IssuerRecord, kid, kmsKeyRef string, jwk issuance.PublicJWK, actorID, correlationID string, now time.Time) error {
+	return createIssuerWithKeyTx(t.ctx, t.tx, t.tenantID, rec, kid, kmsKeyRef, jwk, actorID, correlationID, now)
+}
+
+func (t *postgresIssuanceTx) ListIssuers() ([]issuance.IssuerRecord, error) {
+	rows, err := t.tx.Query(t.ctx,
+		`SELECT tenant_id::text,issuer_id::text,slug,issuer_uri,display_name,state,created_at
+		 FROM tenancy.issuers ORDER BY created_at,issuer_id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []issuance.IssuerRecord
+	for rows.Next() {
+		var rec issuance.IssuerRecord
+		var state string
+		if err := rows.Scan(&rec.TenantID, &rec.IssuerID, &rec.Slug, &rec.IssuerURI, &rec.DisplayName, &state, &rec.CreatedAt); err != nil {
+			return nil, err
+		}
+		rec.State = issuance.IssuerState(state)
+		rec.CreatedAt = rec.CreatedAt.UTC()
+		out = append(out, rec)
+	}
+	return out, rows.Err()
+}
+
 func (t *postgresIssuanceTx) scanIssuer(query, arg string) (issuance.IssuerRecord, bool, error) {
 	var rec issuance.IssuerRecord
 	var state string
@@ -236,6 +263,101 @@ func (t *postgresIssuanceTx) GetClient(clientID string) (issuance.StoredClient, 
 		out.AllowedIssuers[id] = true
 	}
 	return out, true, nil
+}
+
+func (t *postgresIssuanceTx) RegisterClient(client issuance.ClientSummary, secretHash [32]byte, actorID, correlationID string, now time.Time) error {
+	return registerHashedClientTx(t.ctx, t.tx, t.tenantID, client, secretHash, actorID, correlationID, now)
+}
+
+func (t *postgresIssuanceTx) ListClients() ([]issuance.ClientSummary, error) {
+	rows, err := t.tx.Query(t.ctx,
+		`SELECT c.client_id::text,c.tenant_id::text,c.client_name,c.scopes,c.state,c.created_at,c.expires_at,c.revoked_at,
+		        COALESCE(ARRAY(SELECT g.issuer_id::text FROM tenancy.integration_client_grants g WHERE g.tenant_id=c.tenant_id AND g.client_id=c.client_id ORDER BY g.issuer_id),'{}'::text[])
+		 FROM tenancy.integration_clients c ORDER BY c.created_at,c.client_id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []issuance.ClientSummary
+	for rows.Next() {
+		var c issuance.ClientSummary
+		var state string
+		var expAt, revAt *time.Time
+		if err := rows.Scan(&c.ClientID, &c.TenantID, &c.ClientName, &c.Scopes, &state, &c.CreatedAt, &expAt, &revAt, &c.AllowedIssuers); err != nil {
+			return nil, err
+		}
+		c.State = issuance.ClientState(state)
+		c.CreatedAt = c.CreatedAt.UTC()
+		if expAt != nil {
+			t := expAt.UTC()
+			c.ExpiresAt = &t
+		}
+		if revAt != nil {
+			t := revAt.UTC()
+			c.RevokedAt = &t
+		}
+		slices.Sort(c.Scopes)
+		if c.AllowedIssuers == nil {
+			c.AllowedIssuers = []string{}
+		}
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
+func (t *postgresIssuanceTx) RotateClientSecret(clientID string, newSecretHash [32]byte, actorID, correlationID string, now time.Time) error {
+	return rotateClientSecretTx(t.ctx, t.tx, t.tenantID, clientID, newSecretHash, actorID, correlationID, now)
+}
+
+func (t *postgresIssuanceTx) RevokeClient(clientID, actorID, correlationID string, now time.Time) error {
+	return revokeClientTx(t.ctx, t.tx, t.tenantID, clientID, actorID, correlationID, now)
+}
+
+func (t *postgresIssuanceTx) CreateDraftDefinition(def issuance.Definition, actorID, correlationID string, now time.Time) error {
+	return createDraftDefinitionTx(t.ctx, t.tx, t.tenantID, def, actorID, correlationID, now)
+}
+
+func (t *postgresIssuanceTx) ReplaceDraftDefinition(def issuance.Definition, actorID, correlationID string, now time.Time) error {
+	return replaceDraftDefinitionTx(t.ctx, t.tx, t.tenantID, def, actorID, correlationID, now)
+}
+
+func (t *postgresIssuanceTx) PublishDefinition(issuerID, id, version, actorID, correlationID string, now time.Time) (issuance.Definition, error) {
+	return publishDefinitionTx(t.ctx, t.tx, t.tenantID, issuerID, id, version, actorID, correlationID, now)
+}
+
+func (t *postgresIssuanceTx) RetireDefinition(issuerID, id, version, actorID, correlationID string, now time.Time) (issuance.Definition, error) {
+	return retireDefinitionTx(t.ctx, t.tx, t.tenantID, issuerID, id, version, actorID, correlationID, now)
+}
+
+func (t *postgresIssuanceTx) GetDefinition(issuerID, id, version string) (issuance.Definition, error) {
+	return getDefinitionTx(t.ctx, t.tx, issuerID, id, version)
+}
+
+func (t *postgresIssuanceTx) ListDefinitions(issuerID string) ([]issuance.Definition, error) {
+	if !validID(issuerID) {
+		return nil, issuance.ErrResourceNotFound
+	}
+	var exists int
+	if err := t.tx.QueryRow(t.ctx, `SELECT 1 FROM tenancy.issuers WHERE issuer_id=$1`, issuerID).Scan(&exists); errors.Is(err, pgx.ErrNoRows) {
+		return nil, issuance.ErrResourceNotFound
+	} else if err != nil {
+		return nil, err
+	}
+	rows, err := t.tx.Query(t.ctx,
+		selectDefinitionCols+` WHERE issuer_id=$1 ORDER BY definition_id,version`, issuerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []issuance.Definition
+	for rows.Next() {
+		d, err := scanDefinitionRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, d)
+	}
+	return out, rows.Err()
 }
 
 func scanDefinitionRow(row pgx.Row) (issuance.Definition, error) {
@@ -955,6 +1077,52 @@ func (t *postgresIssuanceTx) AppendAudit(rec issuance.AuditRecord) error {
 	return appendPostgresAudit(t.ctx, t.tx, rec)
 }
 
+func (t *postgresIssuanceTx) ListAuditEvents(actionFilter string) ([]issuance.AuditRecord, error) {
+	return listAuditEventsTx(t.ctx, t.tx, actionFilter)
+}
+
+func createIssuerWithKeyTx(
+	ctx context.Context, tx pgx.Tx, tenantID string,
+	rec issuance.IssuerRecord, kid, kmsKeyRef string, jwk issuance.PublicJWK,
+	actorID, correlationID string, now time.Time,
+) error {
+	if rec.TenantID != tenantID || !validID(rec.IssuerID) {
+		return issuance.ErrInvalidFoundationInput
+	}
+	if err := issuance.ValidateIssuerIdentifier(rec.IssuerURI); err != nil {
+		return issuance.ErrInvalidFoundationInput
+	}
+	ts := now.UTC()
+	if _, err := tx.Exec(ctx,
+		`INSERT INTO tenancy.issuers(issuer_id,tenant_id,slug,issuer_uri,display_name,state,created_at) VALUES($1,$2,$3,$4,$5,$6,$7)`,
+		rec.IssuerID, tenantID, rec.Slug, rec.IssuerURI, rec.DisplayName, string(rec.State), rec.CreatedAt); err != nil {
+		return mapFoundationPGError(err)
+	}
+	if err := appendPostgresAudit(ctx, tx, newPostgresAuditEvent(tenantID, actorID, "issuer.created", rec.IssuerID, "succeeded", correlationID, ts)); err != nil {
+		return mapFoundationPGError(err)
+	}
+	if kid != "" {
+		return registerKeyTx(ctx, tx, tenantID, rec.IssuerID, kid, kmsKeyRef, jwk, actorID, correlationID, ts)
+	}
+	return nil
+}
+
+func registerKeyTx(ctx context.Context, tx pgx.Tx, tenantID, issuerID, kid, kmsKeyRef string, jwk issuance.PublicJWK, actorID, correlationID string, now time.Time) error {
+	if !validID(issuerID) || kid == "" || strings.TrimSpace(kmsKeyRef) == "" {
+		return issuance.ErrInvalidFoundationInput
+	}
+	if _, err := issuance.DecodePublicJWK(jwk); err != nil {
+		return issuance.ErrInvalidFoundationInput
+	}
+	if _, err := tx.Exec(ctx,
+		`INSERT INTO tenancy.issuer_keys(tenant_id,issuer_id,kid,kms_key_ref,alg,crv,x_coord,y_coord,state,created_at)
+		 VALUES($1,$2,$3,$4,'ES256','P-256',$5,$6,'active',$7)`,
+		tenantID, issuerID, kid, kmsKeyRef, jwk.X, jwk.Y, now.UTC()); err != nil {
+		return mapKeyPGError(err)
+	}
+	return mapKeyPGError(appendPostgresAudit(ctx, tx, newPostgresAuditEvent(tenantID, actorID, "issuer_key.registered", kid, "succeeded", correlationID, now)))
+}
+
 // CreateIssuer persists a logical issuer within tenantID under FORCE RLS.
 func (b *IssuanceBackend) CreateIssuer(ctx context.Context, tenantID, issuerID, slug, displayName string, now time.Time) (issuance.IssuerRecord, error) {
 	if !validID(issuerID) {
@@ -965,35 +1133,19 @@ func (b *IssuanceBackend) CreateIssuer(ctx context.Context, tenantID, issuerID, 
 		return issuance.IssuerRecord{}, err
 	}
 	err = WithIssuanceTenant(ctx, b.pool, tenantID, func(tx pgx.Tx) error {
-		_, err := tx.Exec(ctx,
-			`INSERT INTO tenancy.issuers(issuer_id,tenant_id,slug,issuer_uri,display_name,state,created_at) VALUES($1,$2,$3,$4,$5,$6,$7)`,
-			rec.IssuerID, rec.TenantID, rec.Slug, rec.IssuerURI, rec.DisplayName, string(rec.State), rec.CreatedAt)
-		return err
+		return createIssuerWithKeyTx(ctx, tx, tenantID, rec, "", "", issuance.PublicJWK{}, "system", "", now)
 	})
 	if err != nil {
-		return issuance.IssuerRecord{}, mapFoundationPGError(err)
+		return issuance.IssuerRecord{}, err
 	}
 	return rec, nil
 }
 
 // RegisterKey persists an active ES256 public key metadata row (no private key in SQL).
 func (b *IssuanceBackend) RegisterKey(ctx context.Context, tenantID, issuerID, kid, kmsKeyRef string, jwk issuance.PublicJWK, actorID, correlationID string, now time.Time) error {
-	if !validID(issuerID) || kid == "" || strings.TrimSpace(kmsKeyRef) == "" {
-		return issuance.ErrInvalidFoundationInput
-	}
-	if _, err := issuance.DecodePublicJWK(jwk); err != nil {
-		return issuance.ErrInvalidFoundationInput
-	}
-	err := WithIssuanceTenant(ctx, b.pool, tenantID, func(tx pgx.Tx) error {
-		if _, err := tx.Exec(ctx,
-			`INSERT INTO tenancy.issuer_keys(tenant_id,issuer_id,kid,kms_key_ref,alg,crv,x_coord,y_coord,state,created_at)
-			 VALUES($1,$2,$3,$4,'ES256','P-256',$5,$6,'active',$7)`,
-			tenantID, issuerID, kid, kmsKeyRef, jwk.X, jwk.Y, now.UTC()); err != nil {
-			return err
-		}
-		return appendPostgresAudit(ctx, tx, newPostgresAuditEvent(tenantID, actorID, "issuer_key.registered", kid, "succeeded", correlationID, now))
+	return WithIssuanceTenant(ctx, b.pool, tenantID, func(tx pgx.Tx) error {
+		return registerKeyTx(ctx, tx, tenantID, issuerID, kid, kmsKeyRef, jwk, actorID, correlationID, now)
 	})
-	return mapKeyPGError(err)
 }
 
 func rotateKeyTx(ctx context.Context, tx pgx.Tx, tenantID, issuerID, newKID, newKMSKeyRef string, newJWK issuance.PublicJWK, actorID, correlationID string, now time.Time) error {
@@ -1059,6 +1211,261 @@ func (b *IssuanceBackend) CompromiseKey(ctx context.Context, tenantID, issuerID,
 	})
 }
 
+func registerHashedClientTx(
+	ctx context.Context, tx pgx.Tx, tenantID string,
+	client issuance.ClientSummary, secretHash [32]byte,
+	actorID, correlationID string, now time.Time,
+) error {
+	if client.TenantID != tenantID || !validID(client.ClientID) || strings.TrimSpace(client.ClientName) == "" ||
+		len(client.AllowedIssuers) == 0 || len(client.Scopes) == 0 {
+		return issuance.ErrInvalidFoundationInput
+	}
+	if client.ExpiresAt != nil && !client.ExpiresAt.UTC().After(now.UTC()) {
+		return issuance.ErrInvalidFoundationInput
+	}
+	for _, sc := range client.Scopes {
+		if !issuance.AllowedIntegrationScope(sc) {
+			return issuance.ErrInvalidFoundationInput
+		}
+	}
+	for _, id := range client.AllowedIssuers {
+		if !validID(id) {
+			return issuance.ErrInvalidFoundationInput
+		}
+	}
+	ts := now.UTC()
+	var expPtr *time.Time
+	if client.ExpiresAt != nil {
+		t := client.ExpiresAt.UTC()
+		expPtr = &t
+	}
+	if _, err := tx.Exec(ctx,
+		`INSERT INTO tenancy.integration_clients(client_id,tenant_id,client_name,secret_hash,scopes,state,created_at,expires_at)
+		 VALUES($1,$2,$3,$4,$5,'active',$6,$7)`,
+		client.ClientID, tenantID, client.ClientName, secretHash[:], client.Scopes, ts, expPtr); err != nil {
+		return mapFoundationPGError(err)
+	}
+	for _, issuerID := range client.AllowedIssuers {
+		if _, err := tx.Exec(ctx,
+			`INSERT INTO tenancy.integration_client_grants(tenant_id,client_id,issuer_id,created_at) VALUES($1,$2,$3,$4)`,
+			tenantID, client.ClientID, issuerID, ts); err != nil {
+			return mapFoundationPGError(err)
+		}
+	}
+	return mapFoundationPGError(appendPostgresAudit(ctx, tx, newPostgresAuditEvent(tenantID, actorID, "integration_client.registered", client.ClientID, "succeeded", correlationID, ts)))
+}
+
+func rotateClientSecretTx(
+	ctx context.Context, tx pgx.Tx, tenantID, clientID string, newSecretHash [32]byte,
+	actorID, correlationID string, now time.Time,
+) error {
+	if !validID(clientID) {
+		return issuance.ErrResourceNotFound
+	}
+	var state string
+	err := tx.QueryRow(ctx, `SELECT state FROM tenancy.integration_clients WHERE client_id=$1 FOR UPDATE`, clientID).Scan(&state)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return issuance.ErrResourceNotFound
+	}
+	if err != nil {
+		return err
+	}
+	if state != string(issuance.ClientActive) {
+		return issuance.ErrClientUnauthorized
+	}
+	if _, err := tx.Exec(ctx, `UPDATE tenancy.integration_clients SET secret_hash=$2 WHERE client_id=$1`, clientID, newSecretHash[:]); err != nil {
+		return mapFoundationPGError(err)
+	}
+	return appendPostgresAudit(ctx, tx, newPostgresAuditEvent(tenantID, actorID, "integration_client.secret_rotated", clientID, "succeeded", correlationID, now.UTC()))
+}
+
+func revokeClientTx(ctx context.Context, tx pgx.Tx, tenantID, clientID, actorID, correlationID string, now time.Time) error {
+	if !validID(clientID) {
+		return issuance.ErrResourceNotFound
+	}
+	ts := now.UTC()
+	tag, err := tx.Exec(ctx,
+		`UPDATE tenancy.integration_clients SET state='revoked',revoked_at=$2 WHERE client_id=$1`,
+		clientID, ts)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() != 1 {
+		return issuance.ErrResourceNotFound
+	}
+	return appendPostgresAudit(ctx, tx, newPostgresAuditEvent(tenantID, actorID, "integration_client.revoked", clientID, "succeeded", correlationID, ts))
+}
+
+func marshalDefinitionPayload(tenantID string, def issuance.Definition) ([]byte, []string, []string, error) {
+	if def.TenantID != tenantID || !validID(def.IssuerID) || issuance.ValidateDefinition(def) != nil {
+		return nil, nil, nil, issuance.ErrInvalidFoundationInput
+	}
+	fieldsJSON, err := json.Marshal(def.Fields)
+	if err != nil {
+		return nil, nil, nil, issuance.ErrInvalidFoundationInput
+	}
+	contexts := def.Contexts
+	if contexts == nil {
+		contexts = []string{}
+	}
+	purposes := def.StatusPurposes
+	if purposes == nil {
+		purposes = []string{}
+	}
+	return fieldsJSON, contexts, purposes, nil
+}
+
+func createDraftDefinitionTx(ctx context.Context, tx pgx.Tx, tenantID string, def issuance.Definition, actorID, correlationID string, now time.Time) error {
+	fieldsJSON, contexts, purposes, err := marshalDefinitionPayload(tenantID, def)
+	if err != nil {
+		return err
+	}
+	ts := now.UTC()
+	if _, err := tx.Exec(ctx,
+		`INSERT INTO definition.credential_definitions(tenant_id,issuer_id,definition_id,created_at) VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING`,
+		tenantID, def.IssuerID, def.ID, ts); err != nil {
+		return mapDefinitionPGError(err)
+	}
+	_, err = tx.Exec(ctx,
+		`INSERT INTO definition.definition_versions(tenant_id,issuer_id,definition_id,version,configuration_id,display_name,locale,contexts,types,fields_json,default_validity_seconds,status_purposes,publish_schema,state,content_hash,created_at)
+		 VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'draft','',$14)`,
+		tenantID, def.IssuerID, def.ID, def.Version, def.ConfigurationID, def.DisplayName,
+		def.Locale, contexts, def.Types, fieldsJSON, int64(def.DefaultValidity/time.Second), purposes, def.PublishSchema, ts)
+	if err != nil {
+		return mapDefinitionPGError(err)
+	}
+	return mapDefinitionPGError(appendPostgresAudit(ctx, tx, newPostgresAuditEvent(tenantID, actorID, "definition.draft_created", def.Ref(), "succeeded", correlationID, ts)))
+}
+
+func replaceDraftDefinitionTx(ctx context.Context, tx pgx.Tx, tenantID string, def issuance.Definition, actorID, correlationID string, now time.Time) error {
+	fieldsJSON, contexts, purposes, err := marshalDefinitionPayload(tenantID, def)
+	if err != nil {
+		return err
+	}
+	ts := now.UTC()
+	var state string
+	err = tx.QueryRow(ctx,
+		`SELECT state FROM definition.definition_versions WHERE issuer_id=$1 AND definition_id=$2 AND version=$3 FOR UPDATE`,
+		def.IssuerID, def.ID, def.Version).Scan(&state)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return issuance.ErrDefinitionNotFound
+	}
+	if err != nil {
+		return mapDefinitionPGError(err)
+	}
+	if state != string(issuance.DefinitionDraft) {
+		return issuance.ErrDefinitionImmutable
+	}
+	_, err = tx.Exec(ctx,
+		`UPDATE definition.definition_versions
+		 SET configuration_id=$4,display_name=$5,locale=$6,contexts=$7,types=$8,fields_json=$9,default_validity_seconds=$10,status_purposes=$11,publish_schema=$12
+		 WHERE issuer_id=$1 AND definition_id=$2 AND version=$3`,
+		def.IssuerID, def.ID, def.Version, def.ConfigurationID, def.DisplayName, def.Locale, contexts, def.Types, fieldsJSON, int64(def.DefaultValidity/time.Second), purposes, def.PublishSchema)
+	if err != nil {
+		return mapDefinitionPGError(err)
+	}
+	return mapDefinitionPGError(appendPostgresAudit(ctx, tx, newPostgresAuditEvent(tenantID, actorID, "definition.draft_replaced", def.Ref(), "succeeded", correlationID, ts)))
+}
+
+func publishDefinitionTx(ctx context.Context, tx pgx.Tx, tenantID, issuerID, id, version, actorID, correlationID string, now time.Time) (issuance.Definition, error) {
+	if !validID(issuerID) {
+		return issuance.Definition{}, issuance.ErrDefinitionNotFound
+	}
+	ts := now.UTC()
+	d, err := scanDefinitionRow(tx.QueryRow(ctx,
+		selectDefinitionCols+` WHERE issuer_id=$1 AND definition_id=$2 AND version=$3 FOR UPDATE`,
+		issuerID, id, version))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return issuance.Definition{}, issuance.ErrDefinitionNotFound
+	}
+	if err != nil {
+		return issuance.Definition{}, mapDefinitionPGError(err)
+	}
+	if d.State != issuance.DefinitionDraft {
+		return issuance.Definition{}, issuance.ErrDefinitionImmutable
+	}
+	hash, err := issuance.ComputeDefinitionHash(d)
+	if err != nil {
+		return issuance.Definition{}, issuance.ErrInvalidFoundationInput
+	}
+	if _, err := tx.Exec(ctx,
+		`UPDATE definition.definition_versions SET state='published',content_hash=$4,published_at=$5
+		 WHERE issuer_id=$1 AND definition_id=$2 AND version=$3`,
+		issuerID, id, version, hash, ts); err != nil {
+		return issuance.Definition{}, mapDefinitionPGError(err)
+	}
+	d.State = issuance.DefinitionPublished
+	d.Hash = hash
+	d.PublishedAt = &ts
+	if err := appendPostgresAudit(ctx, tx, newPostgresAuditEvent(tenantID, actorID, "definition.published", d.Ref(), "succeeded", correlationID, ts)); err != nil {
+		return issuance.Definition{}, mapDefinitionPGError(err)
+	}
+	return d, nil
+}
+
+func retireDefinitionTx(ctx context.Context, tx pgx.Tx, tenantID, issuerID, id, version, actorID, correlationID string, now time.Time) (issuance.Definition, error) {
+	if !validID(issuerID) {
+		return issuance.Definition{}, issuance.ErrDefinitionNotFound
+	}
+	ts := now.UTC()
+	d, err := scanDefinitionRow(tx.QueryRow(ctx,
+		selectDefinitionCols+` WHERE issuer_id=$1 AND definition_id=$2 AND version=$3 FOR UPDATE`,
+		issuerID, id, version))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return issuance.Definition{}, issuance.ErrDefinitionNotFound
+	}
+	if err != nil {
+		return issuance.Definition{}, mapDefinitionPGError(err)
+	}
+	if d.State != issuance.DefinitionPublished {
+		return issuance.Definition{}, issuance.ErrDefinitionImmutable
+	}
+	if _, err := tx.Exec(ctx,
+		`UPDATE definition.definition_versions SET state='retired',retired_at=$4 WHERE issuer_id=$1 AND definition_id=$2 AND version=$3`,
+		issuerID, id, version, ts); err != nil {
+		return issuance.Definition{}, mapDefinitionPGError(err)
+	}
+	d.State = issuance.DefinitionRetired
+	d.RetiredAt = &ts
+	if err := appendPostgresAudit(ctx, tx, newPostgresAuditEvent(tenantID, actorID, "definition.retired", id+"@"+version, "succeeded", correlationID, ts)); err != nil {
+		return issuance.Definition{}, mapDefinitionPGError(err)
+	}
+	return d, nil
+}
+
+func getDefinitionTx(ctx context.Context, tx pgx.Tx, issuerID, id, version string) (issuance.Definition, error) {
+	if !validID(issuerID) {
+		return issuance.Definition{}, issuance.ErrDefinitionNotFound
+	}
+	d, err := scanDefinitionRow(tx.QueryRow(ctx,
+		selectDefinitionCols+` WHERE issuer_id=$1 AND definition_id=$2 AND version=$3`,
+		issuerID, id, version))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return issuance.Definition{}, issuance.ErrDefinitionNotFound
+	}
+	return d, err
+}
+
+func listAuditEventsTx(ctx context.Context, tx pgx.Tx, actionFilter string) ([]issuance.AuditRecord, error) {
+	rows, err := tx.Query(ctx,
+		`SELECT event_id,tenant_id::text,actor_id,action,target_id,outcome,correlation_id,occurred_at
+		 FROM issuance.audit_events WHERE ($1='' OR action=$1) ORDER BY occurred_at,event_id`, actionFilter)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []issuance.AuditRecord
+	for rows.Next() {
+		var r issuance.AuditRecord
+		if err := rows.Scan(&r.EventID, &r.TenantID, &r.ActorID, &r.Action, &r.TargetID, &r.Outcome, &r.CorrelationID, &r.OccurredAt); err != nil {
+			return nil, err
+		}
+		r.OccurredAt = r.OccurredAt.UTC()
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
 // RegisterClient persists an M2M integration client with its SHA-256 secret hash and issuer grants.
 func (b *IssuanceBackend) RegisterClient(
 	ctx context.Context,
@@ -1068,238 +1475,68 @@ func (b *IssuanceBackend) RegisterClient(
 	actorID, correlationID string,
 	now time.Time,
 ) error {
-	if !validID(clientID) || strings.TrimSpace(clientName) == "" || len(allowedIssuers) == 0 || len(scopes) == 0 {
-		return issuance.ErrInvalidFoundationInput
-	}
-	if expiresAt != nil && !expiresAt.UTC().After(now.UTC()) {
-		return issuance.ErrInvalidFoundationInput
-	}
 	secretHash, err := issuance.HashClientSecret(rawSecret)
 	if err != nil {
 		return err
 	}
-	for _, sc := range scopes {
-		if !issuance.AllowedIntegrationScope(sc) {
-			return issuance.ErrInvalidFoundationInput
-		}
+	summary := issuance.ClientSummary{
+		ClientID:       clientID,
+		TenantID:       tenantID,
+		ClientName:     clientName,
+		AllowedIssuers: allowedIssuers,
+		Scopes:         scopes,
+		ExpiresAt:      expiresAt,
 	}
-	for _, id := range allowedIssuers {
-		if !validID(id) {
-			return issuance.ErrInvalidFoundationInput
-		}
-	}
-	ts := now.UTC()
-	var expPtr *time.Time
-	if expiresAt != nil {
-		t := expiresAt.UTC()
-		expPtr = &t
-	}
-	err = WithIssuanceTenant(ctx, b.pool, tenantID, func(tx pgx.Tx) error {
-		if _, err := tx.Exec(ctx,
-			`INSERT INTO tenancy.integration_clients(client_id,tenant_id,client_name,secret_hash,scopes,state,created_at,expires_at)
-			 VALUES($1,$2,$3,$4,$5,'active',$6,$7)`,
-			clientID, tenantID, clientName, secretHash[:], scopes, ts, expPtr); err != nil {
-			return err
-		}
-		for _, issuerID := range allowedIssuers {
-			if _, err := tx.Exec(ctx,
-				`INSERT INTO tenancy.integration_client_grants(tenant_id,client_id,issuer_id,created_at) VALUES($1,$2,$3,$4)`,
-				tenantID, clientID, issuerID, ts); err != nil {
-				return err
-			}
-		}
-		return appendPostgresAudit(ctx, tx, newPostgresAuditEvent(tenantID, actorID, "integration_client.registered", clientID, "succeeded", correlationID, ts))
+	return WithIssuanceTenant(ctx, b.pool, tenantID, func(tx pgx.Tx) error {
+		return registerHashedClientTx(ctx, tx, tenantID, summary, secretHash, actorID, correlationID, now)
 	})
-	return mapFoundationPGError(err)
 }
 
 // RevokeClient revokes an integration client inside tenantID (404 cross-tenant).
 func (b *IssuanceBackend) RevokeClient(ctx context.Context, tenantID, clientID, actorID, correlationID string, now time.Time) error {
-	if !validID(clientID) {
-		return issuance.ErrResourceNotFound
-	}
-	ts := now.UTC()
 	return WithIssuanceTenant(ctx, b.pool, tenantID, func(tx pgx.Tx) error {
-		tag, err := tx.Exec(ctx,
-			`UPDATE tenancy.integration_clients SET state='revoked',revoked_at=$2 WHERE client_id=$1`,
-			clientID, ts)
-		if err != nil {
-			return err
-		}
-		if tag.RowsAffected() != 1 {
-			return issuance.ErrResourceNotFound
-		}
-		return appendPostgresAudit(ctx, tx, newPostgresAuditEvent(tenantID, actorID, "integration_client.revoked", clientID, "succeeded", correlationID, ts))
+		return revokeClientTx(ctx, tx, tenantID, clientID, actorID, correlationID, now)
 	})
 }
 
 // CreateDraftDefinition inserts a new draft definition version inside Postgres.
 func (b *IssuanceBackend) CreateDraftDefinition(ctx context.Context, def issuance.Definition, actorID, correlationID string, now time.Time) error {
-	if !validID(def.IssuerID) || issuance.ValidateDefinition(def) != nil {
-		return issuance.ErrInvalidFoundationInput
-	}
-	fieldsJSON, err := json.Marshal(def.Fields)
-	if err != nil {
-		return issuance.ErrInvalidFoundationInput
-	}
-	contexts := def.Contexts
-	if contexts == nil {
-		contexts = []string{}
-	}
-	purposes := def.StatusPurposes
-	if purposes == nil {
-		purposes = []string{}
-	}
-	ts := now.UTC()
-	err = WithIssuanceTenant(ctx, b.pool, def.TenantID, func(tx pgx.Tx) error {
-		if _, err := tx.Exec(ctx,
-			`INSERT INTO definition.credential_definitions(tenant_id,issuer_id,definition_id,created_at) VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING`,
-			def.TenantID, def.IssuerID, def.ID, ts); err != nil {
-			return err
-		}
-		_, err := tx.Exec(ctx,
-			`INSERT INTO definition.definition_versions(tenant_id,issuer_id,definition_id,version,configuration_id,display_name,locale,contexts,types,fields_json,default_validity_seconds,status_purposes,publish_schema,state,content_hash,created_at)
-			 VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'draft','',$14)`,
-			def.TenantID, def.IssuerID, def.ID, def.Version, def.ConfigurationID, def.DisplayName,
-			def.Locale, contexts, def.Types, fieldsJSON, int64(def.DefaultValidity/time.Second), purposes, def.PublishSchema, ts)
-		if err != nil {
-			return err
-		}
-		return appendPostgresAudit(ctx, tx, newPostgresAuditEvent(def.TenantID, actorID, "definition.draft_created", def.Ref(), "succeeded", correlationID, ts))
+	return WithIssuanceTenant(ctx, b.pool, def.TenantID, func(tx pgx.Tx) error {
+		return createDraftDefinitionTx(ctx, tx, def.TenantID, def, actorID, correlationID, now)
 	})
-	return mapDefinitionPGError(err)
 }
 
 // ReplaceDraftDefinition updates a mutable draft version; published/retired versions are rejected.
 func (b *IssuanceBackend) ReplaceDraftDefinition(ctx context.Context, def issuance.Definition, actorID, correlationID string, now time.Time) error {
-	if !validID(def.IssuerID) || issuance.ValidateDefinition(def) != nil {
-		return issuance.ErrInvalidFoundationInput
-	}
-	fieldsJSON, err := json.Marshal(def.Fields)
-	if err != nil {
-		return issuance.ErrInvalidFoundationInput
-	}
-	contexts := def.Contexts
-	if contexts == nil {
-		contexts = []string{}
-	}
-	purposes := def.StatusPurposes
-	if purposes == nil {
-		purposes = []string{}
-	}
-	ts := now.UTC()
-	err = WithIssuanceTenant(ctx, b.pool, def.TenantID, func(tx pgx.Tx) error {
-		var state string
-		err := tx.QueryRow(ctx,
-			`SELECT state FROM definition.definition_versions WHERE issuer_id=$1 AND definition_id=$2 AND version=$3 FOR UPDATE`,
-			def.IssuerID, def.ID, def.Version).Scan(&state)
-		if errors.Is(err, pgx.ErrNoRows) {
-			return issuance.ErrDefinitionNotFound
-		}
-		if err != nil {
-			return err
-		}
-		if state != string(issuance.DefinitionDraft) {
-			return issuance.ErrDefinitionImmutable
-		}
-		_, err = tx.Exec(ctx,
-			`UPDATE definition.definition_versions
-			 SET configuration_id=$4,display_name=$5,locale=$6,contexts=$7,types=$8,fields_json=$9,default_validity_seconds=$10,status_purposes=$11,publish_schema=$12
-			 WHERE issuer_id=$1 AND definition_id=$2 AND version=$3`,
-			def.IssuerID, def.ID, def.Version, def.ConfigurationID, def.DisplayName, def.Locale, contexts, def.Types, fieldsJSON, int64(def.DefaultValidity/time.Second), purposes, def.PublishSchema)
-		if err != nil {
-			return err
-		}
-		return appendPostgresAudit(ctx, tx, newPostgresAuditEvent(def.TenantID, actorID, "definition.draft_replaced", def.Ref(), "succeeded", correlationID, ts))
+	return WithIssuanceTenant(ctx, b.pool, def.TenantID, func(tx pgx.Tx) error {
+		return replaceDraftDefinitionTx(ctx, tx, def.TenantID, def, actorID, correlationID, now)
 	})
-	return mapDefinitionPGError(err)
 }
 
 // PublishDefinition computes the canonical SHA-256 hash and freezes the version.
 func (b *IssuanceBackend) PublishDefinition(ctx context.Context, tenantID, issuerID, id, version, actorID, correlationID string, now time.Time) (issuance.Definition, error) {
-	if !validID(issuerID) {
-		return issuance.Definition{}, issuance.ErrDefinitionNotFound
-	}
-	ts := now.UTC()
 	var out issuance.Definition
 	err := WithIssuanceTenant(ctx, b.pool, tenantID, func(tx pgx.Tx) error {
-		d, err := scanDefinitionRow(tx.QueryRow(ctx,
-			selectDefinitionCols+` WHERE issuer_id=$1 AND definition_id=$2 AND version=$3 FOR UPDATE`,
-			issuerID, id, version))
-		if errors.Is(err, pgx.ErrNoRows) {
-			return issuance.ErrDefinitionNotFound
-		}
-		if err != nil {
-			return err
-		}
-		if d.State != issuance.DefinitionDraft {
-			return issuance.ErrDefinitionImmutable
-		}
-		hash, err := issuance.ComputeDefinitionHash(d)
-		if err != nil {
-			return issuance.ErrInvalidFoundationInput
-		}
-		if _, err := tx.Exec(ctx,
-			`UPDATE definition.definition_versions SET state='published',content_hash=$4,published_at=$5
-			 WHERE issuer_id=$1 AND definition_id=$2 AND version=$3`,
-			issuerID, id, version, hash, ts); err != nil {
-			return err
-		}
-		d.State = issuance.DefinitionPublished
-		d.Hash = hash
-		d.PublishedAt = &ts
+		d, err := publishDefinitionTx(ctx, tx, tenantID, issuerID, id, version, actorID, correlationID, now)
 		out = d
-		return appendPostgresAudit(ctx, tx, newPostgresAuditEvent(tenantID, actorID, "definition.published", d.Ref(), "succeeded", correlationID, ts))
+		return err
 	})
-	if err != nil {
-		return issuance.Definition{}, mapDefinitionPGError(err)
-	}
-	return out, nil
+	return out, err
 }
 
 // RetireDefinition marks a published definition version retired (terminal).
 func (b *IssuanceBackend) RetireDefinition(ctx context.Context, tenantID, issuerID, id, version, actorID, correlationID string, now time.Time) error {
-	if !validID(issuerID) {
-		return issuance.ErrDefinitionNotFound
-	}
-	ts := now.UTC()
-	err := WithIssuanceTenant(ctx, b.pool, tenantID, func(tx pgx.Tx) error {
-		var state string
-		err := tx.QueryRow(ctx,
-			`SELECT state FROM definition.definition_versions WHERE issuer_id=$1 AND definition_id=$2 AND version=$3 FOR UPDATE`,
-			issuerID, id, version).Scan(&state)
-		if errors.Is(err, pgx.ErrNoRows) {
-			return issuance.ErrDefinitionNotFound
-		}
-		if err != nil {
-			return err
-		}
-		if state != string(issuance.DefinitionPublished) {
-			return issuance.ErrDefinitionImmutable
-		}
-		if _, err := tx.Exec(ctx,
-			`UPDATE definition.definition_versions SET state='retired',retired_at=$4 WHERE issuer_id=$1 AND definition_id=$2 AND version=$3`,
-			issuerID, id, version, ts); err != nil {
-			return err
-		}
-		return appendPostgresAudit(ctx, tx, newPostgresAuditEvent(tenantID, actorID, "definition.retired", id+"@"+version, "succeeded", correlationID, ts))
+	return WithIssuanceTenant(ctx, b.pool, tenantID, func(tx pgx.Tx) error {
+		_, err := retireDefinitionTx(ctx, tx, tenantID, issuerID, id, version, actorID, correlationID, now)
+		return err
 	})
-	return mapDefinitionPGError(err)
 }
 
 // GetDefinition reads a definition version in any state inside tenantID.
 func (b *IssuanceBackend) GetDefinition(ctx context.Context, tenantID, issuerID, id, version string) (issuance.Definition, error) {
-	if !validID(issuerID) {
-		return issuance.Definition{}, issuance.ErrDefinitionNotFound
-	}
 	var out issuance.Definition
 	err := WithIssuanceTenant(ctx, b.pool, tenantID, func(tx pgx.Tx) error {
-		d, err := scanDefinitionRow(tx.QueryRow(ctx,
-			selectDefinitionCols+` WHERE issuer_id=$1 AND definition_id=$2 AND version=$3`,
-			issuerID, id, version))
-		if errors.Is(err, pgx.ErrNoRows) {
-			return issuance.ErrDefinitionNotFound
-		}
+		d, err := getDefinitionTx(ctx, tx, issuerID, id, version)
 		out = d
 		return err
 	})
@@ -1310,22 +1547,9 @@ func (b *IssuanceBackend) GetDefinition(ctx context.Context, tenantID, issuerID,
 func (b *IssuanceBackend) ListAuditEvents(ctx context.Context, tenantID, actionFilter string) ([]issuance.AuditRecord, error) {
 	var out []issuance.AuditRecord
 	err := WithIssuanceTenant(ctx, b.pool, tenantID, func(tx pgx.Tx) error {
-		rows, err := tx.Query(ctx,
-			`SELECT event_id,tenant_id::text,actor_id,action,target_id,outcome,correlation_id,occurred_at
-			 FROM issuance.audit_events WHERE ($1='' OR action=$1) ORDER BY occurred_at,event_id`, actionFilter)
-		if err != nil {
-			return err
-		}
-		defer rows.Close()
-		for rows.Next() {
-			var r issuance.AuditRecord
-			if err := rows.Scan(&r.EventID, &r.TenantID, &r.ActorID, &r.Action, &r.TargetID, &r.Outcome, &r.CorrelationID, &r.OccurredAt); err != nil {
-				return err
-			}
-			r.OccurredAt = r.OccurredAt.UTC()
-			out = append(out, r)
-		}
-		return rows.Err()
+		rows, err := listAuditEventsTx(ctx, tx, actionFilter)
+		out = rows
+		return err
 	})
 	return out, err
 }

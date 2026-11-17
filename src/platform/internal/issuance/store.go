@@ -5,6 +5,7 @@ import (
 	"crypto/subtle"
 	"maps"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 )
@@ -133,9 +134,21 @@ type Backend interface {
 type Tx interface {
 	GetIssuerByID(issuerID string) (IssuerRecord, bool, error)
 	GetIssuerBySlug(slug string) (IssuerRecord, bool, error)
+	CreateIssuer(rec IssuerRecord, kid, kmsKeyRef string, jwk PublicJWK, actorID, correlationID string, now time.Time) error
+	ListIssuers() ([]IssuerRecord, error)
 	GetActiveKey(issuerID string) (StoredKey, error)
 	ListPublicKeys(issuerID string) ([]PublicJWK, error)
 	GetClient(clientID string) (StoredClient, bool, error)
+	RegisterClient(client ClientSummary, secretHash [32]byte, actorID, correlationID string, now time.Time) error
+	ListClients() ([]ClientSummary, error)
+	RotateClientSecret(clientID string, newSecretHash [32]byte, actorID, correlationID string, now time.Time) error
+	RevokeClient(clientID, actorID, correlationID string, now time.Time) error
+	CreateDraftDefinition(def Definition, actorID, correlationID string, now time.Time) error
+	ReplaceDraftDefinition(def Definition, actorID, correlationID string, now time.Time) error
+	PublishDefinition(issuerID, id, version, actorID, correlationID string, now time.Time) (Definition, error)
+	RetireDefinition(issuerID, id, version, actorID, correlationID string, now time.Time) (Definition, error)
+	GetDefinition(issuerID, id, version string) (Definition, error)
+	ListDefinitions(issuerID string) ([]Definition, error)
 	GetIssuableDefinition(issuerID, id, version string) (Definition, error)
 	GetPublicDefinition(issuerID, id, version string) (Definition, error)
 	ListPublishedDefinitions(issuerID string) ([]Definition, error)
@@ -171,6 +184,7 @@ type Tx interface {
 	LockStatusIdempotency(clientID string, keyHash [32]byte) (StatusIdempotencyRecord, bool, error)
 	SaveStatusIdempotency(rec StatusIdempotencyRecord) error
 	AppendAudit(rec AuditRecord) error
+	ListAuditEvents(actionFilter string) ([]AuditRecord, error)
 }
 
 type activeSignerProvider interface {
@@ -387,6 +401,50 @@ func (t *memoryTx) GetIssuerBySlug(slug string) (IssuerRecord, bool, error) {
 	return entry.record, true, nil
 }
 
+func (t *memoryTx) CreateIssuer(rec IssuerRecord, kid, kmsKeyRef string, jwk PublicJWK, actorID, correlationID string, now time.Time) error {
+	if rec.TenantID != t.tenantID {
+		return ErrInvalidFoundationInput
+	}
+	if _, dup := t.m.byID[rec.IssuerID]; dup {
+		return ErrInvalidFoundationInput
+	}
+	if _, dup := t.m.bySlug[rec.Slug]; dup {
+		return ErrInvalidFoundationInput
+	}
+	ring, err := NewKeyRing(rec.TenantID, rec.IssuerURI, t.m.audit)
+	if err != nil {
+		return err
+	}
+	if kid != "" {
+		if err := ring.RegisterKeyMetadata(kid, kmsKeyRef, jwk, actorID, correlationID, now); err != nil {
+			return err
+		}
+	}
+	t.m.byID[rec.IssuerID] = &issuerEntry{record: rec, ring: ring}
+	t.m.bySlug[rec.Slug] = t.m.byID[rec.IssuerID]
+	t.m.audit.Record(rec.TenantID, actorID, "issuer.created", rec.IssuerID, "succeeded", correlationID, now)
+	return nil
+}
+
+func (t *memoryTx) ListIssuers() ([]IssuerRecord, error) {
+	var out []IssuerRecord
+	for _, entry := range t.m.byID {
+		if entry.record.TenantID == t.tenantID {
+			out = append(out, entry.record)
+		}
+	}
+	slices.SortFunc(out, func(a, b IssuerRecord) int {
+		if !a.CreatedAt.Equal(b.CreatedAt) {
+			if a.CreatedAt.Before(b.CreatedAt) {
+				return -1
+			}
+			return 1
+		}
+		return strings.Compare(a.IssuerID, b.IssuerID)
+	})
+	return out, nil
+}
+
 func (t *memoryTx) ActiveSigner(issuerID string) (Signer, error) {
 	entry, ok := t.m.byID[issuerID]
 	if !ok || entry.record.TenantID != t.tenantID {
@@ -400,13 +458,16 @@ func (t *memoryTx) GetActiveKey(issuerID string) (StoredKey, error) {
 	if !ok || entry.record.TenantID != t.tenantID {
 		return StoredKey{}, ErrResourceNotFound
 	}
-	meta, jwk, err := entry.ring.ActiveKeyMetadata()
+	meta, jwk, kmsKeyRef, err := entry.ring.ActiveKeyInfo()
 	if err != nil {
 		return StoredKey{}, err
 	}
+	if kmsKeyRef == "" {
+		kmsKeyRef = "memory://" + meta.KID
+	}
 	return StoredKey{
 		KID:       meta.KID,
-		KMSKeyRef: "memory://" + meta.KID,
+		KMSKeyRef: kmsKeyRef,
 		IssuerURI: meta.IssuerURI,
 		JWK:       jwk,
 	}, nil
@@ -448,6 +509,142 @@ func (t *memoryTx) GetClient(clientID string) (StoredClient, bool, error) {
 	}
 	t.m.clients.mu.RUnlock()
 	return out, true, nil
+}
+
+func (t *memoryTx) RegisterClient(client ClientSummary, secretHash [32]byte, actorID, correlationID string, now time.Time) error {
+	if t.m.clients == nil || client.TenantID != t.tenantID {
+		return ErrInvalidFoundationInput
+	}
+	for _, issuerID := range client.AllowedIssuers {
+		entry, ok := t.m.byID[issuerID]
+		if !ok || entry.record.TenantID != t.tenantID {
+			return ErrInvalidFoundationInput
+		}
+	}
+	if err := t.m.clients.RegisterHashedClient(
+		client.TenantID, client.ClientID, client.ClientName, secretHash,
+		client.AllowedIssuers, client.Scopes, client.ExpiresAt, actorID, correlationID, now,
+	); err != nil {
+		return err
+	}
+	if t.m.clients.audit != t.m.audit {
+		t.m.audit.Record(t.tenantID, actorID, "integration_client.registered", client.ClientID, "succeeded", correlationID, now)
+	}
+	return nil
+}
+
+func (t *memoryTx) ListClients() ([]ClientSummary, error) {
+	if t.m.clients == nil {
+		return nil, nil
+	}
+	return t.m.clients.ListByTenant(t.tenantID), nil
+}
+
+func (t *memoryTx) RotateClientSecret(clientID string, newSecretHash [32]byte, actorID, correlationID string, now time.Time) error {
+	if t.m.clients == nil {
+		return ErrResourceNotFound
+	}
+	if err := t.m.clients.RotateSecretHash(t.tenantID, clientID, newSecretHash, actorID, correlationID, now); err != nil {
+		return err
+	}
+	if t.m.clients.audit != t.m.audit {
+		t.m.audit.Record(t.tenantID, actorID, "integration_client.secret_rotated", clientID, "succeeded", correlationID, now)
+	}
+	return nil
+}
+
+func (t *memoryTx) RevokeClient(clientID, actorID, correlationID string, now time.Time) error {
+	if t.m.clients == nil {
+		return ErrResourceNotFound
+	}
+	if err := t.m.clients.RevokeClient(t.tenantID, clientID, actorID, correlationID, now); err != nil {
+		return err
+	}
+	if t.m.clients.audit != t.m.audit {
+		t.m.audit.Record(t.tenantID, actorID, "integration_client.revoked", clientID, "succeeded", correlationID, now)
+	}
+	return nil
+}
+
+func (t *memoryTx) ensureIssuer(issuerID string) error {
+	entry, ok := t.m.byID[issuerID]
+	if !ok || entry.record.TenantID != t.tenantID {
+		return ErrResourceNotFound
+	}
+	return nil
+}
+
+func (t *memoryTx) CreateDraftDefinition(def Definition, actorID, correlationID string, now time.Time) error {
+	if def.TenantID != t.tenantID {
+		return ErrInvalidFoundationInput
+	}
+	if err := t.ensureIssuer(def.IssuerID); err != nil {
+		return err
+	}
+	if err := t.m.defs.CreateDraft(def, actorID, correlationID, now); err != nil {
+		return err
+	}
+	if t.m.defs.audit != t.m.audit {
+		t.m.audit.Record(t.tenantID, actorID, "definition.draft_created", def.Ref(), "succeeded", correlationID, now)
+	}
+	return nil
+}
+
+func (t *memoryTx) ReplaceDraftDefinition(def Definition, actorID, correlationID string, now time.Time) error {
+	if def.TenantID != t.tenantID {
+		return ErrInvalidFoundationInput
+	}
+	if err := t.ensureIssuer(def.IssuerID); err != nil {
+		return err
+	}
+	if err := t.m.defs.ReplaceDraft(def, actorID, correlationID, now); err != nil {
+		return err
+	}
+	if t.m.defs.audit != t.m.audit {
+		t.m.audit.Record(t.tenantID, actorID, "definition.draft_replaced", def.Ref(), "succeeded", correlationID, now)
+	}
+	return nil
+}
+
+func (t *memoryTx) PublishDefinition(issuerID, id, version, actorID, correlationID string, now time.Time) (Definition, error) {
+	if err := t.ensureIssuer(issuerID); err != nil {
+		return Definition{}, err
+	}
+	d, err := t.m.defs.Publish(t.tenantID, issuerID, id, version, actorID, correlationID, now)
+	if err != nil {
+		return Definition{}, err
+	}
+	if t.m.defs.audit != t.m.audit {
+		t.m.audit.Record(t.tenantID, actorID, "definition.published", d.Ref(), "succeeded", correlationID, now)
+	}
+	return d, nil
+}
+
+func (t *memoryTx) RetireDefinition(issuerID, id, version, actorID, correlationID string, now time.Time) (Definition, error) {
+	if err := t.ensureIssuer(issuerID); err != nil {
+		return Definition{}, err
+	}
+	if err := t.m.defs.Retire(t.tenantID, issuerID, id, version, actorID, correlationID, now); err != nil {
+		return Definition{}, err
+	}
+	if t.m.defs.audit != t.m.audit {
+		t.m.audit.Record(t.tenantID, actorID, "definition.retired", id+"@"+version, "succeeded", correlationID, now)
+	}
+	return t.m.defs.Get(t.tenantID, issuerID, id, version)
+}
+
+func (t *memoryTx) GetDefinition(issuerID, id, version string) (Definition, error) {
+	if err := t.ensureIssuer(issuerID); err != nil {
+		return Definition{}, err
+	}
+	return t.m.defs.Get(t.tenantID, issuerID, id, version)
+}
+
+func (t *memoryTx) ListDefinitions(issuerID string) ([]Definition, error) {
+	if err := t.ensureIssuer(issuerID); err != nil {
+		return nil, err
+	}
+	return t.m.defs.ListByIssuer(t.tenantID, issuerID), nil
 }
 
 func (t *memoryTx) GetIssuableDefinition(issuerID, id, version string) (Definition, error) {
@@ -689,7 +886,13 @@ func (t *memoryTx) RotateKey(issuerID, newKID, kmsKeyRef string, jwk PublicJWK, 
 	if !ok || entry.record.TenantID != t.tenantID {
 		return ErrResourceNotFound
 	}
-	return entry.ring.RotateKeyMetadata(newKID, kmsKeyRef, jwk, actorID, correlationID, now)
+	if err := entry.ring.RotateKeyMetadata(newKID, kmsKeyRef, jwk, actorID, correlationID, now); err != nil {
+		return err
+	}
+	if entry.ring.audit != t.m.audit {
+		t.m.audit.Record(t.tenantID, actorID, "issuer_key.rotated", newKID, "succeeded", correlationID, now)
+	}
+	return nil
 }
 
 func (t *memoryTx) CompromiseKey(issuerID, kid, actorID, correlationID string, now time.Time) error {
@@ -697,7 +900,13 @@ func (t *memoryTx) CompromiseKey(issuerID, kid, actorID, correlationID string, n
 	if !ok || entry.record.TenantID != t.tenantID {
 		return ErrResourceNotFound
 	}
-	return entry.ring.CompromiseKey(kid, actorID, correlationID, now)
+	if err := entry.ring.CompromiseKey(kid, actorID, correlationID, now); err != nil {
+		return err
+	}
+	if entry.ring.audit != t.m.audit {
+		t.m.audit.Record(t.tenantID, actorID, "issuer_key.compromised", kid, "succeeded", correlationID, now)
+	}
+	return nil
 }
 
 func (t *memoryTx) ListIssuedCredentialsByKID(issuerID, kid string) ([]string, error) {
@@ -819,4 +1028,8 @@ func (t *memoryTx) SaveStatusIdempotency(rec StatusIdempotencyRecord) error {
 func (t *memoryTx) AppendAudit(rec AuditRecord) error {
 	t.m.audit.appendRecord(rec)
 	return nil
+}
+
+func (t *memoryTx) ListAuditEvents(actionFilter string) ([]AuditRecord, error) {
+	return t.m.audit.ListByTenant(t.tenantID, actionFilter), nil
 }

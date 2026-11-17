@@ -2640,9 +2640,12 @@
               "type": "string",
               "enum": [
                 "audit:read",
+                "clients:manage",
                 "dashboard:read",
+                "definitions:manage",
                 "invitations:read",
                 "invitations:revoke",
+                "issuers:manage",
                 "members:invite",
                 "members:read",
                 "members:revoke",

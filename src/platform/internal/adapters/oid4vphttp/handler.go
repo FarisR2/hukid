@@ -1,8 +1,9 @@
 // Package oid4vphttp serves the two wallet-facing OpenID4VP endpoints of the
 // verification adapter (FEAT-004, VER-T10, increment d): the signed request
-// object and the direct_post.jwt response. It is deliberately not mounted in
-// cmd/api yet: that needs verifier configuration, a signing key and an
-// authenticated way to start a session (VER-T11), none of which exist.
+// object and the direct_post.jwt response. cmd/api mounts it in two ways: the
+// laboratory mount (one seeded session, process-wide key) and the per-tenant
+// mount (VER-T11-d), where Keys, VerifierFor and a SessionResults sink bind
+// each request to a persisted session and its tenant (ADR-0033, ADR-0034).
 //
 // The package never logs. The response carries a vp_token, so error bodies and
 // status codes are generic and the cause stays out of every output.

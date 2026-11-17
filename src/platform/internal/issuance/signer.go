@@ -49,6 +49,10 @@ type Signer interface {
 // storage without storing raw private keys in SQL.
 type SignerResolver func(tenantID, issuerID, issuerURI, kid, kmsKeyRef string, expectedPub *ecdsa.PublicKey) (Signer, error)
 
+// KeyProvisioner provisions a non-exportable P-256 key pair inside KMS/HSM for
+// an issuer kid and returns its KMS reference and public JWK.
+type KeyProvisioner func(tenantID, issuerID, kid string) (kmsKeyRef string, jwk PublicJWK, err error)
+
 // PublicJWK represents a public P-256 JSON Web Key published in JWKS.
 type PublicJWK struct {
 	Kty string `json:"kty"`
@@ -146,8 +150,28 @@ func (s *MemorySigner) Sign(signingInput string) ([]byte, error) {
 	if err != nil {
 		return nil, ErrSigningFailed
 	}
+	return ParseASN1OrRawES256Signature(der)
+}
+
+// ParseASN1OrRawES256Signature normalizes either a 64-byte raw (R || S) or
+// ASN.1 DER-encoded ECDSA P-256 signature into the 64-byte JWS R || S form.
+func ParseASN1OrRawES256Signature(sigBytes []byte) ([]byte, error) {
+	order := elliptic.P256().Params().N
+	if len(sigBytes) == 64 {
+		r := new(big.Int).SetBytes(sigBytes[:32])
+		s := new(big.Int).SetBytes(sigBytes[32:])
+		if r.Sign() <= 0 || s.Sign() <= 0 || r.Cmp(order) >= 0 || s.Cmp(order) >= 0 {
+			return nil, ErrSigningFailed
+		}
+		out := make([]byte, 64)
+		copy(out, sigBytes)
+		return out, nil
+	}
 	var sig struct{ R, S *big.Int }
-	if rest, err := asn1.Unmarshal(der, &sig); err != nil || len(rest) != 0 || sig.R == nil || sig.S == nil {
+	if rest, err := asn1.Unmarshal(sigBytes, &sig); err != nil || len(rest) != 0 || sig.R == nil || sig.S == nil {
+		return nil, ErrSigningFailed
+	}
+	if sig.R.Sign() <= 0 || sig.S.Sign() <= 0 || sig.R.Cmp(order) >= 0 || sig.S.Cmp(order) >= 0 {
 		return nil, ErrSigningFailed
 	}
 	raw := make([]byte, 64)

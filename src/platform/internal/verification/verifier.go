@@ -26,12 +26,14 @@ var ErrConfig = errors.New("invalid verifier configuration")
 // Verifier verifies single credentials. It performs no network or database
 // access: keys come from the injected resolver and time from the injected clock.
 type Verifier struct {
-	keys      IssuerKeyResolver
-	clock     Clock
-	limits    Limits
-	clockSkew time.Duration
-	replay    ReplayStore
-	trust     TrustPolicy
+	keys         IssuerKeyResolver
+	clock        Clock
+	limits       Limits
+	clockSkew    time.Duration
+	replay       ReplayStore
+	trust        TrustPolicy
+	status       StatusResolver
+	statusPolicy StatusPolicy
 }
 
 // WithCredentialContexts returns a copy that accepts the given JSON-LD contexts
@@ -55,6 +57,15 @@ func (v *Verifier) WithTrustPolicy(policy TrustPolicy) *Verifier {
 func (v *Verifier) WithReplayStore(store ReplayStore) *Verifier {
 	copied := *v
 	copied.replay = store
+	return &copied
+}
+
+// WithStatusResolver returns a copy of the verifier that checks credentialStatus
+// BitstringStatusListCredential entries using resolver and policy (VER-T09).
+func (v *Verifier) WithStatusResolver(resolver StatusResolver, policy StatusPolicy) *Verifier {
+	copied := *v
+	copied.status = resolver
+	copied.statusPolicy = policy
 	return &copied
 }
 
@@ -107,9 +118,24 @@ func (v *Verifier) Verify(jws string) (Report, error) {
 		}
 		return report, nil
 	}
+	validityCheck := checkValidity(parsed, v.clock.Now(), v.clockSkew)
+	var statusCheck Check
+	if validityCheck.Result != Pass {
+		if parsed.DeclaresStatus {
+			statusCheck = SkippedCheck(CheckStatus, CodeSkippedPrecondition, true)
+		} else {
+			statusCheck = optionalSkip(CheckStatus, false)
+		}
+	} else {
+		var err error
+		statusCheck, err = v.evaluateStatus(parsed)
+		if err != nil {
+			return Report{}, err
+		}
+	}
 	checks = append(checks,
-		checkValidity(parsed, v.clock.Now(), v.clockSkew),
-		optionalSkip(CheckStatus, parsed.DeclaresStatus),
+		validityCheck,
+		statusCheck,
 		optionalSkip(CheckSchema, parsed.DeclaresSchema),
 	)
 	report := NewReport([]byte(jws), checks)

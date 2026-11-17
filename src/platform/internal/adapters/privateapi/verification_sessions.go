@@ -146,7 +146,7 @@ func (h *VerificationHandler) start(w http.ResponseWriter, r *http.Request) {
 		VerificationProblem(w, err)
 		return
 	}
-	session, err := oid4vp.NewSession(oid4vp.Config{ClientID: clientID, ResponseURI: responseURI, TTL: ttl}, h.now(), nil)
+	session, err := oid4vp.NewSession(oid4vp.Config{ClientID: clientID, ResponseURI: responseURI, TTL: ttl, SessionID: sessionID, TenantID: tenant}, h.now(), nil)
 	if err != nil {
 		VerificationProblem(w, err)
 		return

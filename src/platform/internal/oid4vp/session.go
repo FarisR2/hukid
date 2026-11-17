@@ -44,6 +44,9 @@ const (
 var (
 	// ErrConfig reports an invalid session configuration.
 	ErrConfig = errors.New("invalid oid4vp configuration")
+	// ErrNoSigningKey reports that no request-signing key is available for a
+	// session: it is unknown, finished or expired, or its tenant has no key.
+	ErrNoSigningKey = errors.New("no request signing key for session")
 	// ErrSessionExpired reports a response that arrived after the request expired.
 	ErrSessionExpired = errors.New("presentation request expired")
 	// ErrResponseInvalid reports a response that could not be authenticated as
@@ -64,6 +67,11 @@ type Config struct {
 	CredentialQueryID string
 	// TTL bounds the session. Zero means DefaultTTL; above MaxTTL is rejected.
 	TTL time.Duration
+	// SessionID and TenantID bind the request to the persisted verification
+	// session of an authorized tenant (ADR-0033). They are opaque to this
+	// package and empty in the laboratory mount.
+	SessionID string
+	TenantID  string
 }
 
 func (c Config) normalized() (Config, error) {
@@ -134,6 +142,12 @@ func NewSession(cfg Config, now time.Time, random io.Reader) (*Session, error) {
 	now = now.UTC()
 	return &Session{cfg: cfg, nonce: nonce, state: state, kid: kid, encKey: key, issuedAt: now, expiresAt: now.Add(cfg.TTL)}, nil
 }
+
+// SessionID is the persisted session this request belongs to, or "".
+func (s *Session) SessionID() string { return s.cfg.SessionID }
+
+// TenantID is the tenant that started this request, or "".
+func (s *Session) TenantID() string { return s.cfg.TenantID }
 
 // ExpiresAt is when the request stops accepting responses.
 func (s *Session) ExpiresAt() time.Time { return s.expiresAt }

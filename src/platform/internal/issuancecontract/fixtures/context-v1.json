@@ -1,0 +1,12 @@
+{
+  "@context": {
+    "@version": 1.1,
+    "@protected": true,
+    "DemoWorkshopCredential": "{issuer}/vocabulary/v1#DemoWorkshopCredential",
+    "demo": "{issuer}/vocabulary/v1#demo",
+    "workshop": "{issuer}/vocabulary/v1#workshop",
+    "participation": "{issuer}/vocabulary/v1#participation",
+    "cnf": "{issuer}/vocabulary/v1#cnf",
+    "jkt": "{issuer}/vocabulary/v1#jkt"
+  }
+}

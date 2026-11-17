@@ -20,3 +20,7 @@ dist/
 !.env.example
 # Staging Keycloak credentials (scripts/README.md); explicit even though .env.* already covers it.
 .env.staging
+
+# Stack for skills
+.agents/
+skills-lock.json

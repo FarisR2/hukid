@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "{issuer}/schemas/workshop/v1",
+  "title": "Synthetic non-entitling workshop subject v1",
+  "const": {
+    "demo": true,
+    "workshop": "Taller ficticio de wallet",
+    "participation": "simulated"
+  }
+}

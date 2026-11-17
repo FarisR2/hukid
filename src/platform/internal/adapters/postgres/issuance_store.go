@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -532,6 +533,59 @@ func (t *postgresIssuanceTx) GetRequestForClient(requestID, clientID string) (is
 	return scanStoredRequest(t.tx.QueryRow(t.ctx, selectRequestCols+` WHERE request_id=$1 AND client_id=$2`, requestID, clientID))
 }
 
+func (t *postgresIssuanceTx) ListAdminRequests(filter issuance.AdminListFilter) ([]issuance.StoredRequest, error) {
+	query := `SELECT request_id,tenant_id::text,issuer_id::text,client_id::text,definition_id,definition_version,configuration_id,offer_state,issuance_state,issued_credential_id,created_at,expires_at
+		FROM issuance.issuance_requests`
+	args := []any{}
+	if filter.IssuerID != "" {
+		if !validID(filter.IssuerID) {
+			return nil, issuance.ErrInvalidRequest
+		}
+		query += ` WHERE issuer_id=$1`
+		args = append(args, filter.IssuerID)
+	}
+	query += ` ORDER BY created_at DESC,request_id DESC LIMIT $` + strconv.Itoa(len(args)+1) + ` OFFSET $` + strconv.Itoa(len(args)+2)
+	args = append(args, filter.Limit, filter.Offset)
+	rows, err := t.tx.Query(t.ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := make([]issuance.StoredRequest, 0)
+	for rows.Next() {
+		var r issuance.StoredRequest
+		if err := rows.Scan(&r.ID, &r.TenantID, &r.IssuerID, &r.ClientID, &r.DefID, &r.DefVersion, &r.ConfigID, &r.OfferState, &r.IssuanceState, &r.IssuedCredentialID, &r.CreatedAt, &r.ExpiresAt); err != nil {
+			return nil, err
+		}
+		r.CreatedAt, r.ExpiresAt = r.CreatedAt.UTC(), r.ExpiresAt.UTC()
+		items = append(items, r)
+	}
+	return items, rows.Err()
+}
+
+func (t *postgresIssuanceTx) ListPendingDeferredRequestIDs(limit int, now time.Time) ([]string, error) {
+	if limit < 1 || limit > 500 {
+		return nil, issuance.ErrInvalidRequest
+	}
+	rows, err := t.tx.Query(t.ctx,
+		`SELECT request_id FROM issuance.deferred_transactions
+		 WHERE status='pending' AND expires_at>$1
+		 ORDER BY created_at,request_id LIMIT $2`, now.UTC(), limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	ids := make([]string, 0)
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
 func (t *postgresIssuanceTx) GetRequestByOfferRef(issuerID, ref string) (issuance.StoredRequest, bool, error) {
 	if !validID(issuerID) || ref == "" {
 		return issuance.StoredRequest{}, false, nil
@@ -980,6 +1034,35 @@ func (t *postgresIssuanceTx) LockIssuedCredential(credentialID string) (issuance
 		rec.RevokedAt = &r
 	}
 	return rec, true, nil
+}
+
+func (t *postgresIssuanceTx) ListAdminCredentials(filter issuance.AdminListFilter) ([]issuance.IssuedCredentialRecord, error) {
+	query := `SELECT credential_id,tenant_id::text,issuer_id::text,request_id,client_id,desired_status,published_status,status_version,issued_at FROM status.issued_credentials`
+	args := []any{}
+	if filter.IssuerID != "" {
+		if !validID(filter.IssuerID) {
+			return nil, issuance.ErrInvalidRequest
+		}
+		query += ` WHERE issuer_id=$1`
+		args = append(args, filter.IssuerID)
+	}
+	query += ` ORDER BY issued_at DESC,credential_id DESC LIMIT $` + strconv.Itoa(len(args)+1) + ` OFFSET $` + strconv.Itoa(len(args)+2)
+	args = append(args, filter.Limit, filter.Offset)
+	rows, err := t.tx.Query(t.ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := make([]issuance.IssuedCredentialRecord, 0)
+	for rows.Next() {
+		var r issuance.IssuedCredentialRecord
+		if err := rows.Scan(&r.CredentialID, &r.TenantID, &r.IssuerID, &r.RequestID, &r.ClientID, &r.DesiredStatus, &r.PublishedStatus, &r.StatusVersion, &r.IssuedAt); err != nil {
+			return nil, err
+		}
+		r.IssuedAt = r.IssuedAt.UTC()
+		items = append(items, r)
+	}
+	return items, rows.Err()
 }
 
 func scanStatusList(row pgx.Row) (issuance.StatusListRecord, bool, error) {

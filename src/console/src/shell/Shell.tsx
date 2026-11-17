@@ -18,15 +18,16 @@ const descriptions: Record<string, string> = {
   actividad: 'Eventos recientes de la organización, con referencias opacas.',
   miembros: 'Gestiona el acceso a esta organización. Los cambios se comprueban al guardar.',
   invitaciones: 'Invita a personas y sigue el estado de cada invitación.',
+  emisores: 'Administra las identidades de emisión y sus claves de firma.',
+  definiciones: 'Crea borradores y publica versiones inmutables de credenciales.',
+  clientes: 'Administra los sistemas autorizados para solicitar emisiones.',
+  solicitudes: 'Consulta solicitudes de emisión con referencias y estados operativos.',
+  credenciales: 'Consulta credenciales emitidas y la propagación de su estado.',
 };
 
 const soon: Record<string, { summary: string; includes: string[]; indicator: string | null }> = {
-  emisores: { summary: 'Dependencias autorizadas para emitir credenciales en nombre de la organización.',
-    includes: ['Lista de emisores con estado y credenciales emitidas', 'Detalle de cada emisor y sus operadores', 'Alta de un emisor nuevo'], indicator: 'Emisores activos' },
-  definiciones: { summary: 'Tipos de credencial y sus versiones.',
-    includes: ['Tipos de credencial con versiones Borrador, Publicada y Retirada', 'Editor de campos del esquema', 'Publicar una versión, con confirmación'], indicator: 'Versiones publicadas' },
   solicitudes: { summary: 'Pedidos de emisión pendientes de revisar.',
-    includes: ['Bandeja con filtros por estado', 'Detalle de cada solicitud', 'Emitir la credencial desde la solicitud'], indicator: 'Solicitudes creadas' },
+    includes: ['Bandeja con filtros por estado', 'Detalle de cada solicitud', 'Seguimiento de la oferta y su canje por la wallet'], indicator: 'Solicitudes creadas' },
   credenciales: { summary: 'Credenciales emitidas y su estado.',
     includes: ['Búsqueda por referencia o por titular', 'Historial de estado de cada credencial', 'Suspender, reactivar o revocar (definitivo)'], indicator: 'Credenciales emitidas' },
   ajustes: { summary: 'Datos institucionales y políticas de acceso.',

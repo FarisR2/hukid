@@ -10,7 +10,7 @@ Las fases 1 y 2 incorporan únicamente infraestructura Tailwind v4/Base UI segú
 
 ## Decisiones abiertas del núcleo de credenciales — 2026-11-10
 
-Lo implementado hasta hoy es el panel administrativo (autenticación, miembros, dashboard). La emisión, el estado y la verificación de credenciales siguen pendientes ([hoja de ruta](hukid-roadmap.md), fases 0 y 2–6). La documentación deja abiertas las decisiones siguientes. Corresponden al owner; no se resuelven por inferencia ni por defecto de implementación.
+El repositorio contiene el núcleo de emisión/status y la consola tiene un primer incremento para administrar emisores, definiciones y clientes de integración ([acceso BFF y límites](../03-design/console-issuance-management.md)). Esto no completa el piloto: faltan listados administrativos de solicitudes/credenciales, autorización de status para operadores, definición de producto POS con payload aprobado y el recorrido de fuente/wallet. La verificación sigue su propio estado en [FEAT-004](../features/FEAT-004-credential-verification/spec.md). Las decisiones de producto que siguen abiertas corresponden al owner; no se resuelven por inferencia ni por defecto de implementación.
 
 | # | Decisión abierta | Qué dice la documentación | Fuente |
 | --- | --- | --- | --- |
@@ -94,6 +94,10 @@ Los paquetes [FEAT-001/002/003](../features/README.md) añaden especificación, 
 Para empezar AUTH-T01 no es necesario recuperar los ejemplos de emisión ni configurar KMS issuer. Para completar login integrado sí hacen falta IdP test compatible, políticas de sesión/MFA, contrato de operador y migraciones mínimas; miembros necesita policy de invitación/notificación. No marcar esos artefactos como disponibles por existir el plan.
 
 Pendientes actuales del panel: D3/DASH-T05 y los bloqueos productivos de los gates [AUTH](authentication-gate.md), [USR](members-gate.md) y [DASH](dashboard-gate.md). Hay un harness E2E descartable y pantallas conectadas. El owner confirmó ingreso en un laboratorio manual temporal preparado fuera del código versionado; no es un entorno demo persistente reproducible desde checkout ni un despliegue productivo. No acredita emisión/verificación documental. Las secciones de incremento que siguen conservan el estado histórico de su fecha.
+
+### FEAT-005 — incremento técnico de administración issuer
+
+[FEAT-005](../features/FEAT-005-issuer-operations/spec.md) conecta emisores/keys, definitions, clientes y listados metadata-only de solicitudes/credenciales a través del BFF y Management API. Los listados se limitan a tenant, issuer asignado, columnas allowlisted y páginas limitadas; no exponen claims, digest, source reference ni offer material. `issuance:read` sigue reservado y no se ha concedido a ningún rol, según el [contrato del dashboard](../03-design/console-dashboard-contract.md), así que las nuevas vistas no están habilitadas en el perfil actual. No hay acciones operator de status: falta acordar capability/MFA/auditoría/idempotencia. Payload POS, adapter Events→HukID, wallet Flutter y recorrido end-to-end siguen bajo decisiones/owners pendientes. Los checks de código y la matriz PostgreSQL se registrarán en FEAT-005; no convierten el incremento en gate productivo.
 
 ### Incremento USR-T02
 

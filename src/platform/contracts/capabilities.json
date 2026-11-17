@@ -1,6 +1,12 @@
 {
   "version": "0.1.0-draft",
   "scope": "tenant-local",
+  "reserved": [
+    "issuer:read",
+    "definition:read",
+    "issuance:read",
+    "status:read"
+  ],
   "roles": {
     "tenant_admin": [
       "dashboard:read",

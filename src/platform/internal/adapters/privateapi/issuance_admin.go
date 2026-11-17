@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -78,6 +79,8 @@ type adminAuditDTO struct {
 // Register wires all administrative issuance routes into mux.
 func (h *IssuanceAdminHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/v1/operator/tenants/{tenantId}/issuers", h.serveIssuers)
+	mux.HandleFunc("/v1/operator/tenants/{tenantId}/issuance-requests", h.serveOperatorRequests)
+	mux.HandleFunc("/v1/operator/tenants/{tenantId}/credentials", h.serveOperatorCredentials)
 	mux.HandleFunc("/v1/operator/tenants/{tenantId}/issuers/{issuerId}/keys/rotate", h.serveRotateKey)
 	mux.HandleFunc("/v1/operator/tenants/{tenantId}/issuers/{issuerId}/keys/{kid}/compromise", h.serveCompromiseKey)
 	mux.HandleFunc("/v1/operator/tenants/{tenantId}/issuers/{issuerId}/credential-definitions", h.serveDefinitions)
@@ -89,6 +92,97 @@ func (h *IssuanceAdminHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/v1/operator/tenants/{tenantId}/clients/{clientId}/revoke", h.serveRevokeClient)
 	mux.HandleFunc("/v1/operator/tenants/{tenantId}/audit", h.serveAudit)
 	mux.HandleFunc("/v1/operator/tenants/{tenantId}/issuance-audit", h.serveAudit)
+}
+
+func (h *IssuanceAdminHandler) operatorListFilter(w http.ResponseWriter, r *http.Request, opCtx tenancy.Context) (issuance.AdminListFilter, bool) {
+	q := r.URL.Query()
+	for k, values := range q {
+		if (k != "issuerId" && k != "limit" && k != "offset") || len(values) != 1 {
+			writeProblem(w, http.StatusBadRequest, "invalid_request", "Parámetro de consulta no soportado o duplicado")
+			return issuance.AdminListFilter{}, false
+		}
+	}
+	filter := issuance.AdminListFilter{Limit: 50}
+	if v := q.Get("limit"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 1 || n > 100 {
+			writeProblem(w, http.StatusUnprocessableEntity, "invalid_input", "limit debe estar entre 1 y 100")
+			return filter, false
+		}
+		filter.Limit = n
+	}
+	if v := q.Get("offset"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 0 || n > 1_000_000 {
+			writeProblem(w, http.StatusUnprocessableEntity, "invalid_input", "offset fuera de rango")
+			return filter, false
+		}
+		filter.Offset = n
+	}
+	filter.IssuerID = q.Get("issuerId")
+	if slices.Contains(opCtx.Roles, "issuer_operator") && !slices.Contains(opCtx.Capabilities, "issuance:read") {
+		writeProblem(w, http.StatusForbidden, "forbidden", "No autorizado")
+		return filter, false
+	}
+	if slices.Contains(opCtx.Roles, "issuer_operator") {
+		if filter.IssuerID == "" || !slices.Contains(opCtx.IssuerIDs, filter.IssuerID) {
+			writeProblem(w, http.StatusForbidden, "forbidden", "No autorizado para este emisor")
+			return filter, false
+		}
+	}
+	return filter, true
+}
+
+func (h *IssuanceAdminHandler) serveOperatorRequests(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		prepareAdminHeaders(w, r)
+		rejectMethod(w, http.MethodGet)
+		return
+	}
+	_, _, opCtx, _, ok := h.authRead(w, r)
+	if !ok {
+		return
+	}
+	if !slices.Contains(opCtx.Capabilities, "issuance:read") {
+		issuanceAdminProblem(w, tenancy.ErrDirectoryForbidden)
+		return
+	}
+	filter, ok := h.operatorListFilter(w, r, opCtx)
+	if !ok {
+		return
+	}
+	items, err := h.Service.ListOperatorRequests(opCtx.TenantID, filter)
+	if err != nil {
+		issuanceAdminProblem(w, err)
+		return
+	}
+	JSON(w, map[string]any{"items": items, "limit": filter.Limit, "offset": filter.Offset})
+}
+
+func (h *IssuanceAdminHandler) serveOperatorCredentials(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		prepareAdminHeaders(w, r)
+		rejectMethod(w, http.MethodGet)
+		return
+	}
+	_, _, opCtx, _, ok := h.authRead(w, r)
+	if !ok {
+		return
+	}
+	if !slices.Contains(opCtx.Capabilities, "issuance:read") {
+		issuanceAdminProblem(w, tenancy.ErrDirectoryForbidden)
+		return
+	}
+	filter, ok := h.operatorListFilter(w, r, opCtx)
+	if !ok {
+		return
+	}
+	items, err := h.Service.ListOperatorCredentials(opCtx.TenantID, filter)
+	if err != nil {
+		issuanceAdminProblem(w, err)
+		return
+	}
+	JSON(w, map[string]any{"items": items, "limit": filter.Limit, "offset": filter.Offset})
 }
 
 func (h *IssuanceAdminHandler) now() time.Time {

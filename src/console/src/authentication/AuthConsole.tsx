@@ -6,6 +6,7 @@ import type { FormEvent } from 'react';
 import { AuthError, navigate, readIdentity, request } from './client';
 import type { Identity } from './client';
 import { MemberManagement } from '../user-management/MemberManagement';
+import { IssuanceManagement } from '../issuance/IssuanceManagement';
 import { Acceptance, FormDialog } from '../user-management/forms';
 import { discardInvitation, takeInvitation } from '../user-management/client';
 import { restoreSection } from '../navigation';
@@ -263,6 +264,8 @@ export function AuthConsole() {
           identity={identity} view={current.id} onAccessError={accessError} />}
         {(current.id === 'miembros' || current.id === 'invitaciones') && <MemberManagement key={`${key}:${current.id}`}
           identity={identity} kind={current.id === 'miembros' ? 'memberships' : 'invitations'} onChanged={() => void updateContext()} />}
+        {(current.id === 'emisores' || current.id === 'definiciones' || current.id === 'clientes' || current.id === 'solicitudes' || current.id === 'credenciales') &&
+          <IssuanceManagement key={`${key}:${current.id}`} identity={identity} kind={current.id} />}
         {accepting && <FormDialog label="Aceptar una invitación" onClose={closeAcceptance}>
           <Acceptance key={identity.actorId} identity={identity} initialToken={invitation} onDone={() => { setInvitation(''); void updateContext(); }} /></FormDialog>}
       </>}

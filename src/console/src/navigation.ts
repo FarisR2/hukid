@@ -1,7 +1,7 @@
 // Spec: docs/03-design/console-dashboard-interface.md#layout-de-sidebar--adr-0027
 // One public hash per view. Invitation fragments and unknown hashes never survive startup.
 export type ViewId = 'resumen' | 'actividad' | 'miembros' | 'invitaciones' |
-  'emisores' | 'definiciones' | 'solicitudes' | 'credenciales' | 'ajustes';
+  'emisores' | 'definiciones' | 'clientes' | 'solicitudes' | 'credenciales' | 'ajustes';
 
 export interface ViewItem {
   id: ViewId;
@@ -21,10 +21,11 @@ export const navigation: { group: string; items: ViewItem[] }[] = [
     { id: 'miembros', label: 'Miembros', group: 'Acceso', icon: 'users', capabilities: ['members:read'] },
     { id: 'invitaciones', label: 'Invitaciones', group: 'Acceso', icon: 'mail', capabilities: ['invitations:read'] }] },
   { group: 'Emisión', items: [
-    { id: 'emisores', label: 'Emisores', group: 'Emisión', icon: 'building', soon: true },
-    { id: 'definiciones', label: 'Definiciones', group: 'Emisión', icon: 'file', soon: true },
-    { id: 'solicitudes', label: 'Solicitudes', group: 'Emisión', icon: 'inbox', soon: true },
-    { id: 'credenciales', label: 'Credenciales', group: 'Emisión', icon: 'shield', soon: true }] },
+    { id: 'emisores', label: 'Emisores', group: 'Emisión', icon: 'building', capabilities: ['issuers:manage'] },
+    { id: 'definiciones', label: 'Definiciones', group: 'Emisión', icon: 'file', capabilities: ['definitions:manage'] },
+    { id: 'clientes', label: 'Clientes de integración', group: 'Emisión', icon: 'users', capabilities: ['clients:manage'] },
+    { id: 'solicitudes', label: 'Solicitudes', group: 'Emisión', icon: 'inbox', capabilities: ['issuance:read'] },
+    { id: 'credenciales', label: 'Credenciales', group: 'Emisión', icon: 'shield', capabilities: ['issuance:read'] }] },
   { group: 'Organización', items: [
     { id: 'ajustes', label: 'Ajustes', group: 'Organización', icon: 'sliders', soon: true }] },
 ];
@@ -39,10 +40,11 @@ export function isSectionHash(hash: string): boolean {
   return viewFromHash(hash) !== undefined;
 }
 
-// As in the prototype, the exploration sections are listed only for tenant administrators.
-// They carry no capability, data or API; the backend never sees them.
+// Exploration sections are listed only for tenant administrators. Live issuer views
+// require their explicit capability and are checked again by the Management API.
 export function isAvailable(view: ViewItem, capabilities: string[], roles: string[] = []): boolean {
   if (view.soon) return roles.includes('tenant_admin');
+  if ((view.id === 'emisores' || view.id === 'definiciones') && roles.includes('issuer_operator')) return true;
   return (view.capabilities ?? []).some(capability => capabilities.includes(capability));
 }
 

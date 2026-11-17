@@ -1,0 +1,51 @@
+@layer legacy {
+.issuance { min-width: 0; }
+.issuance-toolbar { display: flex; align-items: end; gap: var(--s3); flex-wrap: wrap; margin-bottom: var(--s4); }
+.issuance-toolbar > label { width: min(100%, 26rem); }
+.issuance-toolbar > button:last-child { margin-left: auto; }
+.issuance-primary { background: var(--primary) !important; border-color: var(--primary) !important; color: var(--on-primary) !important; }
+.issuance-primary:hover { background: var(--hover) !important; }
+.issuance-danger { color: var(--danger) !important; border-color: var(--danger) !important; }
+.issuance-form { display: grid; gap: var(--s4); max-width: var(--measure-editor); margin: var(--s4) 0 var(--s6); padding: var(--s5); border: var(--border-width) solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.issuance-form.compact { max-width: 38rem; }
+.issuance-form h2 { margin: 0; }
+.issuance-form p { margin: 0; }
+.issuance-form label { display: grid; gap: var(--s2); }
+.issuance-form input:not([type='checkbox']), .issuance-form textarea { width: 100%; max-width: 100%; font: inherit; padding: var(--s3) var(--s4); color: var(--text); background: var(--surface); border: var(--border-width) solid var(--control-border); border-radius: var(--radius); }
+.issuance-form input:focus-visible, .issuance-form textarea:focus-visible { outline: var(--focus-width) solid var(--focus); outline-offset: var(--focus-offset); }
+.issuance-form textarea { font-family: var(--font-code); }
+.issuance-form fieldset { display: grid; gap: var(--s2); border: var(--border-width) solid var(--border); border-radius: var(--radius); padding: var(--s4); }
+.issuance-form legend { font-weight: var(--weight-emphasis); padding-inline: var(--s2); }
+.issuance-check { display: flex !important; align-items: center; gap: var(--s2); font-weight: var(--weight-body) !important; min-height: var(--control); }
+.issuance-check input { width: var(--s5); height: var(--s5); min-height: var(--s5); accent-color: var(--primary); }
+.issuance-checks, .issuance-actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--s3); }
+.issuance-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s4); }
+.issuance-hint, .issuance-sub { color: var(--muted-foreground); font-size: var(--text-sm); }
+.issuance-table-wrap { width: 100%; overflow-x: auto; border: var(--border-width) solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.issuance-table { width: 100%; border-collapse: collapse; min-width: 48rem; }
+.issuance-table caption { text-align: left; }
+.issuance-table th, .issuance-table td { padding: var(--s3) var(--s4); border-bottom: var(--border-width) solid var(--border); text-align: left; vertical-align: top; }
+.issuance-table th { font-size: var(--text-sm); color: var(--muted-foreground); font-weight: var(--weight-emphasis); }
+.issuance-table tbody tr:last-child td { border-bottom: 0; }
+.issuance-table td:first-child b, .issuance-sub { display: block; overflow-wrap: anywhere; }
+.issuance-table a { color: var(--primary); overflow-wrap: anywhere; }
+.issuance-state { display: inline-block; padding: var(--s1) var(--s2); border-radius: var(--s1); background: var(--badge-bg); color: var(--badge-text); }
+.issuance-hash { max-width: 15rem; overflow-wrap: anywhere; font-family: var(--font-code); font-size: var(--text-sm); }
+.issuance-actions { min-width: 17rem; }
+.issuance-actions button { margin: 0 var(--s1) var(--s1) 0; }
+.issuance-feedback { padding-block: var(--s5); }
+.issuance-banner { margin: var(--s4) 0; padding: var(--s3) var(--s4); border: var(--border-width) solid var(--border); border-left: var(--border-strong) solid var(--primary); border-radius: var(--radius); background: var(--surface); }
+.issuance-banner.error { border-left-color: var(--danger); }
+.issuance-banner.success { border-left-color: var(--primary); }
+.issuance-secret { width: min(calc(100% - var(--s6)), var(--measure-dialog)); max-height: calc(100dvh - var(--s6)); padding: 0; overflow: visible; border: 0; background: transparent; }
+.issuance-secret::backdrop { background: var(--backdrop); }
+.issuance-secret-card { display: grid; gap: var(--s4); width: 100%; padding: var(--s5); border: var(--border-width) solid var(--control-border); border-radius: var(--radius); background: var(--surface); color: var(--text); }
+.issuance-secret-card h2, .issuance-secret-card p { margin: 0; }
+.issuance-secret-card textarea { width: 100%; font-family: var(--font-code); overflow-wrap: anywhere; }
+@media (max-width: 767px) {
+  .issuance-grid { grid-template-columns: minmax(0, 1fr); }
+  .issuance-toolbar { align-items: stretch; flex-direction: column; }
+  .issuance-toolbar > label { width: 100%; }
+  .issuance-toolbar > button:last-child { margin-left: 0; }
+}
+}

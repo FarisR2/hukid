@@ -77,7 +77,9 @@ test('test policy requires every field and cannot be promoted to production', ()
 test('capability matrix agrees with context enum and never grants a directory to issuer/support', () => {
   const matrix = read('src/platform/contracts/capabilities.json');
   assert.deepEqual(Object.keys(matrix.roles).sort(), ['issuer_operator','security_admin','support_readonly','tenant_admin']);
-  assert.deepEqual([...new Set(Object.values(matrix.roles).flat())].sort(), contract.components.schemas.Context.properties.capabilities.items.enum);
+  const capabilityCatalog = [...new Set([...Object.values(matrix.roles).flat(), ...matrix.reserved])].sort();
+  assert.deepEqual(capabilityCatalog, contract.components.schemas.Context.properties.capabilities.items.enum);
+  for (const capability of matrix.reserved) for (const role of Object.values(matrix.roles)) assert.ok(!role.includes(capability), `${capability} must remain ungranted`);
   for (const role of ['issuer_operator','support_readonly']) assert.deepEqual(matrix.roles[role], ['dashboard:read']);
   assert.ok(!matrix.roles.security_admin.includes('members:update'));
   assert.ok(matrix.stepUpRequired.every(capability => matrix.roles.tenant_admin.includes(capability)));

@@ -94,6 +94,14 @@ type StatusIdempotencyRecord struct {
 	Result      StatusChangeResult
 }
 
+// AdminListFilter bounds an operator listing to one tenant, optional issuer,
+// and a stable offset page. Limit is validated by the service boundary.
+type AdminListFilter struct {
+	IssuerID string
+	Limit    int
+	Offset   int
+}
+
 // DeferredTxRecord tracks an OID4VCI 1.0 deferred issuance transaction (HK-025).
 type DeferredTxRecord struct {
 	TxHash          [32]byte
@@ -156,6 +164,8 @@ type Tx interface {
 	SaveIdempotency(rec IdempotencyRecord) error
 	SaveRequestAndOffer(req StoredRequest, codeHash [32]byte) error
 	GetRequestForClient(requestID, clientID string) (StoredRequest, bool, error)
+	ListAdminRequests(filter AdminListFilter) ([]StoredRequest, error)
+	ListPendingDeferredRequestIDs(limit int, now time.Time) ([]string, error)
 	GetRequestByOfferRef(issuerID, ref string) (StoredRequest, bool, error)
 	CancelIssuanceRequest(requestID string, now time.Time) error
 	RedeemOfferByCodeHash(codeHash [32]byte, now time.Time) (StoredOffer, error)
@@ -178,6 +188,7 @@ type Tx interface {
 	AllocateStatusSlot(issuerID, purpose string, listSize int, newListID func() (string, error), signInitial func(listID string, rawBits []byte) (jwt string, validFrom, validUntil time.Time, err error), now time.Time) (string, int, error)
 	SaveIssuedCredential(rec IssuedCredentialRecord) error
 	LockIssuedCredential(credentialID string) (IssuedCredentialRecord, bool, error)
+	ListAdminCredentials(filter AdminListFilter) ([]IssuedCredentialRecord, error)
 	LockStatusList(issuerID, listID string) (StatusListRecord, bool, error)
 	GetPublishedStatusList(issuerID, purpose, listID string) (StatusListRecord, bool, error)
 	SaveStatusListAndCredential(list StatusListRecord, cred IssuedCredentialRecord) error
@@ -689,6 +700,41 @@ func (t *memoryTx) GetRequestForClient(requestID, clientID string) (StoredReques
 	return *rec, true, nil
 }
 
+func (t *memoryTx) ListAdminRequests(filter AdminListFilter) ([]StoredRequest, error) {
+	items := make([]StoredRequest, 0)
+	for _, rec := range t.m.reqs {
+		if rec.TenantID == t.tenantID && (filter.IssuerID == "" || rec.IssuerID == filter.IssuerID) {
+			items = append(items, *rec)
+		}
+	}
+	slices.SortFunc(items, func(a, b StoredRequest) int {
+		if c := b.CreatedAt.Compare(a.CreatedAt); c != 0 {
+			return c
+		}
+		return strings.Compare(b.ID, a.ID)
+	})
+	start := min(filter.Offset, len(items))
+	end := min(start+filter.Limit, len(items))
+	return items[start:end], nil
+}
+
+func (t *memoryTx) ListPendingDeferredRequestIDs(limit int, now time.Time) ([]string, error) {
+	if limit < 1 || limit > 500 {
+		return nil, ErrInvalidRequest
+	}
+	ids := make([]string, 0, limit)
+	for _, dtx := range t.m.deferredByReq {
+		if dtx.TenantID == t.tenantID && dtx.Status == DeferredStatusPending && dtx.ExpiresAt.After(now) {
+			ids = append(ids, dtx.RequestID)
+		}
+	}
+	slices.Sort(ids)
+	if len(ids) > limit {
+		ids = ids[:limit]
+	}
+	return ids, nil
+}
+
 func (t *memoryTx) GetRequestByOfferRef(issuerID, ref string) (StoredRequest, bool, error) {
 	rec, ok := t.m.byRef[ref]
 	if !ok || rec.TenantID != t.tenantID || rec.IssuerID != issuerID {
@@ -977,6 +1023,24 @@ func (t *memoryTx) LockIssuedCredential(credentialID string) (IssuedCredentialRe
 		return IssuedCredentialRecord{}, false, nil
 	}
 	return *rec, true, nil
+}
+
+func (t *memoryTx) ListAdminCredentials(filter AdminListFilter) ([]IssuedCredentialRecord, error) {
+	items := make([]IssuedCredentialRecord, 0)
+	for _, rec := range t.m.issuedCreds {
+		if rec.TenantID == t.tenantID && (filter.IssuerID == "" || rec.IssuerID == filter.IssuerID) {
+			items = append(items, *rec)
+		}
+	}
+	slices.SortFunc(items, func(a, b IssuedCredentialRecord) int {
+		if c := b.IssuedAt.Compare(a.IssuedAt); c != 0 {
+			return c
+		}
+		return strings.Compare(b.CredentialID, a.CredentialID)
+	})
+	start := min(filter.Offset, len(items))
+	end := min(start+filter.Limit, len(items))
+	return items[start:end], nil
 }
 
 func (t *memoryTx) LockStatusList(issuerID, listID string) (StatusListRecord, bool, error) {

@@ -12,14 +12,15 @@ export class AuthError extends Error {
 }
 
 export async function request(path: string, signal: AbortSignal, csrf?: string, body?: object,
-  command?: { method: 'POST' | 'PATCH'; key: string; revision?: number }): Promise<Response> {
+  command?: { method: 'POST' | 'PATCH' | 'PUT'; key?: string; revision?: number; etag?: string }): Promise<Response> {
   const send = () => fetch(path, {
     method: command?.method ?? (csrf ? 'POST' : 'GET'), credentials: 'same-origin', cache: 'no-store',
     redirect: 'error', signal,
     headers: { Accept: 'application/json', ...(csrf ? { 'X-CSRF-Token': csrf } : {}),
       ...(body ? { 'Content-Type': 'application/json' } : {}),
-      ...(command ? { 'Idempotency-Key': command.key } : {}),
-      ...(command?.revision ? { 'If-Match': `"${command.revision}"` } : {}) },
+      ...(command?.key ? { 'Idempotency-Key': command.key } : {}),
+      ...(command?.etag ? { 'If-Match': command.etag } : {}),
+      ...(!command?.etag && command?.revision ? { 'If-Match': `"${command.revision}"` } : {}) },
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
   // Share one request lane across tabs: /me touches activity and commands rotate

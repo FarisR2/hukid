@@ -278,6 +278,33 @@ type IssuanceRequestResult struct {
 	CreatedAt                 time.Time `json:"createdAt"`
 }
 
+// OperatorRequestSummary is the minimal operator list view; it deliberately
+// has no claims, source reference, offer URI/code, or encrypted fields.
+type OperatorRequestSummary struct {
+	ID                   string    `json:"id"`
+	IssuerID             string    `json:"issuerId"`
+	ClientID             string    `json:"clientId"`
+	CredentialDefinition string    `json:"credentialDefinition"`
+	ConfigurationID      string    `json:"configurationId"`
+	OfferState           string    `json:"offerState"`
+	IssuanceState        string    `json:"issuanceState"`
+	CredentialID         string    `json:"credentialId,omitempty"`
+	CreatedAt            time.Time `json:"createdAt"`
+	ExpiresAt            time.Time `json:"expiresAt"`
+}
+
+// OperatorCredentialSummary contains status and operational references only.
+type OperatorCredentialSummary struct {
+	CredentialID    string    `json:"credentialId"`
+	IssuerID        string    `json:"issuerId"`
+	RequestID       string    `json:"requestId"`
+	ClientID        string    `json:"clientId"`
+	DesiredStatus   string    `json:"desiredStatus"`
+	PublishedStatus string    `json:"publishedStatus"`
+	StatusVersion   int64     `json:"statusVersion"`
+	IssuedAt        time.Time `json:"issuedAt"`
+}
+
 // CreateIssuanceRequest implements HK-010/HK-011: authorize, deduplicate by
 // Idempotency-Key, validate claims against a published definition, store the
 // claims encrypted and return a one-use offer reference. replay is true when the
@@ -1080,6 +1107,31 @@ func (s *Service) FulfillDeferredRequest(tenantID, requestID string) error {
 		}
 		return tx.AppendAudit(s.newAudit(rec.TenantID, "worker", "credential.issued", rec.ID, "succeeded", "", now))
 	})
+}
+
+// FulfillPendingDeferredRequests drains one bounded, tenant-scoped batch of
+// deferred transactions. The worker is expected to be invoked periodically;
+// persisted state transitions make repeated invocations safe.
+func (s *Service) FulfillPendingDeferredRequests(tenantID string, limit int) (int, error) {
+	if strings.TrimSpace(tenantID) == "" || limit < 1 || limit > 500 {
+		return 0, ErrInvalidRequest
+	}
+	var requestIDs []string
+	if err := s.backend.WithTenantTx(tenantID, func(tx Tx) error {
+		var err error
+		requestIDs, err = tx.ListPendingDeferredRequestIDs(limit, s.now())
+		return err
+	}); err != nil {
+		return 0, err
+	}
+	fulfilled := 0
+	for _, requestID := range requestIDs {
+		if err := s.FulfillDeferredRequest(tenantID, requestID); err != nil {
+			return fulfilled, err
+		}
+		fulfilled++
+	}
+	return fulfilled, nil
 }
 
 // FailDeferredRequest transitions a pending deferred request to terminal failure.
@@ -1923,6 +1975,65 @@ func (s *Service) ListAuditEvents(tenantID, actionFilter string) ([]AuditRecord,
 	}
 	if out == nil {
 		out = []AuditRecord{}
+	}
+	return out, nil
+}
+
+// ListOperatorRequests returns a metadata-only, tenant-scoped page for the
+// operator console. It never decrypts or returns claims or offer material.
+func (s *Service) ListOperatorRequests(tenantID string, filter AdminListFilter) ([]OperatorRequestSummary, error) {
+	if strings.TrimSpace(tenantID) == "" || filter.Limit < 1 || filter.Limit > 100 || filter.Offset < 0 || filter.Offset > 1_000_000 {
+		return nil, ErrInvalidRequest
+	}
+	var out []OperatorRequestSummary
+	err := s.backend.WithTenantTx(tenantID, func(tx Tx) error {
+		items, err := tx.ListAdminRequests(filter)
+		if err != nil {
+			return err
+		}
+		out = make([]OperatorRequestSummary, 0, len(items))
+		for _, item := range items {
+			out = append(out, OperatorRequestSummary{ID: item.ID, IssuerID: item.IssuerID, ClientID: item.ClientID,
+				CredentialDefinition: item.DefID + "@" + item.DefVersion, ConfigurationID: item.ConfigID,
+				OfferState: item.OfferState, IssuanceState: item.IssuanceState,
+				CredentialID: item.IssuedCredentialID, CreatedAt: item.CreatedAt, ExpiresAt: item.ExpiresAt})
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if out == nil {
+		out = []OperatorRequestSummary{}
+	}
+	return out, nil
+}
+
+// ListOperatorCredentials returns a metadata-only, tenant-scoped page for the
+// operator console. It deliberately excludes credential digests and claims.
+func (s *Service) ListOperatorCredentials(tenantID string, filter AdminListFilter) ([]OperatorCredentialSummary, error) {
+	if strings.TrimSpace(tenantID) == "" || filter.Limit < 1 || filter.Limit > 100 || filter.Offset < 0 || filter.Offset > 1_000_000 {
+		return nil, ErrInvalidRequest
+	}
+	var out []OperatorCredentialSummary
+	err := s.backend.WithTenantTx(tenantID, func(tx Tx) error {
+		items, err := tx.ListAdminCredentials(filter)
+		if err != nil {
+			return err
+		}
+		out = make([]OperatorCredentialSummary, 0, len(items))
+		for _, item := range items {
+			out = append(out, OperatorCredentialSummary{CredentialID: item.CredentialID, IssuerID: item.IssuerID,
+				RequestID: item.RequestID, ClientID: item.ClientID, DesiredStatus: item.DesiredStatus,
+				PublishedStatus: item.PublishedStatus, StatusVersion: item.StatusVersion, IssuedAt: item.IssuedAt})
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if out == nil {
+		out = []OperatorCredentialSummary{}
 	}
 	return out, nil
 }

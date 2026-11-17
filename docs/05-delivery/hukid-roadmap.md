@@ -1,16 +1,16 @@
 # 06 — Roadmap de implementación
 
-## Estado de ejecución — 2026-11-05
+## Estado de ejecución — 2026-11-17
 
-Este roadmap describe el producto completo; no es evidencia de fases terminadas. AUTH-T01–T10 implementan autenticación y acceso al panel web en laboratorio. Miembros y dashboard siguen pendientes; AUTH-T10 cierra sólo el gate de autenticación de laboratorio; el [plan vigente](implementation-plan.md) enlaza su secuencia y la siguiente tarea. Completar autenticación no equivale a completar foundation ni el flujo documental.
+Este roadmap describe el producto completo; no es evidencia de fases terminadas. AUTH-T01–T10 implementan autenticación y acceso al panel web en laboratorio; el backend ya contiene componentes de emisión/status y la consola issuer tiene un incremento técnico parcial. Los gates de issuer, wallet y piloto aún no están cerrados. El [plan vigente](implementation-plan.md) enlaza la secuencia. Tener componentes ejecutables no equivale a completar su fase o el recorrido documental.
 
 | Fase de este roadmap | Relación con historias del [backlog Team 5](../02-requirements/backlogs/team-5-hukid.md) | Estado verificable |
 | --- | --- | --- |
 | 0 — Laboratorio de credenciales | Preparación del perfil y conformance HK-056; firma/proof/binding requeridos por las historias de emisión y verificación. | Parcial. El laboratorio OIDC de AUTH no valida VC, wallet ni verifier. El núcleo de verificación de [FEAT-004](../features/FEAT-004-credential-verification/spec.md) cubre el lado verifier con vectores sintéticos ([gate V4](verification-gate.md)); faltan emisión, wallet, verifier externo y el conformance gate. |
-| 1 — Foundation | HK-001/002/004/005; FEAT-001/002 concretan parte del acceso administrativo. | Parcial: AUTH-T01–T10 entregadas para autenticación de laboratorio. Emisores, keys/KMS, clientes/grants y cierre de auditoría/operación no están completos. |
-| 2 — Definition Registry | HK-003. | Pendiente. |
-| 3 — Emisión y recepción | HK-010–013, HK-020–025 y las historias de wallet HK-030–033 necesarias para el recorrido. | Pendiente. |
-| 4 — Status y verificación | HK-040–043, HK-050/051; las lecturas de wallet se amplían según HK-034. | Pendiente. |
+| 1 — Foundation | HK-001/002/004/005; FEAT-001/002 concretan parte del acceso administrativo. | Parcial: AUTH-T01–T10 y módulos Go de issuer, keys/KMS port, clientes/grants y auditoría existen; consola issuer aporta FEAT-005 parcial. Falta autorización/operación acordada, hardening, gate y preparación productiva. |
+| 2 — Definition Registry | HK-003. | Parcial: borradores, publicación inmutable y API existen; falta cerrar validación de schema/contextos, mapping/compiler y gate del perfil. |
+| 3 — Emisión y recepción | HK-010–013, HK-020–025 y las historias de wallet HK-030–033 necesarias para el recorrido. | Parcial: creación de solicitudes, oferta y OID4VCI/persistencia cifrada existen en backend; no se ha demostrado el recorrido con wallet Flutter/fuente POS ni el gate end-to-end. |
+| 4 — Status y verificación | HK-040–043, HK-050/051; las lecturas de wallet se amplían según HK-034. | Parcial: backend de status para clientes y núcleo verifier de laboratorio existen; faltan política operator, lecturas/status wallet, decisión de trust y conformance gate. |
 | 5 — Segundo vertical educativo | Nuevas definiciones/integraciones sobre las mismas historias y núcleo. | Pendiente; el tipo de documento y el corte del piloto deben acordarse. |
 | 6 — Hardening/piloto | HK-052–056 y gates de cada dominio. | Pendiente; las pruebas de autenticación no sustituyen estos gates. |
 

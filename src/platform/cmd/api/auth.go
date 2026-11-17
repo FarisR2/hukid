@@ -135,7 +135,7 @@ func configureHandler(ctx context.Context, address string) (http.Handler, func()
 		labRoutes = append(labRoutes, vpRuntime)
 	}
 	if config == nil {
-		vciRuntime, vciRuntimeCleanup, err := configureIssuanceRuntime(ctx, nil, time.Now)
+		vciRuntime, vciRuntimeCleanup, err := configureIssuanceRuntime(ctx, nil, nil, time.Now)
 		if err != nil {
 			cleanupAll()
 			return nil, nil, err
@@ -208,7 +208,7 @@ func configureHandler(ctx context.Context, address string) (http.Handler, func()
 		closePools()
 		return nil, nil, err
 	}
-	vciRuntime, vciRuntimeCleanup, err := configureIssuanceRuntime(ctx, management, time.Now)
+	vciRuntime, vciRuntimeCleanup, err := configureIssuanceRuntime(ctx, management, me, time.Now)
 	if err != nil {
 		closeDashboard()
 		closeDirectory()

@@ -925,8 +925,9 @@ func TestIssuanceBackendEtapaADeferredCancelCompromiseAndSchema(t *testing.T) {
 	if _, _, err := svc2.DeferredCredential("unas", vciTok.AccessToken, out.TransactionID); !errors.Is(err, issuance.ErrIssuancePending) {
 		t.Fatalf("expected ErrIssuancePending across restart, got %v", err)
 	}
-	if err := svc2.FulfillDeferredRequest(TestTenantA, defReq.ID); err != nil {
-		t.Fatalf("fulfill deferred pg: %v", err)
+	fulfilled, err := svc2.FulfillPendingDeferredRequests(TestTenantA, 10)
+	if err != nil || fulfilled != 1 {
+		t.Fatalf("fulfill deferred batch through worker path: fulfilled=%d err=%v", fulfilled, err)
 	}
 	vcJWT, _, err := svc2.DeferredCredential("unas", vciTok.AccessToken, out.TransactionID)
 	if err != nil || vcJWT == "" {

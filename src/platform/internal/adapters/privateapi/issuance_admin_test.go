@@ -174,6 +174,12 @@ func TestIssuanceAdminLifecycleAuthStepUpETagAndAudit(t *testing.T) {
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("expected 404 cross-tenant, got %d", w.Code)
 	}
+	for _, token := range []string{"admin-tok", "issuer-op-tok"} {
+		w = doAdminReq(mux, http.MethodGet, "/v1/operator/tenants/tenant-a/issuance-requests?limit=10", token, "", "", nil)
+		if w.Code != http.StatusForbidden {
+			t.Fatalf("expected reserved issuance:read to deny %s, got %d %s", token, w.Code, w.Body.String())
+		}
+	}
 
 	// 3. Create issuer with initial KMS key -> 201 + JWKS visible.
 	w = doAdminReq(mux, http.MethodPost, "/v1/operator/tenants/tenant-a/issuers", "admin-tok", "idem-issuer-create-01", "", map[string]any{

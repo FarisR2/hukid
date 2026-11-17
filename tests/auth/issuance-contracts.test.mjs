@@ -11,7 +11,7 @@ test('issuance-v1 OpenAPI is valid and aligns security surfaces and capabilities
   const contractPath = fileURLToPath(new URL('src/platform/contracts/issuance-v1.openapi.json', root));
   const api = await SwaggerParser.validate(contractPath);
   const matrix = read('src/platform/contracts/capabilities.json');
-  const allCapabilities = new Set(Object.values(matrix.roles).flat());
+  const allCapabilities = new Set([...Object.values(matrix.roles).flat(), ...matrix.reserved]);
 
   assert.equal(api.openapi, '3.0.3');
 

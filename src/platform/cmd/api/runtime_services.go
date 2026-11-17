@@ -16,6 +16,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	consolehttp "hukid.local/platform/internal/adapters/console"
 	"hukid.local/platform/internal/adapters/oid4vcihttp"
 	"hukid.local/platform/internal/adapters/oid4vphttp"
 	"hukid.local/platform/internal/adapters/postgres"
@@ -219,6 +220,7 @@ func validateIssuanceRuntimeConfiguration() error {
 func configureIssuanceRuntime(
 	ctx context.Context,
 	operators *privateapi.Handler,
+	consoleAuth *consolehttp.MeHandler,
 	now func() time.Time,
 	vaultOverride ...*vaultkms.Client,
 ) (func(*http.ServeMux), func(), error) {
@@ -276,14 +278,23 @@ func configureIssuanceRuntime(
 	discovery := &oid4vcihttp.Handler{Catalog: svc}
 	endpoints := &oid4vcihttp.IssuanceHandler{Service: svc}
 	var admin *privateapi.IssuanceAdminHandler
+	var browserAdmin *consolehttp.IssuanceHandler
 	if operators != nil {
 		admin = &privateapi.IssuanceAdminHandler{Operators: operators, Service: svc, Now: now}
+		if consoleAuth != nil {
+			adminMux := http.NewServeMux()
+			admin.Register(adminMux)
+			browserAdmin = &consolehttp.IssuanceHandler{Auth: consoleAuth, Management: adminMux}
+		}
 	}
 	routes := func(mux *http.ServeMux) {
 		discovery.Routes(mux)
 		endpoints.Routes(mux)
 		if admin != nil {
 			admin.Register(mux)
+		}
+		if browserAdmin != nil {
+			browserAdmin.Register(mux)
 		}
 	}
 	return routes, pool.Close, nil

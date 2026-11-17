@@ -3,6 +3,7 @@ package issuance
 import (
 	"bytes"
 	"crypto/rand"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -24,6 +25,42 @@ type serviceHarness struct {
 	ring    *KeyRing
 	svc     *Service
 	issuer  IssuerRecord
+}
+
+func TestOperatorRequestListingIsPagedAndMetadataOnly(t *testing.T) {
+	h := newServiceHarness(t)
+	tokenResponse, err := h.svc.ClientCredentialsToken("cli_events", "events-secret-0123456789abcdef", []string{ScopeIssuanceCreate})
+	if err != nil {
+		t.Fatal(err)
+	}
+	token, err := h.svc.AuthenticateIntegration(tokenResponse.AccessToken)
+	if err != nil {
+		t.Fatal(err)
+	}
+	created, _, err := h.svc.CreateIssuanceRequest(token, "operator-list-key-0001", IssuanceRequestInput{
+		IssuerID: "iss_unas", CredentialDefinition: "unas-certificate@1.0.0",
+		Claims: map[string]any{"participantName": "private-person", "eventName": "Evento de prueba", "metadata": map[string]any{"campus": "Tingo Maria"}},
+		Source: &SourceInput{System: "events", Reference: "private-source-ref"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	items, err := h.svc.ListOperatorRequests("tenant-unas", AdminListFilter{Limit: 1})
+	if err != nil || len(items) != 1 || items[0].ID != created.ID {
+		t.Fatalf("list = %#v, err=%v", items, err)
+	}
+	encoded, err := json.Marshal(items)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, forbidden := range []string{"private-person", "private-source-ref", "credentialOfferUri", "claims"} {
+		if strings.Contains(string(encoded), forbidden) {
+			t.Fatalf("operator summary exposed %q: %s", forbidden, encoded)
+		}
+	}
+	if _, err := h.svc.ListOperatorRequests("tenant-unas", AdminListFilter{Limit: 101}); !errors.Is(err, ErrInvalidRequest) {
+		t.Fatalf("expected invalid page bound, got %v", err)
+	}
 }
 
 func newServiceHarness(t *testing.T) *serviceHarness {
@@ -725,8 +762,9 @@ func TestServiceDeferredIssuanceSchemaAndKeyCompromise(t *testing.T) {
 	}
 
 	// Complete asynchronously, then retrieve once via DeferredCredential.
-	if err := h.svc.FulfillDeferredRequest("tenant-unas", res.ID); err != nil {
-		t.Fatalf("fulfill deferred request: %v", err)
+	fulfilled, err := h.svc.FulfillPendingDeferredRequests("tenant-unas", 10)
+	if err != nil || fulfilled != 1 {
+		t.Fatalf("fulfill deferred batch through worker path: fulfilled=%d err=%v", fulfilled, err)
 	}
 	vcJWT, _, err := h.svc.DeferredCredential("unas", vciTok.AccessToken, outcome.TransactionID)
 	if err != nil || vcJWT == "" {

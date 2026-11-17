@@ -1,6 +1,6 @@
 # Implementación HukID
 
-Estado actual: AUTH-T01–T08 implementan autenticación de laboratorio con backend Go, PostgreSQL y [consola React conectada](../docs/03-design/console-auth-interface.md). Auditoría integrada, gate operativo, miembros, dashboard y wallet siguen pendientes.
+Estado actual: autenticación, miembros y dashboard tienen incrementos de laboratorio implementados. La consola incluye una primera administración de issuer (emisores, definiciones y clientes de integración), descrita en [su contrato de acceso](../docs/03-design/console-issuance-management.md); solicitudes/credenciales administrativas y status por operador siguen pendientes. No equivale a completar el piloto ni la wallet.
 
 AUTH-T01 incorporó `platform/` (bootstrap HTTP local Go) y `console/` (entry point React/TypeScript con Vite), según la estructura acordada con el owner. Ese incremento sólo validaba el entorno, sin pantallas ni login.
 

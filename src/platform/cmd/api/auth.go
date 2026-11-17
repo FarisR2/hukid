@@ -95,43 +95,65 @@ func configureHandler(ctx context.Context, address string) (http.Handler, func()
 	if err != nil {
 		return nil, nil, err
 	}
+	var cleanups []func()
+	cleanupAll := func() {
+		for i := len(cleanups) - 1; i >= 0; i-- {
+			cleanups[i]()
+		}
+	}
+	var labRoutes []func(*http.ServeMux)
 	lab, err := configureOID4VPLab(os.Stdout, time.Now)
 	if err != nil {
 		return nil, nil, err
 	}
-	var labRoutes []func(*http.ServeMux)
 	if lab != nil {
 		labRoutes = append(labRoutes, lab)
 	}
+	vciLab, vciCleanup, err := configureOID4VCILab(ctx, address, os.Stdout, time.Now)
+	if err != nil {
+		cleanupAll()
+		return nil, nil, err
+	}
+	if vciCleanup != nil {
+		cleanups = append(cleanups, vciCleanup)
+	}
+	if vciLab != nil {
+		labRoutes = append(labRoutes, vciLab)
+	}
 	if config == nil {
-		return bootstrap.Handler(labRoutes...), func() {}, nil
+		return bootstrap.Handler(labRoutes...), cleanupAll, nil
 	}
 	defer clear(config.key)
 	// A local Vite proxy can own the browser origin. This is explicit config,
 	// never a forwarded/request header; policy validation still confines it to loopback.
 	if config.policy.ConsoleOrigin != "http://"+address && os.Getenv("HUKID_CONSOLE_PROXY_ORIGIN") != config.policy.ConsoleOrigin {
+		cleanupAll()
 		return nil, nil, errors.New("auth origin must match the explicit listener")
 	}
 	box, err := secretbox.New(config.key, config.keyVersion, rand.Reader)
 	if err != nil {
+		cleanupAll()
 		return nil, nil, authentication.ErrDependency
 	}
 	pool, err := postgres.OpenRuntimePool(ctx, config.dsn, "hukid_session_runtime", 4)
 	if err != nil {
+		cleanupAll()
 		return nil, nil, authentication.ErrDependency
 	}
 	discovery, err := postgres.OpenRuntimePool(ctx, config.contextDSN, "hukid_context_runtime", 4)
 	if err != nil {
 		pool.Close()
+		cleanupAll()
 		return nil, nil, authentication.ErrDependency
 	}
 	tenant, err := postgres.OpenRuntimePool(ctx, config.tenantDSN, "hukid_tenant_runtime", 4)
 	if err != nil {
 		discovery.Close()
 		pool.Close()
+		cleanupAll()
 		return nil, nil, authentication.ErrDependency
 	}
-	closePools := func() { tenant.Close(); discovery.Close(); pool.Close() }
+	closePools := func() { tenant.Close(); discovery.Close(); pool.Close(); cleanupAll() }
 	provider, err := oidc.New(ctx, config.policy, config.clientSecret, time.Now)
 	if err != nil {
 		closePools()

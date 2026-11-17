@@ -9,6 +9,7 @@
 package oid4vphttp
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"errors"
 	"net/http"
@@ -38,16 +39,37 @@ type Results interface {
 	Deliver(state string, report verification.PresentationReport) error
 }
 
+// SessionResults is implemented by a Results that persists the outcome of a
+// session bound to a tenant (ADR-0033). The handler uses it instead of Deliver
+// whenever the session carries a persisted session id.
+type SessionResults interface {
+	DeliverSession(sessionID string, report verification.PresentationReport) error
+}
+
+// SigningKeys provides the request-signing key of a bound session's tenant
+// (ADR-0034). It returns oid4vp.ErrNoSigningKey for a session that is unknown,
+// finished or expired, or whose tenant has no key. The caller never retains or
+// logs the key.
+type SigningKeys interface {
+	SigningKey(ctx context.Context, sessionID string) (*ecdsa.PrivateKey, string, [][]byte, error)
+}
+
 // Handler serves the wallet-facing endpoints of one verifier.
 type Handler struct {
 	Sessions *oid4vp.SessionStore
 	Verifier *verification.Verifier
-	Results  Results
+	// VerifierFor, when set, replaces Verifier: it returns the verifier of the
+	// session's tenant, so replay is scoped per tenant (ADR-0033 #4).
+	VerifierFor func(tenant string) (*verification.Verifier, error)
+	Results     Results
 	// SigningKey signs request objects with ES256; Chain is its certificate
 	// chain (leaf first, DER) for x509_san_dns, empty in the laboratory.
 	SigningKey *ecdsa.PrivateKey
 	Chain      [][]byte
-	Now        func() time.Time
+	// Keys, when set, replaces SigningKey and Chain with the key custodied for
+	// the session's tenant. A session without a persisted id is then refused.
+	Keys SigningKeys
+	Now  func() time.Time
 }
 
 // Routes registers both endpoints on mux.
@@ -64,7 +86,7 @@ func (h *Handler) now() time.Time {
 }
 
 func (h *Handler) ready() bool {
-	return h != nil && h.Sessions != nil && h.Verifier != nil && h.Results != nil && h.SigningKey != nil
+	return h != nil && h.Sessions != nil && (h.Verifier != nil || h.VerifierFor != nil) && h.Results != nil && (h.SigningKey != nil || h.Keys != nil)
 }
 
 func noStore(w http.ResponseWriter) {
@@ -101,7 +123,24 @@ func (h *Handler) request(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusNotFound, "invalid_request_uri")
 		return
 	}
-	object, err := session.SignRequestObject(h.SigningKey, h.Chain)
+	key, chain := h.SigningKey, h.Chain
+	if h.Keys != nil {
+		if session.SessionID() == "" {
+			fail(w, http.StatusNotFound, "invalid_request_uri")
+			return
+		}
+		var err error
+		key, _, chain, err = h.Keys.SigningKey(r.Context(), session.SessionID())
+		if errors.Is(err, oid4vp.ErrNoSigningKey) {
+			fail(w, http.StatusNotFound, "invalid_request_uri")
+			return
+		}
+		if err != nil {
+			fail(w, http.StatusInternalServerError, "server_error")
+			return
+		}
+	}
+	object, err := session.SignRequestObject(key, chain)
 	if err != nil {
 		fail(w, http.StatusInternalServerError, "server_error")
 		return
@@ -146,7 +185,14 @@ func (h *Handler) response(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadRequest, "invalid_request")
 		return
 	}
-	report, err := session.HandleResponse(h.Verifier, h.now(), response)
+	verifier := h.Verifier
+	if h.VerifierFor != nil {
+		if verifier, err = h.VerifierFor(session.TenantID()); err != nil || verifier == nil {
+			fail(w, http.StatusInternalServerError, "server_error")
+			return
+		}
+	}
+	report, err := session.HandleResponse(verifier, h.now(), response)
 	switch {
 	case errors.Is(err, oid4vp.ErrSessionExpired), errors.Is(err, oid4vp.ErrResponseInvalid):
 		fail(w, http.StatusBadRequest, "invalid_request")
@@ -155,7 +201,7 @@ func (h *Handler) response(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusInternalServerError, "server_error")
 		return
 	}
-	if err := h.Results.Deliver(session.State(), report); err != nil {
+	if err := h.deliver(session, report); err != nil {
 		fail(w, http.StatusInternalServerError, "server_error")
 		return
 	}
@@ -164,4 +210,17 @@ func (h *Handler) response(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte("{}"))
+}
+
+// deliver hands the report to the persisted-session sink when the session is
+// bound to one, and to the plain sink otherwise (laboratory).
+func (h *Handler) deliver(session *oid4vp.Session, report verification.PresentationReport) error {
+	if id := session.SessionID(); id != "" {
+		sink, ok := h.Results.(SessionResults)
+		if !ok {
+			return errors.New("results cannot store a bound session")
+		}
+		return sink.DeliverSession(id, report)
+	}
+	return h.Results.Deliver(session.State(), report)
 }

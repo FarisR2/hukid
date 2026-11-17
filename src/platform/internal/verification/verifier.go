@@ -34,6 +34,7 @@ type Verifier struct {
 	trust        TrustPolicy
 	status       StatusResolver
 	statusPolicy StatusPolicy
+	schema       SchemaResolver
 }
 
 // WithCredentialContexts returns a copy that accepts the given JSON-LD contexts
@@ -66,6 +67,14 @@ func (v *Verifier) WithStatusResolver(resolver StatusResolver, policy StatusPoli
 	copied := *v
 	copied.status = resolver
 	copied.statusPolicy = policy
+	return &copied
+}
+
+// WithSchemaResolver returns a copy of the verifier that validates credentialSchema
+// JsonSchema entries against resolved schemas (VER-T13).
+func (v *Verifier) WithSchemaResolver(resolver SchemaResolver) *Verifier {
+	copied := *v
+	copied.schema = resolver
 	return &copied
 }
 
@@ -119,12 +128,17 @@ func (v *Verifier) Verify(jws string) (Report, error) {
 		return report, nil
 	}
 	validityCheck := checkValidity(parsed, v.clock.Now(), v.clockSkew)
-	var statusCheck Check
+	var statusCheck, schemaCheck Check
 	if validityCheck.Result != Pass {
 		if parsed.DeclaresStatus {
 			statusCheck = SkippedCheck(CheckStatus, CodeSkippedPrecondition, true)
 		} else {
 			statusCheck = optionalSkip(CheckStatus, false)
+		}
+		if parsed.DeclaresSchema && v.schema != nil {
+			schemaCheck = SkippedCheck(CheckSchema, CodeSkippedPrecondition, true)
+		} else {
+			schemaCheck = optionalSkip(CheckSchema, parsed.DeclaresSchema)
 		}
 	} else {
 		var err error
@@ -132,11 +146,15 @@ func (v *Verifier) Verify(jws string) (Report, error) {
 		if err != nil {
 			return Report{}, err
 		}
+		schemaCheck, err = v.evaluateSchema(parsed)
+		if err != nil {
+			return Report{}, err
+		}
 	}
 	checks = append(checks,
 		validityCheck,
 		statusCheck,
-		optionalSkip(CheckSchema, parsed.DeclaresSchema),
+		schemaCheck,
 	)
 	report := NewReport([]byte(jws), checks)
 	if v.trust != nil {

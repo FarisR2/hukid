@@ -41,6 +41,10 @@ func TestResolverFetchesJWKSAndBlocksCrossOriginRedirects(t *testing.T) {
 			http.Redirect(w, r, evil.URL+"/stolen.json", http.StatusFound)
 		case "/unas/status/revocation/sl_1":
 			_, _ = w.Write([]byte("eyJhbGciOiJFUzI1NiJ9.eyJ0ZXN0IjoxfQ.sig"))
+		case "/unas/schemas/unas-certificate/1.0.0.json":
+			_, _ = w.Write([]byte(`{"type":"object","additionalProperties":false,"required":["participantName"]}`))
+		case "/redirect/schemas/evil.json":
+			http.Redirect(w, r, evil.URL+"/evil-schema.json", http.StatusFound)
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
@@ -65,5 +69,15 @@ func TestResolverFetchesJWKSAndBlocksCrossOriginRedirects(t *testing.T) {
 	listJWT, err := resolver.ResolveStatusList("https://issuer.hukid.pe/unas/status/revocation/sl_1")
 	if err != nil || listJWT != "eyJhbGciOiJFUzI1NiJ9.eyJ0ZXN0IjoxfQ.sig" {
 		t.Fatalf("unexpected status list: %q err=%v", listJWT, err)
+	}
+	schemaBytes, err := resolver.ResolveSchema("https://issuer.hukid.pe/unas/schemas/unas-certificate/1.0.0.json")
+	if err != nil || len(schemaBytes) == 0 {
+		t.Fatalf("unexpected schema response: %q err=%v", string(schemaBytes), err)
+	}
+	if _, err := resolver.ResolveSchema("https://issuer.hukid.pe/redirect/schemas/evil.json"); !errors.Is(err, verification.ErrSchemaResolution) {
+		t.Fatalf("expected cross-origin redirect failure on schema fetch, got %v", err)
+	}
+	if _, err := resolver.ResolveSchema("http://evil.example/schemas/x.json"); !errors.Is(err, verification.ErrSchemaResolution) {
+		t.Fatalf("expected non-https schema rejection, got %v", err)
 	}
 }

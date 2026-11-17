@@ -163,6 +163,19 @@ func (r *Resolver) ResolveStatusList(credentialURL string) (string, error) {
 	return strings.TrimSpace(string(body)), nil
 }
 
+// ResolveSchema fetches a JSON Schema document bytes from schemaURL (VER-T13).
+func (r *Resolver) ResolveSchema(schemaURL string) ([]byte, error) {
+	endpoint, err := r.resolveEndpoint(schemaURL)
+	if err != nil {
+		return nil, verification.ErrSchemaResolution
+	}
+	body, err := r.fetch(endpoint, "application/schema+json, application/json")
+	if err != nil {
+		return nil, verification.ErrSchemaResolution
+	}
+	return body, nil
+}
+
 func (r *Resolver) fetch(endpoint, accept string) ([]byte, error) {
 	req, err := http.NewRequest(http.MethodGet, endpoint, nil)
 	if err != nil {

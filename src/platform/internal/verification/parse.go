@@ -117,6 +117,8 @@ type ParsedCredential struct {
 	DeclaresStatus bool
 	DeclaresSchema bool
 	RawStatus      json.RawMessage
+	RawSchema      json.RawMessage
+	RawSubject     json.RawMessage
 	// UntrustedKeyHeaders lists key-bearing JOSE headers supplied by the
 	// credential itself (jku, jwk, x5u, x5c). The profile forbids using them;
 	// the issuerKey check rejects the credential when this is not empty.
@@ -208,7 +210,14 @@ func ParseCredential(jws string, limits Limits) (*ParsedCredential, Check) {
 	if declaresStatus {
 		parsed.RawStatus = append(json.RawMessage(nil), rawStatus...)
 	}
-	_, parsed.DeclaresSchema = payload["credentialSchema"]
+	rawSchema, declaresSchema := payload["credentialSchema"]
+	parsed.DeclaresSchema = declaresSchema
+	if declaresSchema {
+		parsed.RawSchema = append(json.RawMessage(nil), rawSchema...)
+	}
+	if rawSubject, hasSubject := payload["credentialSubject"]; hasSubject {
+		parsed.RawSubject = append(json.RawMessage(nil), rawSubject...)
+	}
 	if raw, present := payload["cnf"]; present {
 		cnf, err := decodeStrictObject(raw, limits.MaxJSONDepth)
 		if err != nil {

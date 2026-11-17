@@ -10,7 +10,7 @@ import (
 
 // CodesVersion identifies the closed failure-code set. Adding or renaming a
 // code requires a new version.
-const CodesVersion = 3
+const CodesVersion = 4
 
 // CheckName identifies one verification criterion.
 type CheckName string
@@ -61,6 +61,8 @@ const (
 	CodeStatusRevoked           Code = "status.revoked"
 	CodeStatusSuspended         Code = "status.suspended"
 	CodeStatusInvalid           Code = "status.invalid"
+	CodeSchemaInvalid           Code = "schema.invalid"
+	CodeSchemaMismatch          Code = "schema.mismatch"
 	CodeSkippedNotDeclared      Code = "skipped.not_declared"
 	CodeSkippedNotImplemented   Code = "skipped.not_implemented"
 	CodeSkippedPrecondition     Code = "skipped.precondition_failed"
@@ -74,6 +76,7 @@ var failureCodes = map[CheckName][]Code{
 	CheckHolderBinding:  {CodeBindingMissingCNF, CodeBindingMismatch},
 	CheckRequestBinding: {CodeRequestAudience, CodeRequestNonce, CodeRequestState, CodeRequestReplayed},
 	CheckStatus:         {CodeStatusRevoked, CodeStatusSuspended, CodeStatusInvalid},
+	CheckSchema:         {CodeSchemaInvalid, CodeSchemaMismatch},
 }
 
 var skipCodes = []Code{CodeSkippedNotDeclared, CodeSkippedNotImplemented, CodeSkippedPrecondition}
@@ -81,7 +84,7 @@ var skipCodes = []Code{CodeSkippedNotDeclared, CodeSkippedNotImplemented, CodeSk
 // AllCodes returns every code of the closed set, in a stable order.
 func AllCodes() []Code {
 	var out []Code
-	for _, name := range []CheckName{CheckFormat, CheckIssuerKey, CheckSignature, CheckValidity, CheckHolderBinding, CheckRequestBinding, CheckStatus} {
+	for _, name := range []CheckName{CheckFormat, CheckIssuerKey, CheckSignature, CheckValidity, CheckHolderBinding, CheckRequestBinding, CheckStatus, CheckSchema} {
 		out = append(out, failureCodes[name]...)
 	}
 	return append(out, skipCodes...)

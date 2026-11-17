@@ -211,3 +211,40 @@ func TestVerificationSessionPurgeIsBoundedAndNotForTheRuntimeRole(t *testing.T) 
 		t.Fatal("accepted a zero-day retention")
 	}
 }
+
+func TestVerificationStartStoreUsesTheAuthorizedTenantConfig(t *testing.T) {
+	db := newTestDatabase(t)
+	seedVerificationTenants(t, db)
+	mustExec(t, db.admin, `INSERT INTO tenancy.tenants(tenant_id,display_name) VALUES('55555555-5555-4555-8555-555555555555','Tenant C without verifier')`)
+	store := &VerificationStartStore{Pool: db.pool(t, "hukid_verification_runtime")}
+	id, client, response, expires, err := store.Start(testContext, vsOperator, vsTenantA, 5*time.Minute)
+	if err != nil || client != "client-a" || response != "https://a.example/oid4vp/response" || id == "" || time.Until(expires) < 4*time.Minute || time.Until(expires) > 5*time.Minute {
+		t.Fatalf("tenant A start: %q %q %q %v %v", id, client, response, expires, err)
+	}
+	var tenant, status string
+	if err := db.admin.QueryRow(testContext, `SELECT tenant_id::text,status FROM verification.sessions WHERE session_id=$1`, id).Scan(&tenant, &status); err != nil || tenant != vsTenantA || status != "pending" {
+		t.Fatalf("stored session: %q %q %v", tenant, status, err)
+	}
+	// Tenant B resolves its own configuration, never A's.
+	if _, client, _, _, err := store.Start(testContext, vsOperator, vsTenantB, time.Minute); err != nil || client != "client-b" {
+		t.Fatalf("tenant B start: %q %v", client, err)
+	}
+	// No configuration: fails closed and leaves no row behind.
+	if _, _, _, _, err := store.Start(testContext, vsOperator, "55555555-5555-4555-8555-555555555555", time.Minute); err == nil {
+		t.Fatal("started a session for a tenant without verifier configuration")
+	}
+	var n int
+	if err := db.admin.QueryRow(testContext, `SELECT count(*) FROM verification.sessions WHERE tenant_id='55555555-5555-4555-8555-555555555555'`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("rows for unconfigured tenant: %d %v", n, err)
+	}
+	// Out-of-range TTLs never reach the database.
+	for _, ttl := range []time.Duration{0, -time.Second, 16 * time.Minute} {
+		if _, _, _, _, err := store.Start(testContext, vsOperator, vsTenantA, ttl); err == nil {
+			t.Fatalf("accepted ttl %v", ttl)
+		}
+	}
+	// Malformed identifiers are rejected before any query.
+	if _, _, _, _, err := store.Start(testContext, "not-a-uuid", vsTenantA, time.Minute); err == nil {
+		t.Fatal("accepted a malformed actor")
+	}
+}

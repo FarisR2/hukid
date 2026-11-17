@@ -3,7 +3,7 @@
   "info": {
     "title": "HukID verification sessions — VER-T11-a contract baseline",
     "version": "0.1.0-draft",
-    "description": "Own contract for the per-tenant Verifier-as-a-Service (ADR-0033). Draft only: no operation is implemented and no handler consumes the capabilities. verification:start and verification:read are declared in capabilities.json (VER-T11-c1) for tenant_admin and security_admin; no handler consumes them yet. Responses never carry the JWS, claims, vp_token, nonce or state (VER-FR08)."
+    "description": "Own contract for the per-tenant Verifier-as-a-Service (ADR-0033). Draft: only the start operation has a handler (VER-T11-c2), and it is not mounted in cmd/api yet; the read operation is not implemented. verification:start and verification:read are declared in capabilities.json (VER-T11-c1) for tenant_admin and security_admin; only the start handler consumes verification:start. Responses never carry the JWS, claims, vp_token, nonce or state (VER-FR08)."
   },
   "servers": [
     {
@@ -61,6 +61,9 @@
             "$ref": "#/components/responses/Error"
           },
           "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
             "$ref": "#/components/responses/Error"
           },
           "429": {

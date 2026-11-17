@@ -29,6 +29,12 @@ type authConfig struct {
 }
 
 func loadAuthConfiguration() (*authConfig, error) {
+	if err := validateIssuanceRuntimeConfiguration(); err != nil {
+		return nil, err
+	}
+	if err := validateOID4VPRuntimeConfiguration(); err != nil {
+		return nil, err
+	}
 	dashboardConfig, dashboardErr := loadDashboardConfiguration()
 	if dashboardConfig != nil {
 		clear(dashboardConfig.Key)
@@ -120,7 +126,26 @@ func configureHandler(ctx context.Context, address string) (http.Handler, func()
 	if vciLab != nil {
 		labRoutes = append(labRoutes, vciLab)
 	}
+	vpRuntime, err := configureOID4VPRuntime(os.Stdout, time.Now)
+	if err != nil {
+		cleanupAll()
+		return nil, nil, err
+	}
+	if vpRuntime != nil {
+		labRoutes = append(labRoutes, vpRuntime)
+	}
 	if config == nil {
+		vciRuntime, vciRuntimeCleanup, err := configureIssuanceRuntime(ctx, nil, time.Now)
+		if err != nil {
+			cleanupAll()
+			return nil, nil, err
+		}
+		if vciRuntimeCleanup != nil {
+			cleanups = append(cleanups, vciRuntimeCleanup)
+		}
+		if vciRuntime != nil {
+			labRoutes = append(labRoutes, vciRuntime)
+		}
 		return bootstrap.Handler(labRoutes...), cleanupAll, nil
 	}
 	defer clear(config.key)
@@ -182,6 +207,19 @@ func configureHandler(ctx context.Context, address string) (http.Handler, func()
 		closeDirectory()
 		closePools()
 		return nil, nil, err
+	}
+	vciRuntime, vciRuntimeCleanup, err := configureIssuanceRuntime(ctx, management, time.Now)
+	if err != nil {
+		closeDashboard()
+		closeDirectory()
+		closePools()
+		return nil, nil, err
+	}
+	if vciRuntimeCleanup != nil {
+		cleanups = append(cleanups, vciRuntimeCleanup)
+	}
+	if vciRuntime != nil {
+		labRoutes = append(labRoutes, vciRuntime)
 	}
 	commands := consolehttp.NewSessions(&authentication.SessionLifecycle{Sessions: sessions, Store: store, OIDC: provider, Random: rand.Reader})
 	stopCleanup := store.StartSessionCleanup(context.Background())

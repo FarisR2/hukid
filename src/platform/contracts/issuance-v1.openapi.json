@@ -1,0 +1,1393 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "HukID Issuance, Status & Admin Platform API",
+    "version": "1.0.0",
+    "description": "Full OpenAPI 3.0.3 contract covering OID4VCI 1.0 public/wallet endpoints, W3C Bitstring Status Lists & JSON Schema/JSON-LD verification resources, M2M Integration/Status APIs, and Tenant Operator Administrative APIs."
+  },
+  "servers": [
+    {
+      "url": "https://api.hukid.pe",
+      "description": "HukID Production API"
+    },
+    {
+      "url": "https://issuer.hukid.pe",
+      "description": "HukID Issuer & Public Resources Host"
+    }
+  ],
+  "security": [],
+  "paths": {
+    "/.well-known/oauth-authorization-server": {
+      "get": {
+        "operationId": "getAuthorizationServerMetadata",
+        "summary": "OAuth 2.0 Authorization Server Metadata (RFC 8414)",
+        "responses": {
+          "200": {
+            "description": "Authorization Server metadata",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AuthorizationServerMetadata" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/{slug}/.well-known/jwks.json": {
+      "parameters": [
+        { "$ref": "#/components/parameters/IssuerSlug" }
+      ],
+      "get": {
+        "operationId": "getIssuerJWKS",
+        "summary": "Issuer public P-256 JWKS (excludes compromised keys)",
+        "responses": {
+          "200": {
+            "description": "JWKS document",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/JWKS" }
+              }
+            }
+          },
+          "404": { "$ref": "#/components/responses/OAuthError404" }
+        }
+      }
+    },
+    "/{slug}/.well-known/openid-credential-issuer": {
+      "parameters": [
+        { "$ref": "#/components/parameters/IssuerSlug" }
+      ],
+      "get": {
+        "operationId": "getIssuerMetadata",
+        "summary": "OID4VCI 1.0 Credential Issuer Metadata",
+        "responses": {
+          "200": {
+            "description": "OID4VCI issuer metadata",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/GenericJSON" }
+              }
+            }
+          },
+          "404": { "$ref": "#/components/responses/OAuthError404" }
+        }
+      }
+    },
+    "/{slug}/offers/{ref}": {
+      "parameters": [
+        { "$ref": "#/components/parameters/IssuerSlug" },
+        { "$ref": "#/components/parameters/OfferRef" }
+      ],
+      "get": {
+        "operationId": "getCredentialOffer",
+        "summary": "Dereference single-use OID4VCI Credential Offer",
+        "responses": {
+          "200": {
+            "description": "Credential Offer payload",
+            "headers": {
+              "Cache-Control": { "$ref": "#/components/headers/NoStore" }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/GenericJSON" }
+              }
+            }
+          },
+          "404": { "$ref": "#/components/responses/OAuthError404" }
+        }
+      }
+    },
+    "/oauth2/token": {
+      "post": {
+        "operationId": "postOAuthToken",
+        "summary": "OAuth2 Token Endpoint (pre-authorized_code & client_credentials)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": { "$ref": "#/components/schemas/GenericJSON" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Issued access token",
+            "headers": {
+              "Cache-Control": { "$ref": "#/components/headers/NoStore" }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/GenericJSON" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/OAuthError400" },
+          "401": { "$ref": "#/components/responses/OAuthError401" }
+        }
+      }
+    },
+    "/{slug}/nonce": {
+      "parameters": [
+        { "$ref": "#/components/parameters/IssuerSlug" }
+      ],
+      "post": {
+        "operationId": "postCredentialNonce",
+        "summary": "Issue fresh single-use c_nonce",
+        "responses": {
+          "200": {
+            "description": "Nonce issued",
+            "headers": {
+              "Cache-Control": { "$ref": "#/components/headers/NoStore" }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NonceResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/{slug}/credential": {
+      "parameters": [
+        { "$ref": "#/components/parameters/IssuerSlug" }
+      ],
+      "post": {
+        "operationId": "postCredential",
+        "summary": "OID4VCI Credential Endpoint (immediate 200 or deferred 202)",
+        "security": [{ "oid4vciBearer": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/GenericJSON" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Issued vc+jwt credential",
+            "headers": {
+              "Cache-Control": { "$ref": "#/components/headers/NoStore" }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/GenericJSON" }
+              }
+            }
+          },
+          "202": {
+            "description": "Deferred issuance accepted",
+            "headers": {
+              "Cache-Control": { "$ref": "#/components/headers/NoStore" }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DeferredResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/OAuthError400" },
+          "401": { "$ref": "#/components/responses/OAuthError401" }
+        }
+      }
+    },
+    "/{slug}/deferred_credential": {
+      "parameters": [
+        { "$ref": "#/components/parameters/IssuerSlug" }
+      ],
+      "post": {
+        "operationId": "postDeferredCredential",
+        "summary": "OID4VCI Deferred Credential Polling Endpoint",
+        "security": [{ "oid4vciBearer": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/DeferredPollRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Completed deferred vc+jwt credential",
+            "headers": {
+              "Cache-Control": { "$ref": "#/components/headers/NoStore" }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/GenericJSON" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/OAuthError400" },
+          "401": { "$ref": "#/components/responses/OAuthError401" }
+        }
+      }
+    },
+    "/{slug}/status-lists/{purpose}/{listId}": {
+      "parameters": [
+        { "$ref": "#/components/parameters/IssuerSlug" },
+        { "$ref": "#/components/parameters/StatusPurpose" },
+        { "$ref": "#/components/parameters/ListID" }
+      ],
+      "get": {
+        "operationId": "getBitstringStatusList",
+        "summary": "Public signed BitstringStatusListCredential JWT",
+        "responses": {
+          "200": {
+            "description": "Signed application/vc+jwt status list",
+            "content": {
+              "application/vc+jwt": {
+                "schema": { "type": "string" }
+              }
+            }
+          },
+          "404": { "$ref": "#/components/responses/OAuthError404" }
+        }
+      }
+    },
+    "/{slug}/schemas/{definitionId}/{version}": {
+      "parameters": [
+        { "$ref": "#/components/parameters/IssuerSlug" },
+        { "$ref": "#/components/parameters/DefinitionID" },
+        { "$ref": "#/components/parameters/DefinitionVersionArtifact" }
+      ],
+      "get": {
+        "operationId": "getDefinitionJSONSchema",
+        "summary": "Public immutable JSON Schema (Draft 2020-12) for a published definition version",
+        "responses": {
+          "200": {
+            "description": "JSON Schema document",
+            "content": {
+              "application/schema+json": {
+                "schema": { "$ref": "#/components/schemas/GenericJSON" }
+              }
+            }
+          },
+          "404": { "$ref": "#/components/responses/OAuthError404" }
+        }
+      }
+    },
+    "/{slug}/contexts/{definitionId}/{version}": {
+      "parameters": [
+        { "$ref": "#/components/parameters/IssuerSlug" },
+        { "$ref": "#/components/parameters/DefinitionID" },
+        { "$ref": "#/components/parameters/DefinitionVersionArtifact" }
+      ],
+      "get": {
+        "operationId": "getDefinitionJSONLDContext",
+        "summary": "Public immutable versioned JSON-LD @context for a published definition version",
+        "responses": {
+          "200": {
+            "description": "JSON-LD context document",
+            "content": {
+              "application/ld+json": {
+                "schema": { "$ref": "#/components/schemas/GenericJSON" }
+              }
+            }
+          },
+          "404": { "$ref": "#/components/responses/OAuthError404" }
+        }
+      }
+    },
+    "/v1/issuance-requests": {
+      "post": {
+        "operationId": "createIssuanceRequest",
+        "summary": "Create idempotent issuance request & OID4VCI offer",
+        "security": [{ "integrationBearer": [] }],
+        "x-required-scopes": ["issuance:create"],
+        "parameters": [
+          { "$ref": "#/components/parameters/IdempotencyKey" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/IssuanceRequestInput" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Issuance request created",
+            "headers": {
+              "Cache-Control": { "$ref": "#/components/headers/NoStore" }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/IssuanceRequestResult" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Problem401" },
+          "403": { "$ref": "#/components/responses/Problem403" },
+          "409": { "$ref": "#/components/responses/Problem409" },
+          "422": { "$ref": "#/components/responses/Problem422" },
+          "503": { "$ref": "#/components/responses/Problem503" }
+        }
+      }
+    },
+    "/v1/issuance-requests/{id}": {
+      "parameters": [
+        { "$ref": "#/components/parameters/RequestID" }
+      ],
+      "get": {
+        "operationId": "getIssuanceRequest",
+        "summary": "Inspect issuance request status owned by caller integration client",
+        "security": [{ "integrationBearer": [] }],
+        "x-required-scopes": ["issuance:read"],
+        "responses": {
+          "200": {
+            "description": "Issuance request state",
+            "headers": {
+              "Cache-Control": { "$ref": "#/components/headers/NoStore" }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/IssuanceRequestStatus" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Problem401" },
+          "404": { "$ref": "#/components/responses/Problem404" }
+        }
+      },
+      "delete": {
+        "operationId": "cancelIssuanceRequest",
+        "summary": "Cancel a pending/ready/deferred issuance request owned by caller client",
+        "security": [{ "integrationBearer": [] }],
+        "x-required-scopes": ["issuance:create"],
+        "responses": {
+          "200": {
+            "description": "Issuance request cancelled",
+            "headers": {
+              "Cache-Control": { "$ref": "#/components/headers/NoStore" }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/IssuanceRequestStatus" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Problem401" },
+          "404": { "$ref": "#/components/responses/Problem404" },
+          "409": { "$ref": "#/components/responses/Problem409" }
+        }
+      }
+    },
+    "/v1/credentials/{id}/suspension": {
+      "parameters": [
+        { "$ref": "#/components/parameters/CredentialHandleID" }
+      ],
+      "post": {
+        "operationId": "suspendCredential",
+        "summary": "Suspend an active credential via BitstringStatusList",
+        "security": [{ "integrationBearer": [] }],
+        "x-required-scopes": ["status:write"],
+        "parameters": [
+          { "$ref": "#/components/parameters/IdempotencyKey" }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/StatusChangeInput" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Credential suspended",
+            "headers": {
+              "Cache-Control": { "$ref": "#/components/headers/NoStore" }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StatusChangeResult" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Problem401" },
+          "404": { "$ref": "#/components/responses/Problem404" },
+          "409": { "$ref": "#/components/responses/Problem409" },
+          "503": { "$ref": "#/components/responses/Problem503" }
+        }
+      },
+      "delete": {
+        "operationId": "reactivateCredential",
+        "summary": "Reactivate a suspended credential",
+        "security": [{ "integrationBearer": [] }],
+        "x-required-scopes": ["status:write"],
+        "parameters": [
+          { "$ref": "#/components/parameters/IdempotencyKey" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Credential reactivated",
+            "headers": {
+              "Cache-Control": { "$ref": "#/components/headers/NoStore" }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StatusChangeResult" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Problem401" },
+          "404": { "$ref": "#/components/responses/Problem404" },
+          "409": { "$ref": "#/components/responses/Problem409" },
+          "503": { "$ref": "#/components/responses/Problem503" }
+        }
+      }
+    },
+    "/v1/credentials/{id}/revocation": {
+      "parameters": [
+        { "$ref": "#/components/parameters/CredentialHandleID" }
+      ],
+      "post": {
+        "operationId": "revokeCredential",
+        "summary": "Permanently revoke an issued credential",
+        "security": [{ "integrationBearer": [] }],
+        "x-required-scopes": ["status:write"],
+        "parameters": [
+          { "$ref": "#/components/parameters/IdempotencyKey" }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/StatusChangeInput" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Credential revoked",
+            "headers": {
+              "Cache-Control": { "$ref": "#/components/headers/NoStore" }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StatusChangeResult" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Problem401" },
+          "404": { "$ref": "#/components/responses/Problem404" },
+          "409": { "$ref": "#/components/responses/Problem409" },
+          "503": { "$ref": "#/components/responses/Problem503" }
+        }
+      }
+    },
+    "/v1/operator/tenants/{tenantId}/issuers": {
+      "parameters": [
+        { "$ref": "#/components/parameters/TenantID" }
+      ],
+      "get": {
+        "operationId": "operatorListIssuers",
+        "summary": "List tenant issuers (scoped for issuer_operator)",
+        "security": [{ "operatorBearer": [] }],
+        "x-required-capabilities": ["issuers:manage"],
+        "x-step-up-required": false,
+        "responses": {
+          "200": {
+            "description": "Issuers list",
+            "headers": {
+              "Cache-Control": { "$ref": "#/components/headers/NoStore" }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/GenericJSON" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Problem401" },
+          "403": { "$ref": "#/components/responses/Problem403" },
+          "404": { "$ref": "#/components/responses/Problem404" }
+        }
+      },
+      "post": {
+        "operationId": "operatorCreateIssuer",
+        "summary": "Create tenant issuer and optional initial KMS key",
+        "security": [{ "operatorBearer": [] }],
+        "x-required-capabilities": ["issuers:manage"],
+        "x-step-up-required": true,
+        "parameters": [
+          { "$ref": "#/components/parameters/IdempotencyKey" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateIssuerInput" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Issuer created",
+            "headers": {
+              "Cache-Control": { "$ref": "#/components/headers/NoStore" }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/GenericJSON" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Problem401" },
+          "403": { "$ref": "#/components/responses/Problem403" },
+          "404": { "$ref": "#/components/responses/Problem404" },
+          "422": { "$ref": "#/components/responses/Problem422" },
+          "503": { "$ref": "#/components/responses/Problem503" }
+        }
+      }
+    },
+    "/v1/operator/tenants/{tenantId}/issuers/{issuerId}/keys/rotate": {
+      "parameters": [
+        { "$ref": "#/components/parameters/TenantID" },
+        { "$ref": "#/components/parameters/IssuerID" }
+      ],
+      "post": {
+        "operationId": "operatorRotateIssuerKey",
+        "summary": "Provision and activate rotated ES256 KMS signing key",
+        "security": [{ "operatorBearer": [] }],
+        "x-required-capabilities": ["issuers:manage"],
+        "x-step-up-required": true,
+        "parameters": [
+          { "$ref": "#/components/parameters/IdempotencyKey" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/RotateKeyInput" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Key rotated",
+            "headers": {
+              "Cache-Control": { "$ref": "#/components/headers/NoStore" }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/GenericJSON" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Problem401" },
+          "403": { "$ref": "#/components/responses/Problem403" },
+          "404": { "$ref": "#/components/responses/Problem404" },
+          "409": { "$ref": "#/components/responses/Problem409" },
+          "503": { "$ref": "#/components/responses/Problem503" }
+        }
+      }
+    },
+    "/v1/operator/tenants/{tenantId}/issuers/{issuerId}/keys/{kid}/compromise": {
+      "parameters": [
+        { "$ref": "#/components/parameters/TenantID" },
+        { "$ref": "#/components/parameters/IssuerID" },
+        { "$ref": "#/components/parameters/KeyID" }
+      ],
+      "post": {
+        "operationId": "operatorCompromiseIssuerKey",
+        "summary": "Mark issuer signing key compromised, drop from JWKS and report impacted vc ids",
+        "security": [{ "operatorBearer": [] }],
+        "x-required-capabilities": ["issuers:manage"],
+        "x-step-up-required": true,
+        "parameters": [
+          { "$ref": "#/components/parameters/IdempotencyKey" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Key compromised report",
+            "headers": {
+              "Cache-Control": { "$ref": "#/components/headers/NoStore" }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/GenericJSON" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Problem401" },
+          "403": { "$ref": "#/components/responses/Problem403" },
+          "404": { "$ref": "#/components/responses/Problem404" }
+        }
+      }
+    },
+    "/v1/operator/tenants/{tenantId}/issuers/{issuerId}/credential-definitions": {
+      "parameters": [
+        { "$ref": "#/components/parameters/TenantID" },
+        { "$ref": "#/components/parameters/IssuerID" }
+      ],
+      "get": {
+        "operationId": "operatorListDefinitions",
+        "summary": "List credential definition versions for an issuer",
+        "security": [{ "operatorBearer": [] }],
+        "x-required-capabilities": ["definitions:manage"],
+        "x-step-up-required": false,
+        "responses": {
+          "200": {
+            "description": "Definitions list",
+            "headers": {
+              "Cache-Control": { "$ref": "#/components/headers/NoStore" }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/GenericJSON" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Problem401" },
+          "403": { "$ref": "#/components/responses/Problem403" },
+          "404": { "$ref": "#/components/responses/Problem404" }
+        }
+      },
+      "post": {
+        "operationId": "operatorCreateDraftDefinition",
+        "summary": "Create draft credential definition version",
+        "security": [{ "operatorBearer": [] }],
+        "x-required-capabilities": ["definitions:manage"],
+        "x-step-up-required": true,
+        "parameters": [
+          { "$ref": "#/components/parameters/IdempotencyKey" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/DefinitionDraftInput" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Draft created",
+            "headers": {
+              "Cache-Control": { "$ref": "#/components/headers/NoStore" },
+              "ETag": { "$ref": "#/components/headers/ETag" }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/GenericJSON" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Problem401" },
+          "403": { "$ref": "#/components/responses/Problem403" },
+          "404": { "$ref": "#/components/responses/Problem404" },
+          "409": { "$ref": "#/components/responses/Problem409" },
+          "422": { "$ref": "#/components/responses/Problem422" }
+        }
+      }
+    },
+    "/v1/operator/tenants/{tenantId}/issuers/{issuerId}/credential-definitions/{definitionId}/versions/{version}": {
+      "parameters": [
+        { "$ref": "#/components/parameters/TenantID" },
+        { "$ref": "#/components/parameters/IssuerID" },
+        { "$ref": "#/components/parameters/DefinitionID" },
+        { "$ref": "#/components/parameters/DefinitionVersion" }
+      ],
+      "get": {
+        "operationId": "operatorGetDefinitionVersion",
+        "summary": "Get one credential definition version",
+        "security": [{ "operatorBearer": [] }],
+        "x-required-capabilities": ["definitions:manage"],
+        "x-step-up-required": false,
+        "responses": {
+          "200": {
+            "description": "Definition version",
+            "headers": {
+              "Cache-Control": { "$ref": "#/components/headers/NoStore" },
+              "ETag": { "$ref": "#/components/headers/ETag" }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/GenericJSON" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Problem401" },
+          "403": { "$ref": "#/components/responses/Problem403" },
+          "404": { "$ref": "#/components/responses/Problem404" }
+        }
+      },
+      "put": {
+        "operationId": "operatorReplaceDraftDefinition",
+        "summary": "Replace draft credential definition version with If-Match ETag check",
+        "security": [{ "operatorBearer": [] }],
+        "x-required-capabilities": ["definitions:manage"],
+        "x-step-up-required": true,
+        "parameters": [
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/DefinitionDraftInput" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Draft replaced",
+            "headers": {
+              "Cache-Control": { "$ref": "#/components/headers/NoStore" },
+              "ETag": { "$ref": "#/components/headers/ETag" }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/GenericJSON" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Problem401" },
+          "403": { "$ref": "#/components/responses/Problem403" },
+          "404": { "$ref": "#/components/responses/Problem404" },
+          "409": { "$ref": "#/components/responses/Problem409" },
+          "412": { "$ref": "#/components/responses/Problem412" },
+          "428": { "$ref": "#/components/responses/Problem428" }
+        }
+      }
+    },
+    "/v1/operator/tenants/{tenantId}/issuers/{issuerId}/credential-definitions/{definitionId}/versions/{version}/publish": {
+      "parameters": [
+        { "$ref": "#/components/parameters/TenantID" },
+        { "$ref": "#/components/parameters/IssuerID" },
+        { "$ref": "#/components/parameters/DefinitionID" },
+        { "$ref": "#/components/parameters/DefinitionVersion" }
+      ],
+      "post": {
+        "operationId": "operatorPublishDefinitionVersion",
+        "summary": "Freeze and publish draft credential definition version",
+        "security": [{ "operatorBearer": [] }],
+        "x-required-capabilities": ["definitions:manage"],
+        "x-step-up-required": true,
+        "parameters": [
+          { "$ref": "#/components/parameters/IdempotencyKey" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Published definition version",
+            "headers": {
+              "Cache-Control": { "$ref": "#/components/headers/NoStore" },
+              "ETag": { "$ref": "#/components/headers/ETag" }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/GenericJSON" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Problem401" },
+          "403": { "$ref": "#/components/responses/Problem403" },
+          "404": { "$ref": "#/components/responses/Problem404" },
+          "409": { "$ref": "#/components/responses/Problem409" }
+        }
+      }
+    },
+    "/v1/operator/tenants/{tenantId}/issuers/{issuerId}/credential-definitions/{definitionId}/versions/{version}/retire": {
+      "parameters": [
+        { "$ref": "#/components/parameters/TenantID" },
+        { "$ref": "#/components/parameters/IssuerID" },
+        { "$ref": "#/components/parameters/DefinitionID" },
+        { "$ref": "#/components/parameters/DefinitionVersion" }
+      ],
+      "post": {
+        "operationId": "operatorRetireDefinitionVersion",
+        "summary": "Retire published credential definition version",
+        "security": [{ "operatorBearer": [] }],
+        "x-required-capabilities": ["definitions:manage"],
+        "x-step-up-required": true,
+        "parameters": [
+          { "$ref": "#/components/parameters/IdempotencyKey" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Retired definition version",
+            "headers": {
+              "Cache-Control": { "$ref": "#/components/headers/NoStore" },
+              "ETag": { "$ref": "#/components/headers/ETag" }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/GenericJSON" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Problem401" },
+          "403": { "$ref": "#/components/responses/Problem403" },
+          "404": { "$ref": "#/components/responses/Problem404" },
+          "409": { "$ref": "#/components/responses/Problem409" }
+        }
+      }
+    },
+    "/v1/operator/tenants/{tenantId}/clients": {
+      "parameters": [
+        { "$ref": "#/components/parameters/TenantID" }
+      ],
+      "get": {
+        "operationId": "operatorListClients",
+        "summary": "List tenant M2M integration clients without secrets",
+        "security": [{ "operatorBearer": [] }],
+        "x-required-capabilities": ["clients:manage"],
+        "x-step-up-required": false,
+        "responses": {
+          "200": {
+            "description": "Integration clients list",
+            "headers": {
+              "Cache-Control": { "$ref": "#/components/headers/NoStore" }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/GenericJSON" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Problem401" },
+          "403": { "$ref": "#/components/responses/Problem403" },
+          "404": { "$ref": "#/components/responses/Problem404" }
+        }
+      },
+      "post": {
+        "operationId": "operatorRegisterClient",
+        "summary": "Register M2M integration client (returns clientSecret once)",
+        "security": [{ "operatorBearer": [] }],
+        "x-required-capabilities": ["clients:manage"],
+        "x-step-up-required": true,
+        "parameters": [
+          { "$ref": "#/components/parameters/IdempotencyKey" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/RegisterClientInput" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Client registered",
+            "headers": {
+              "Cache-Control": { "$ref": "#/components/headers/NoStore" }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/GenericJSON" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Problem401" },
+          "403": { "$ref": "#/components/responses/Problem403" },
+          "404": { "$ref": "#/components/responses/Problem404" },
+          "422": { "$ref": "#/components/responses/Problem422" }
+        }
+      }
+    },
+    "/v1/operator/tenants/{tenantId}/clients/{clientId}/rotate-secret": {
+      "parameters": [
+        { "$ref": "#/components/parameters/TenantID" },
+        { "$ref": "#/components/parameters/ClientID" }
+      ],
+      "post": {
+        "operationId": "operatorRotateClientSecret",
+        "summary": "Rotate M2M client secret (returns new secret once)",
+        "security": [{ "operatorBearer": [] }],
+        "x-required-capabilities": ["clients:manage"],
+        "x-step-up-required": true,
+        "parameters": [
+          { "$ref": "#/components/parameters/IdempotencyKey" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Secret rotated",
+            "headers": {
+              "Cache-Control": { "$ref": "#/components/headers/NoStore" }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/GenericJSON" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Problem401" },
+          "403": { "$ref": "#/components/responses/Problem403" },
+          "404": { "$ref": "#/components/responses/Problem404" }
+        }
+      }
+    },
+    "/v1/operator/tenants/{tenantId}/clients/{clientId}/revoke": {
+      "parameters": [
+        { "$ref": "#/components/parameters/TenantID" },
+        { "$ref": "#/components/parameters/ClientID" }
+      ],
+      "post": {
+        "operationId": "operatorRevokeClient",
+        "summary": "Revoke an M2M integration client",
+        "security": [{ "operatorBearer": [] }],
+        "x-required-capabilities": ["clients:manage"],
+        "x-step-up-required": true,
+        "parameters": [
+          { "$ref": "#/components/parameters/IdempotencyKey" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Client revoked",
+            "headers": {
+              "Cache-Control": { "$ref": "#/components/headers/NoStore" }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/GenericJSON" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Problem401" },
+          "403": { "$ref": "#/components/responses/Problem403" },
+          "404": { "$ref": "#/components/responses/Problem404" }
+        }
+      }
+    },
+    "/v1/operator/tenants/{tenantId}/audit": {
+      "parameters": [
+        { "$ref": "#/components/parameters/TenantID" },
+        { "$ref": "#/components/parameters/AuditActionQuery" }
+      ],
+      "get": {
+        "operationId": "operatorListAuditEvents",
+        "summary": "Query immutable tenant issuance audit events",
+        "security": [{ "operatorBearer": [] }],
+        "x-required-capabilities": ["audit:read"],
+        "x-step-up-required": false,
+        "responses": {
+          "200": {
+            "description": "Audit events list",
+            "headers": {
+              "Cache-Control": { "$ref": "#/components/headers/NoStore" }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/GenericJSON" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Problem401" },
+          "403": { "$ref": "#/components/responses/Problem403" },
+          "404": { "$ref": "#/components/responses/Problem404" }
+        }
+      }
+    },
+    "/v1/operator/tenants/{tenantId}/issuance-audit": {
+      "parameters": [
+        { "$ref": "#/components/parameters/TenantID" },
+        { "$ref": "#/components/parameters/AuditActionQuery" }
+      ],
+      "get": {
+        "operationId": "operatorListIssuanceAuditEvents",
+        "summary": "Query immutable tenant issuance audit events (explicit alias)",
+        "security": [{ "operatorBearer": [] }],
+        "x-required-capabilities": ["audit:read"],
+        "x-step-up-required": false,
+        "responses": {
+          "200": {
+            "description": "Audit events list",
+            "headers": {
+              "Cache-Control": { "$ref": "#/components/headers/NoStore" }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/GenericJSON" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Problem401" },
+          "403": { "$ref": "#/components/responses/Problem403" },
+          "404": { "$ref": "#/components/responses/Problem404" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "operatorBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      },
+      "integrationBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      },
+      "oid4vciBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "headers": {
+      "NoStore": {
+        "required": true,
+        "schema": {
+          "type": "string",
+          "enum": ["no-store"]
+        }
+      },
+      "ETag": {
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      }
+    },
+    "parameters": {
+      "TenantID": {
+        "name": "tenantId",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string", "format": "uuid" }
+      },
+      "IssuerID": {
+        "name": "issuerId",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string", "format": "uuid" }
+      },
+      "KeyID": {
+        "name": "kid",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string" }
+      },
+      "ClientID": {
+        "name": "clientId",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string", "format": "uuid" }
+      },
+      "IssuerSlug": {
+        "name": "slug",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string" }
+      },
+      "OfferRef": {
+        "name": "ref",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string" }
+      },
+      "StatusPurpose": {
+        "name": "purpose",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string", "enum": ["revocation", "suspension"] }
+      },
+      "ListID": {
+        "name": "listId",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string" }
+      },
+      "DefinitionID": {
+        "name": "definitionId",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string" }
+      },
+      "DefinitionVersion": {
+        "name": "version",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string" }
+      },
+      "DefinitionVersionArtifact": {
+        "name": "version",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string" }
+      },
+      "RequestID": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string" }
+      },
+      "CredentialHandleID": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string" }
+      },
+      "IdempotencyKey": {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "required": true,
+        "schema": { "type": "string", "minLength": 16, "maxLength": 128 }
+      },
+      "AuditActionQuery": {
+        "name": "action",
+        "in": "query",
+        "required": false,
+        "schema": { "type": "string", "maxLength": 128 }
+      }
+    },
+    "responses": {
+      "OAuthError400": {
+        "description": "OAuth / OID4VCI protocol error",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OAuthError" } } }
+      },
+      "OAuthError401": {
+        "description": "Unauthorized bearer or client credentials",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OAuthError" } } }
+      },
+      "OAuthError404": {
+        "description": "Public resource not found",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OAuthError" } } }
+      },
+      "Problem401": {
+        "description": "Unauthorized",
+        "headers": { "Cache-Control": { "$ref": "#/components/headers/NoStore" } },
+        "content": { "application/problem+json": { "schema": { "$ref": "#/components/schemas/Problem" } } }
+      },
+      "Problem403": {
+        "description": "Forbidden or step-up MFA required",
+        "headers": { "Cache-Control": { "$ref": "#/components/headers/NoStore" } },
+        "content": { "application/problem+json": { "schema": { "$ref": "#/components/schemas/Problem" } } }
+      },
+      "Problem404": {
+        "description": "Resource not found in tenant",
+        "headers": { "Cache-Control": { "$ref": "#/components/headers/NoStore" } },
+        "content": { "application/problem+json": { "schema": { "$ref": "#/components/schemas/Problem" } } }
+      },
+      "Problem409": {
+        "description": "Conflict or immutable state transition",
+        "headers": { "Cache-Control": { "$ref": "#/components/headers/NoStore" } },
+        "content": { "application/problem+json": { "schema": { "$ref": "#/components/schemas/Problem" } } }
+      },
+      "Problem412": {
+        "description": "ETag mismatch",
+        "headers": { "Cache-Control": { "$ref": "#/components/headers/NoStore" } },
+        "content": { "application/problem+json": { "schema": { "$ref": "#/components/schemas/Problem" } } }
+      },
+      "Problem422": {
+        "description": "Validation failed",
+        "headers": { "Cache-Control": { "$ref": "#/components/headers/NoStore" } },
+        "content": { "application/problem+json": { "schema": { "$ref": "#/components/schemas/Problem" } } }
+      },
+      "Problem428": {
+        "description": "If-Match precondition header required",
+        "headers": { "Cache-Control": { "$ref": "#/components/headers/NoStore" } },
+        "content": { "application/problem+json": { "schema": { "$ref": "#/components/schemas/Problem" } } }
+      },
+      "Problem503": {
+        "description": "Signing/KMS or dependency unavailable",
+        "headers": { "Cache-Control": { "$ref": "#/components/headers/NoStore" } },
+        "content": { "application/problem+json": { "schema": { "$ref": "#/components/schemas/Problem" } } }
+      }
+    },
+    "schemas": {
+      "GenericJSON": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "OAuthError": {
+        "type": "object",
+        "required": ["error"],
+        "properties": {
+          "error": { "type": "string" },
+          "error_description": { "type": "string" }
+        }
+      },
+      "Problem": {
+        "type": "object",
+        "required": ["type", "title", "status", "code"],
+        "properties": {
+          "type": { "type": "string" },
+          "title": { "type": "string" },
+          "status": { "type": "integer" },
+          "detail": { "type": "string" },
+          "code": { "type": "string" },
+          "correlationId": { "type": "string" }
+        }
+      },
+      "AuthorizationServerMetadata": {
+        "type": "object",
+        "required": ["issuer", "token_endpoint", "grant_types_supported"],
+        "properties": {
+          "issuer": { "type": "string" },
+          "token_endpoint": { "type": "string" },
+          "grant_types_supported": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      },
+      "JWKS": {
+        "type": "object",
+        "required": ["keys"],
+        "properties": {
+          "keys": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["kty", "crv", "x", "y"],
+              "properties": {
+                "kty": { "type": "string" },
+                "crv": { "type": "string" },
+                "x": { "type": "string" },
+                "y": { "type": "string" },
+                "kid": { "type": "string" },
+                "alg": { "type": "string" },
+                "use": { "type": "string" }
+              }
+            }
+          }
+        }
+      },
+      "NonceResponse": {
+        "type": "object",
+        "required": ["c_nonce"],
+        "properties": {
+          "c_nonce": { "type": "string" }
+        }
+      },
+      "DeferredResponse": {
+        "type": "object",
+        "required": ["transaction_id", "interval"],
+        "properties": {
+          "transaction_id": { "type": "string" },
+          "interval": { "type": "integer" }
+        }
+      },
+      "DeferredPollRequest": {
+        "type": "object",
+        "required": ["transaction_id"],
+        "properties": {
+          "transaction_id": { "type": "string" }
+        }
+      },
+      "IssuanceRequestInput": {
+        "type": "object",
+        "required": ["issuerId", "credentialDefinition", "claims"],
+        "properties": {
+          "issuerId": { "type": "string" },
+          "credentialDefinition": { "type": "string" },
+          "claims": { "type": "object" },
+          "delivery": {
+            "type": "object",
+            "properties": {
+              "flow": { "type": "string" },
+              "expiresInSeconds": { "type": "integer" },
+              "deferred": { "type": "boolean" }
+            }
+          }
+        }
+      },
+      "IssuanceRequestResult": {
+        "type": "object",
+        "required": ["id", "offerState", "issuanceState", "issuerId", "credentialConfigurationId", "credentialOfferUri", "expiresAt", "createdAt"],
+        "properties": {
+          "id": { "type": "string" },
+          "offerState": { "type": "string" },
+          "issuanceState": { "type": "string" },
+          "issuerId": { "type": "string" },
+          "credentialConfigurationId": { "type": "string" },
+          "credentialOfferUri": { "type": "string" },
+          "expiresAt": { "type": "string", "format": "date-time" },
+          "createdAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "IssuanceRequestStatus": {
+        "type": "object",
+        "required": ["id", "offerState", "issuanceState", "issuerId", "credentialConfigurationId", "expiresAt", "createdAt"],
+        "properties": {
+          "id": { "type": "string" },
+          "offerState": { "type": "string" },
+          "issuanceState": { "type": "string" },
+          "issuerId": { "type": "string" },
+          "credentialConfigurationId": { "type": "string" },
+          "credentialId": { "type": "string" },
+          "expiresAt": { "type": "string", "format": "date-time" },
+          "createdAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "StatusChangeInput": {
+        "type": "object",
+        "properties": {
+          "reasonCode": { "type": "string" },
+          "comment": { "type": "string" }
+        }
+      },
+      "StatusChangeResult": {
+        "type": "object",
+        "required": ["credentialId", "state", "desiredStatus", "publishedStatus", "statusListVersion", "propagationState", "effectiveAt"],
+        "properties": {
+          "credentialId": { "type": "string" },
+          "state": { "type": "string" },
+          "desiredStatus": { "type": "string" },
+          "publishedStatus": { "type": "string" },
+          "statusListVersion": { "type": "integer" },
+          "propagationState": { "type": "string" },
+          "effectiveAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "CreateIssuerInput": {
+        "type": "object",
+        "required": ["slug", "displayName"],
+        "properties": {
+          "issuerId": { "type": "string", "format": "uuid" },
+          "slug": { "type": "string" },
+          "displayName": { "type": "string" },
+          "initialKid": { "type": "string" }
+        }
+      },
+      "RotateKeyInput": {
+        "type": "object",
+        "required": ["kid"],
+        "properties": {
+          "kid": { "type": "string" }
+        }
+      },
+      "DefinitionDraftInput": {
+        "type": "object",
+        "required": ["configurationId", "displayName", "types", "fields"],
+        "properties": {
+          "id": { "type": "string" },
+          "version": { "type": "string" },
+          "configurationId": { "type": "string" },
+          "displayName": { "type": "string" },
+          "locale": { "type": "string" },
+          "contexts": { "type": "array", "items": { "type": "string" } },
+          "types": { "type": "array", "items": { "type": "string" } },
+          "fields": { "type": "object" },
+          "defaultValiditySeconds": { "type": "integer" },
+          "statusPurposes": { "type": "array", "items": { "type": "string" } },
+          "publishSchema": { "type": "boolean" }
+        }
+      },
+      "RegisterClientInput": {
+        "type": "object",
+        "required": ["clientName", "allowedIssuers", "scopes"],
+        "properties": {
+          "clientId": { "type": "string", "format": "uuid" },
+          "clientName": { "type": "string" },
+          "allowedIssuers": { "type": "array", "items": { "type": "string", "format": "uuid" } },
+          "scopes": { "type": "array", "items": { "type": "string" } },
+          "expiresAt": { "type": "string", "format": "date-time" }
+        }
+      }
+    }
+  }
+}

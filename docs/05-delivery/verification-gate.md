@@ -79,7 +79,7 @@ Ninguno de estos puntos cierra el gate: el perfil sigue en `v0.1-draft`.
 ## Lo que sigue abierto
 
 - VER-T09 (status), VER-T12 (adaptador HTTPS del resolver) y VER-T13 (schema), que además cierran HK-043.
-- VER-T10 y VER-T11 (adaptador OpenID4VP y Verifier-as-a-Service), bloqueadas por las decisiones #1, #2 y #3.
+- VER-T10 y VER-T11 (adaptador OpenID4VP y Verifier-as-a-Service). De T11 existen el [ADR-0033](../decisions/ADR-0033.md) (aprobado por el owner el 2026-11-16), un borrador de contrato y el esquema de datos de T11-b; no hay endpoint ni scopes concedidos (T11-c).
 - La aprobación del owner de los valores propuestos (límites de entrada, tolerancia de reloj, lista de contextos) y del propio FEAT-004 y [ADR-0030](../decisions/ADR-0030.md), que figuran como propuestas.
 - La política de confianza de producción y su origen.
 - El payload del primer documento del piloto (decisión #4) y las fases 1 a 3 del [roadmap](hukid-roadmap.md): sin emisión no hay credenciales reales que verificar.

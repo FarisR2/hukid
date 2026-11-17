@@ -95,8 +95,16 @@ func configureHandler(ctx context.Context, address string) (http.Handler, func()
 	if err != nil {
 		return nil, nil, err
 	}
+	lab, err := configureOID4VPLab(os.Stdout, time.Now)
+	if err != nil {
+		return nil, nil, err
+	}
+	var labRoutes []func(*http.ServeMux)
+	if lab != nil {
+		labRoutes = append(labRoutes, lab)
+	}
 	if config == nil {
-		return bootstrap.Handler(), func() {}, nil
+		return bootstrap.Handler(labRoutes...), func() {}, nil
 	}
 	defer clear(config.key)
 	// A local Vite proxy can own the browser origin. This is explicit config,
@@ -155,5 +163,5 @@ func configureHandler(ctx context.Context, address string) (http.Handler, func()
 	}
 	commands := consolehttp.NewSessions(&authentication.SessionLifecycle{Sessions: sessions, Store: store, OIDC: provider, Random: rand.Reader})
 	stopCleanup := store.StartSessionCleanup(context.Background())
-	return audithttp.Wrap(bootstrap.Handler(consolehttp.New(service).Register, management.Register, me.Register, commands.Register, protectedCommands.Register, registerDirectory, registerDashboard), store, slog.Default()), func() { stopCleanup(); closeDashboard(); closeDirectory(); closePools() }, nil
+	return audithttp.Wrap(bootstrap.Handler(append([]func(*http.ServeMux){consolehttp.New(service).Register, management.Register, me.Register, commands.Register, protectedCommands.Register, registerDirectory, registerDashboard}, labRoutes...)...), store, slog.Default()), func() { stopCleanup(); closeDashboard(); closeDirectory(); closePools() }, nil
 }

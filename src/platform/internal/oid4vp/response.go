@@ -72,3 +72,18 @@ func (s *Session) HandleResponse(v *verification.Verifier, now time.Time, respon
 		verification.Request{Audience: s.cfg.ClientID, Nonce: s.nonce, State: s.state},
 	)
 }
+
+// ResponseKeyID reads the key id from the protected header of an encrypted
+// response without decrypting it, so a caller can find the session that owns
+// the response. The value is untrusted until HandleResponse decrypts with that
+// session's key; it is only a lookup handle.
+func ResponseKeyID(response string) (string, error) {
+	if len(response) == 0 || len(response) > MaxResponseBytes {
+		return "", ErrResponseInvalid
+	}
+	object, err := jose.ParseEncrypted(response, []jose.KeyAlgorithm{jose.ECDH_ES}, []jose.ContentEncryption{jose.A256GCM})
+	if err != nil || object.Header.KeyID == "" {
+		return "", ErrResponseInvalid
+	}
+	return object.Header.KeyID, nil
+}

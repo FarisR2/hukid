@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-jose/go-jose/v4"
+
 	"hukid.local/platform/internal/verification"
 )
 
@@ -177,9 +179,10 @@ func TestSessionStoreIndexesByHashedState(t *testing.T) {
 
 func TestEndToEndThroughTheStores(t *testing.T) {
 	l := newLab(t)
-	clock := &fakeClock{now: testNow}
-	sessions, _ := NewSessionStore(10, clock.Now)
-	replay, _ := NewScopedReplayStore("tenant-a", MaxTTL, 10, clock.Now)
+	// The session is built at testNow, so the stores must read the same clock.
+	atTestNow := func() time.Time { return testNow }
+	sessions, _ := NewSessionStore(10, atTestNow)
+	replay, _ := NewScopedReplayStore("tenant-a", MaxTTL, 10, atTestNow)
 	started := testSession(t)
 	if err := sessions.Put(started); err != nil {
 		t.Fatal(err)
@@ -196,5 +199,51 @@ func TestEndToEndThroughTheStores(t *testing.T) {
 	sessions.Remove(session.State())
 	if _, err := sessions.Get(started.State()); !errors.Is(err, ErrSessionNotFound) {
 		t.Fatalf("session still open after a verified response: %v", err)
+	}
+}
+
+func TestSessionStoreFindsASessionByItsKeyID(t *testing.T) {
+	clock := &fakeClock{now: testNow}
+	store, _ := NewSessionStore(2, clock.Now)
+	a := testSession(t)
+	_ = store.Put(a)
+	if got, err := store.GetByKeyID(a.kid); err != nil || got != a {
+		t.Fatalf("by kid: %v %v", got, err)
+	}
+	if _, err := store.GetByKeyID("unknown"); !errors.Is(err, ErrSessionNotFound) {
+		t.Fatalf("unknown kid: %v", err)
+	}
+	for key := range store.byKey {
+		if key == a.kid {
+			t.Fatal("the raw key id is an index key")
+		}
+	}
+	store.Remove(a.State())
+	if _, err := store.GetByKeyID(a.kid); !errors.Is(err, ErrSessionNotFound) {
+		t.Fatalf("removed session still found by kid: %v", err)
+	}
+	if len(store.byKey) != 0 {
+		t.Fatalf("kid index leaked %d entries", len(store.byKey))
+	}
+	_ = store.Put(a)
+	clock.Advance(DefaultTTL)
+	if _, err := store.GetByKeyID(a.kid); !errors.Is(err, ErrSessionNotFound) {
+		t.Fatalf("expired: %v", err)
+	}
+	if len(store.byKey) != 0 || len(store.sessions) != 0 {
+		t.Fatal("expired session left index entries")
+	}
+}
+
+func TestResponseKeyIDReadsTheHeaderWithoutDecrypting(t *testing.T) {
+	s := testSession(t)
+	got, err := ResponseKeyID(walletJWE(t, s, map[string]any{"x": 1}, jose.ECDH_ES, jose.A256GCM, s.kid))
+	if err != nil || got != s.kid {
+		t.Fatalf("%q %v", got, err)
+	}
+	for _, bad := range []string{"", "not-a-jwe", walletJWE(t, s, map[string]any{}, jose.ECDH_ES, jose.A128GCM, s.kid), walletJWE(t, s, map[string]any{}, jose.ECDH_ES, jose.A256GCM, "")} {
+		if _, err := ResponseKeyID(bad); !errors.Is(err, ErrResponseInvalid) {
+			t.Fatalf("%.20q: %v", bad, err)
+		}
 	}
 }

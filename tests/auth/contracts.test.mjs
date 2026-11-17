@@ -82,3 +82,11 @@ test('capability matrix agrees with context enum and never grants a directory to
   assert.ok(!matrix.roles.security_admin.includes('members:update'));
   assert.ok(matrix.stepUpRequired.every(capability => matrix.roles.tenant_admin.includes(capability)));
 });
+
+test('verification capabilities (ADR-0033) go only to tenant_admin and security_admin; start needs step-up', () => {
+  const matrix = read('src/platform/contracts/capabilities.json');
+  for (const role of ['tenant_admin','security_admin']) for (const cap of ['verification:start','verification:read']) assert.ok(matrix.roles[role].includes(cap), `${role} ${cap}`);
+  for (const role of ['issuer_operator','support_readonly']) assert.ok(!matrix.roles[role].some(cap => cap.startsWith('verification:')), role);
+  assert.ok(matrix.stepUpRequired.includes('verification:start'));
+  assert.ok(!matrix.stepUpRequired.includes('verification:read'));
+});

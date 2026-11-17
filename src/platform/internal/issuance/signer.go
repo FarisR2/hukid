@@ -7,12 +7,16 @@
 package issuance
 
 import (
+	"crypto/aes"
+	"crypto/cipher"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/x509"
 	"encoding/asn1"
 	"encoding/base64"
+	"encoding/pem"
 	"errors"
 	"io"
 	"math/big"
@@ -40,6 +44,10 @@ type Signer interface {
 	PublicKey() *ecdsa.PublicKey
 	Sign(signingInput string) ([]byte, error)
 }
+
+// SignerResolver obtains a Signer for an active issuer key persisted in metadata
+// storage without storing raw private keys in SQL.
+type SignerResolver func(tenantID, issuerID, issuerURI, kid, kmsKeyRef string, expectedPub *ecdsa.PublicKey) (Signer, error)
 
 // PublicJWK represents a public P-256 JSON Web Key published in JWKS.
 type PublicJWK struct {
@@ -183,4 +191,140 @@ func ExportPublicJWK(key *ecdsa.PublicKey, kid string) (PublicJWK, error) {
 		out.Use = "sig"
 	}
 	return out, nil
+}
+
+// DecodePublicJWK reconstructs and validates a P-256 public key from a PublicJWK.
+func DecodePublicJWK(jwk PublicJWK) (*ecdsa.PublicKey, error) {
+	if jwk.Kty != "EC" || jwk.Crv != "P-256" {
+		return nil, ErrInvalidIssuerConfig
+	}
+	xBytes, err := base64.RawURLEncoding.DecodeString(jwk.X)
+	if err != nil || len(xBytes) != 32 {
+		return nil, ErrInvalidIssuerConfig
+	}
+	yBytes, err := base64.RawURLEncoding.DecodeString(jwk.Y)
+	if err != nil || len(yBytes) != 32 {
+		return nil, ErrInvalidIssuerConfig
+	}
+	raw := make([]byte, 65)
+	raw[0] = 0x04
+	copy(raw[1:33], xBytes)
+	copy(raw[33:65], yBytes)
+	pub, err := ecdsa.ParseUncompressedPublicKey(elliptic.P256(), raw)
+	if err != nil {
+		return nil, ErrInvalidIssuerConfig
+	}
+	return pub, nil
+}
+
+// MarshalP256PrivateKeyPKCS8PEM encodes an ECDSA P-256 private key as PKCS#8 PEM
+// for persistent local key files.
+func MarshalP256PrivateKeyPKCS8PEM(key *ecdsa.PrivateKey) ([]byte, error) {
+	if key == nil || key.Curve != elliptic.P256() || key.D == nil || key.D.Sign() <= 0 || !key.Curve.IsOnCurve(key.X, key.Y) {
+		return nil, ErrInvalidIssuerConfig
+	}
+	der, err := x509.MarshalPKCS8PrivateKey(key)
+	if err != nil {
+		return nil, ErrInvalidIssuerConfig
+	}
+	defer clear(der)
+	return pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der}), nil
+}
+
+// ParseP256PrivateKeyPKCS8PEM parses a PKCS#8 or SEC1 PEM block containing a P-256 private key.
+func ParseP256PrivateKeyPKCS8PEM(pemBytes []byte) (*ecdsa.PrivateKey, error) {
+	block, rest := pem.Decode(pemBytes)
+	if block == nil || len(rest) != 0 {
+		return nil, ErrInvalidIssuerConfig
+	}
+	defer clear(block.Bytes)
+	switch block.Type {
+	case "PRIVATE KEY":
+		parsed, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+		if err != nil {
+			return nil, ErrInvalidIssuerConfig
+		}
+		ecKey, ok := parsed.(*ecdsa.PrivateKey)
+		if !ok || ecKey.Curve != elliptic.P256() || !ecKey.Curve.IsOnCurve(ecKey.X, ecKey.Y) {
+			return nil, ErrInvalidIssuerConfig
+		}
+		return ecKey, nil
+	case "EC PRIVATE KEY":
+		ecKey, err := x509.ParseECPrivateKey(block.Bytes)
+		if err != nil || ecKey.Curve != elliptic.P256() || !ecKey.Curve.IsOnCurve(ecKey.X, ecKey.Y) {
+			return nil, ErrInvalidIssuerConfig
+		}
+		return ecKey, nil
+	default:
+		return nil, ErrInvalidIssuerConfig
+	}
+}
+
+// NewMemorySignerFromPEM builds an ES256 Signer from a persistent PEM private key.
+func NewMemorySignerFromPEM(issuer, kid string, pemBytes []byte, random io.Reader) (*MemorySigner, error) {
+	key, err := ParseP256PrivateKeyPKCS8PEM(pemBytes)
+	if err != nil {
+		return nil, err
+	}
+	return NewMemorySigner(issuer, kid, key, random)
+}
+
+// SealP256PrivateKey encrypts a PKCS#8 P-256 private key with AES-256-GCM under a 32-byte KEK.
+func SealP256PrivateKey(key *ecdsa.PrivateKey, kek []byte, aad string, random io.Reader) (ciphertext, nonce []byte, err error) {
+	if len(kek) != 32 || key == nil || key.Curve != elliptic.P256() {
+		return nil, nil, ErrInvalidIssuerConfig
+	}
+	if random == nil {
+		random = rand.Reader
+	}
+	der, err := x509.MarshalPKCS8PrivateKey(key)
+	if err != nil {
+		return nil, nil, ErrInvalidIssuerConfig
+	}
+	defer clear(der)
+	block, err := aes.NewCipher(kek)
+	if err != nil {
+		return nil, nil, ErrInvalidIssuerConfig
+	}
+	aead, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, nil, ErrInvalidIssuerConfig
+	}
+	nonce = make([]byte, aead.NonceSize())
+	if _, err = io.ReadFull(random, nonce); err != nil {
+		return nil, nil, ErrInvalidIssuerConfig
+	}
+	return aead.Seal(nil, nonce, der, []byte(aad)), nonce, nil
+}
+
+// OpenP256PrivateKey decrypts a sealed PKCS#8 P-256 private key using AES-256-GCM.
+func OpenP256PrivateKey(ciphertext, nonce, kek []byte, aad string) (*ecdsa.PrivateKey, error) {
+	if len(kek) != 32 || len(ciphertext) < 16 {
+		return nil, ErrInvalidIssuerConfig
+	}
+	block, err := aes.NewCipher(kek)
+	if err != nil {
+		return nil, ErrInvalidIssuerConfig
+	}
+	aead, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, ErrInvalidIssuerConfig
+	}
+	if len(nonce) != aead.NonceSize() {
+		return nil, ErrInvalidIssuerConfig
+	}
+	der, err := aead.Open(nil, nonce, ciphertext, []byte(aad))
+	if err != nil {
+		return nil, ErrInvalidIssuerConfig
+	}
+	defer clear(der)
+	parsed, err := x509.ParsePKCS8PrivateKey(der)
+	if err != nil {
+		return nil, ErrInvalidIssuerConfig
+	}
+	ecKey, ok := parsed.(*ecdsa.PrivateKey)
+	if !ok || ecKey.Curve != elliptic.P256() || !ecKey.Curve.IsOnCurve(ecKey.X, ecKey.Y) {
+		return nil, ErrInvalidIssuerConfig
+	}
+	return ecKey, nil
 }

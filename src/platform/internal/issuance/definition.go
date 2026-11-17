@@ -190,6 +190,19 @@ func validateDefinitionShape(d Definition) error {
 	return validateFields(d.Fields, 1)
 }
 
+// ValidateDefinition verifies a Definition's identifiers, types, contexts and field schema.
+func ValidateDefinition(d Definition) error {
+	return validateDefinitionShape(d)
+}
+
+// ComputeDefinitionHash computes the canonical SHA-256 content hash fixed upon publishing.
+func ComputeDefinitionHash(d Definition) (string, error) {
+	if err := validateDefinitionShape(d); err != nil {
+		return "", err
+	}
+	return definitionHash(&d)
+}
+
 func definitionHash(d *Definition) (string, error) {
 	canonical := struct {
 		ID              string               `json:"id"`

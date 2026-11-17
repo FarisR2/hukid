@@ -73,6 +73,9 @@ var (
 // HukID HTTP surface ("/v1/..." and "/oauth2/...").
 var reservedSlugs = map[string]bool{"v1": true, "oauth2": true}
 
+// ReservedSlug reports whether slug collides with fixed API root segments.
+func ReservedSlug(slug string) bool { return reservedSlugs[slug] }
+
 // IssuerRecord models a logical issuer bound to one tenant (HK-001).
 type IssuerRecord struct {
 	TenantID    string
@@ -141,9 +144,7 @@ func (a *AuditLog) Record(tenantID, actorID, action, targetID, outcome, correlat
 	_, _ = io.ReadFull(a.random, buf)
 	eventID := "evt_" + base64.RawURLEncoding.EncodeToString(buf)
 
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	a.records = append(a.records, AuditRecord{
+	a.appendRecord(AuditRecord{
 		EventID:       eventID,
 		TenantID:      tenantID,
 		ActorID:       actorID,
@@ -153,6 +154,15 @@ func (a *AuditLog) Record(tenantID, actorID, action, targetID, outcome, correlat
 		CorrelationID: correlationID,
 		OccurredAt:    occurredAt.UTC(),
 	})
+}
+
+func (a *AuditLog) appendRecord(rec AuditRecord) {
+	if a == nil {
+		return
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.records = append(a.records, rec)
 }
 
 // ListByTenant returns a copy of audit records belonging exclusively to tenantID,
@@ -417,6 +427,17 @@ func NewClientRegistry(audit *AuditLog) *ClientRegistry {
 
 func allowedIntegrationScope(s string) bool {
 	return s == ScopeIssuanceCreate || s == ScopeIssuanceRead
+}
+
+// AllowedIntegrationScope reports whether s is a permitted M2M scope in v0.
+func AllowedIntegrationScope(s string) bool { return allowedIntegrationScope(s) }
+
+// HashClientSecret validates secret length and returns its SHA-256 digest.
+func HashClientSecret(rawSecret string) ([32]byte, error) {
+	if len(rawSecret) < minClientSecretBytes {
+		return [32]byte{}, ErrInvalidFoundationInput
+	}
+	return sha256.Sum256([]byte(rawSecret)), nil
 }
 
 // RegisterClient creates a client storing only the SHA-256 hash of rawSecret.

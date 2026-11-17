@@ -182,9 +182,36 @@ func (s *OfferStore) RedeemOffer(code string, now time.Time) (OfferRecord, error
 	if code == "" {
 		return OfferRecord{}, ErrOfferInvalid
 	}
-	hash := sha256.Sum256([]byte(code))
-	nowUTC := now.UTC()
+	return s.redeemHashed(sha256.Sum256([]byte(code)), now)
+}
 
+func (s *OfferStore) putHashed(hash [32]byte, issuer, configurationID string, claims map[string]any, expiresAt time.Time) {
+	claimsCopy := make(map[string]any, len(claims))
+	maps.Copy(claimsCopy, claims)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.offers[hash] = &OfferRecord{
+		codeHash:        hash,
+		Issuer:          issuer,
+		ConfigurationID: configurationID,
+		SubjectClaims:   claimsCopy,
+		ExpiresAt:       expiresAt.UTC(),
+	}
+}
+
+func (s *OfferStore) lookupRequestID(hash [32]byte) (string, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	rec, ok := s.offers[hash]
+	if !ok {
+		return "", false
+	}
+	reqID, _ := rec.SubjectClaims["request_id"].(string)
+	return reqID, reqID != ""
+}
+
+func (s *OfferStore) redeemHashed(hash [32]byte, now time.Time) (OfferRecord, error) {
+	nowUTC := now.UTC()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	rec, ok := s.offers[hash]
@@ -195,7 +222,6 @@ func (s *OfferStore) RedeemOffer(code string, now time.Time) (OfferRecord, error
 		return OfferRecord{}, ErrOfferInvalid
 	}
 	rec.Redeemed = true
-
 	claimsCopy := make(map[string]any, len(rec.SubjectClaims))
 	maps.Copy(claimsCopy, rec.SubjectClaims)
 	return OfferRecord{
@@ -259,7 +285,19 @@ func (s *NonceStore) ConsumeNonce(nonce string, now time.Time) error {
 	if nonce == "" {
 		return ErrNonceInvalid
 	}
-	hash := sha256.Sum256([]byte(nonce))
+	return s.consumeHash(sha256.Sum256([]byte(nonce)), now)
+}
+
+func (s *NonceStore) putHash(hash [32]byte, expiresAt time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.nonces[hash] = &nonceEntry{
+		hash:      hash,
+		expiresAt: expiresAt.UTC(),
+	}
+}
+
+func (s *NonceStore) consumeHash(hash [32]byte, now time.Time) error {
 	nowUTC := now.UTC()
 
 	s.mu.Lock()

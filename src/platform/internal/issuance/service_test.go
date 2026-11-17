@@ -135,8 +135,8 @@ func TestServiceEndToEndAndIdempotency(t *testing.T) {
 	}
 
 	// Verify claims are encrypted at rest (ciphertext does not contain plaintext).
-	stored := h.svc.reqs[res.ID]
-	if bytes.Contains(stored.claimsCipher, []byte("Maria Quispe")) || bytes.Contains(stored.claimsCipher, []byte("Congreso Cloud")) {
+	stored := h.svc.mem.reqs[res.ID]
+	if bytes.Contains(stored.ClaimsCipher, []byte("Maria Quispe")) || bytes.Contains(stored.ClaimsCipher, []byte("Congreso Cloud")) {
 		t.Fatal("claims stored in plaintext instead of AES-256-GCM ciphertext")
 	}
 
@@ -284,5 +284,41 @@ func TestServiceOfferExpiryAndTxCodeRejection(t *testing.T) {
 	polled, err := h.svc.GetRequest(intTok, res.ID)
 	if err != nil || polled.OfferState != "expired" {
 		t.Fatalf("expected offerState=expired, got %+v err=%v", polled, err)
+	}
+}
+
+func TestPersistentPEMAndSealedSignerRoundTrip(t *testing.T) {
+	key := mustGenerateKey(t)
+	pemBytes, err := MarshalP256PrivateKeyPKCS8PEM(key)
+	if err != nil {
+		t.Fatalf("marshal pem: %v", err)
+	}
+	signer, err := NewMemorySignerFromPEM("https://issuer.hukid.pe/unas", "unas-key-1", pemBytes, nil)
+	if err != nil {
+		t.Fatalf("signer from pem: %v", err)
+	}
+	jwk, err := signer.JWK()
+	if err != nil {
+		t.Fatalf("export jwk: %v", err)
+	}
+	pub, err := DecodePublicJWK(jwk)
+	if err != nil || !pub.Equal(&key.PublicKey) {
+		t.Fatalf("decoded jwk mismatch: err=%v", err)
+	}
+
+	kek := make([]byte, 32)
+	if _, err := rand.Read(kek); err != nil {
+		t.Fatal(err)
+	}
+	cipherKey, nonce, err := SealP256PrivateKey(key, kek, "unas-key-1", nil)
+	if err != nil {
+		t.Fatalf("seal key: %v", err)
+	}
+	reopened, err := OpenP256PrivateKey(cipherKey, nonce, kek, "unas-key-1")
+	if err != nil || !reopened.Equal(key) {
+		t.Fatalf("open sealed key: err=%v", err)
+	}
+	if _, err := OpenP256PrivateKey(cipherKey, nonce, kek, "wrong-aad"); err == nil {
+		t.Fatal("expected AAD mismatch to fail")
 	}
 }

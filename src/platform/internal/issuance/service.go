@@ -13,7 +13,6 @@ import (
 	"net/url"
 	"slices"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -51,8 +50,9 @@ var (
 	ErrUnknownCredentialIdentifier = errors.New("unknown credential identifier")
 )
 
-// ServiceConfig wires the Phase 3 issuance service. Everything with a side
-// effect (clock, entropy) is injected so expiry and replay can be tested.
+// ServiceConfig wires the Phase 3 issuance service. When Backend is nil, an
+// in-memory Backend is built from Clients, Definitions and Audit; when Backend is
+// set (for example backed by PostgreSQL), Signers must also be provided.
 type ServiceConfig struct {
 	// ClaimsKey is the 32-byte AES-256-GCM key that protects claims and stored
 	// offers at rest. A KMS-managed key replaces it in production.
@@ -61,6 +61,8 @@ type ServiceConfig struct {
 	Clients          *ClientRegistry
 	Definitions      *DefinitionRegistry
 	Audit            *AuditLog
+	Backend          Backend
+	Signers          SignerResolver
 	// AuthorizationServer is the public base URL of the token endpoint host.
 	AuthorizationServer string
 	Now                 func() time.Time
@@ -74,67 +76,25 @@ type issuerEntry struct {
 	ring   *KeyRing
 }
 
-type requestRecord struct {
-	id            string
-	tenantID      string
-	issuerID      string
-	clientID      string
-	defID         string
-	defVersion    string
-	configID      string
-	claimsCipher  []byte
-	claimsNonce   []byte
-	keyVersion    string
-	offerRef      string
-	offerState    string
-	issuanceState string
-	createdAt     time.Time
-	expiresAt     time.Time
-}
-
-type offerDelivery struct {
-	requestID string
-	slug      string
-	cipher    []byte
-	nonce     []byte
-}
-
-type idempotencyEntry struct {
-	hash   [32]byte
-	result IssuanceRequestResult
-}
-
-type accessRecord struct {
-	class       string
-	audience    string
-	expiresAt   time.Time
-	integration IntegrationToken
-	requestID   string
-	credID      string
-	used        bool
-}
-
-// Service is the Phase 3 issuance orchestrator. It is in-memory by design: the
-// ports it needs (stores for requests, offers, idempotency and tokens) map one
-// to one to the PostgreSQL tables of the data model.
+// Service is the Phase 3 issuance orchestrator. It delegates persistence to a
+// tenant-isolated Backend port (in-memory or PostgreSQL) while keeping protocol,
+// validation and AES-256-GCM handling in one pure domain unit.
 type Service struct {
 	cfg     ServiceConfig
 	aead    cipher.AEAD
-	offers  *OfferStore
-	nonces  *NonceStore
-	mu      sync.Mutex
-	byID    map[string]*issuerEntry
-	bySlug  map[string]*issuerEntry
-	reqs    map[string]*requestRecord
-	idem    map[string]idempotencyEntry
-	deliver map[string]*offerDelivery
-	tokens  map[[32]byte]*accessRecord
+	backend Backend
+	mem     *memoryBackend
 }
 
 // NewService validates the configuration and builds the service.
 func NewService(cfg ServiceConfig) (*Service, error) {
-	if len(cfg.ClaimsKey) != 32 || strings.TrimSpace(cfg.ClaimsKeyVersion) == "" ||
-		cfg.Clients == nil || cfg.Definitions == nil {
+	if len(cfg.ClaimsKey) != 32 || strings.TrimSpace(cfg.ClaimsKeyVersion) == "" {
+		return nil, ErrInvalidFoundationInput
+	}
+	if cfg.Backend == nil && (cfg.Clients == nil || cfg.Definitions == nil) {
+		return nil, ErrInvalidFoundationInput
+	}
+	if cfg.Backend != nil && cfg.Signers == nil {
 		return nil, ErrInvalidFoundationInput
 	}
 	block, err := aes.NewCipher(cfg.ClaimsKey)
@@ -161,39 +121,25 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		cfg.AuthorizationServer = AuthorizationServerURL
 	}
 	cfg.ClaimsKey = append([]byte(nil), cfg.ClaimsKey...)
-	return &Service{
-		cfg:     cfg,
-		aead:    aead,
-		offers:  NewOfferStore(cfg.Random),
-		nonces:  NewNonceStore(DefaultNonceTTL, cfg.Random),
-		byID:    map[string]*issuerEntry{},
-		bySlug:  map[string]*issuerEntry{},
-		reqs:    map[string]*requestRecord{},
-		idem:    map[string]idempotencyEntry{},
-		deliver: map[string]*offerDelivery{},
-		tokens:  map[[32]byte]*accessRecord{},
-	}, nil
+
+	svc := &Service{cfg: cfg, aead: aead}
+	if cfg.Backend != nil {
+		svc.backend = cfg.Backend
+	} else {
+		svc.mem = newMemoryBackend(cfg)
+		svc.backend = svc.mem
+	}
+	return svc, nil
 }
 
-// RegisterIssuer makes an issuer and its key ring reachable by the service.
+// RegisterIssuer makes an issuer and its key ring reachable in the in-memory backend.
 func (s *Service) RegisterIssuer(record IssuerRecord, ring *KeyRing) error {
-	if ring == nil || record.TenantID == "" || record.IssuerID == "" ||
+	if s.mem == nil || ring == nil || record.TenantID == "" || record.IssuerID == "" ||
 		ring.tenantID != record.TenantID || ring.issuer != record.IssuerURI ||
 		ValidateIssuerIdentifier(record.IssuerURI) != nil || reservedSlugs[record.Slug] {
 		return ErrInvalidFoundationInput
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if _, dup := s.byID[record.IssuerID]; dup {
-		return ErrInvalidFoundationInput
-	}
-	if _, dup := s.bySlug[record.Slug]; dup {
-		return ErrInvalidFoundationInput
-	}
-	entry := &issuerEntry{record: record, ring: ring}
-	s.byID[record.IssuerID] = entry
-	s.bySlug[record.Slug] = entry
-	return nil
+	return s.mem.registerIssuer(record, ring)
 }
 
 func (s *Service) now() time.Time { return s.cfg.Now().UTC() }
@@ -204,6 +150,21 @@ func (s *Service) randomID(prefix string) (string, error) {
 		return "", err
 	}
 	return prefix + base64.RawURLEncoding.EncodeToString(buf), nil
+}
+
+func (s *Service) newAudit(tenantID, actorID, action, targetID, outcome, correlationID string, now time.Time) AuditRecord {
+	buf := make([]byte, 16)
+	_, _ = io.ReadFull(s.cfg.Random, buf)
+	return AuditRecord{
+		EventID:       "evt_" + base64.RawURLEncoding.EncodeToString(buf),
+		TenantID:      tenantID,
+		ActorID:       actorID,
+		Action:        action,
+		TargetID:      targetID,
+		Outcome:       outcome,
+		CorrelationID: correlationID,
+		OccurredAt:    now.UTC(),
+	}
 }
 
 func newUUID(random io.Reader) (string, error) {
@@ -297,123 +258,188 @@ func (s *Service) CreateIssuanceRequest(token IntegrationToken, idempotencyKey s
 	if delivery.ExpiresInSeconds > 0 {
 		offerTTL = time.Duration(delivery.ExpiresInSeconds) * time.Second
 	}
-	if in.Source != nil && (len(in.Source.System) > 128 || len(in.Source.Reference) > 128) {
-		return IssuanceRequestResult{}, false, ErrInvalidRequest
+	var sourceSystem, sourceReference string
+	if in.Source != nil {
+		if len(in.Source.System) > 128 || len(in.Source.Reference) > 128 {
+			return IssuanceRequestResult{}, false, ErrInvalidRequest
+		}
+		sourceSystem, sourceReference = in.Source.System, in.Source.Reference
 	}
 	hashInput, err := json.Marshal(in)
 	if err != nil {
 		return IssuanceRequestResult{}, false, ErrInvalidRequest
 	}
 	requestHash := sha256.Sum256(hashInput)
+	idempotencyKeyHash := sha256.Sum256([]byte(idempotencyKey))
 	now := s.now()
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	entry, ok := s.byID[in.IssuerID]
-	if !ok {
+	if strings.TrimSpace(token.TenantID) == "" || token.ClientID == "" {
 		return IssuanceRequestResult{}, false, ErrResourceNotFound
 	}
-	tenantID := entry.record.TenantID
-	if err := s.cfg.Clients.AuthorizeIssuerAccess(token, tenantID, in.IssuerID, ScopeIssuanceCreate, now); err != nil {
-		return IssuanceRequestResult{}, false, err
-	}
-	idemKey := token.ClientID + "\x00" + idempotencyKey
-	if prior, seen := s.idem[idemKey]; seen {
-		if prior.hash != requestHash {
-			return IssuanceRequestResult{}, false, ErrIdempotencyConflict
+
+	var result IssuanceRequestResult
+	var replay bool
+	err = s.backend.WithTenantTx(token.TenantID, func(tx Tx) error {
+		issuerRec, ok, err := tx.GetIssuerByID(in.IssuerID)
+		if err != nil {
+			return err
 		}
-		return prior.result, true, nil
-	}
-	if entry.record.State != IssuerActive {
-		return IssuanceRequestResult{}, false, ErrDefinitionUnavailable
-	}
-	defID, defVersion, err := ParseDefinitionRef(in.CredentialDefinition)
-	if err != nil {
-		return IssuanceRequestResult{}, false, ErrDefinitionNotFound
-	}
-	def, err := s.cfg.Definitions.GetIssuable(tenantID, in.IssuerID, defID, defVersion)
+		if !ok {
+			return ErrResourceNotFound
+		}
+		client, clientOK, err := tx.GetClient(token.ClientID)
+		if err != nil {
+			return err
+		}
+		var clientPtr *StoredClient
+		if clientOK {
+			clientPtr = &client
+		}
+		if err := AuthorizeStoredIssuerAccess(clientPtr, token, issuerRec.TenantID, in.IssuerID, ScopeIssuanceCreate, now); err != nil {
+			return err
+		}
+
+		prior, seen, err := tx.LockIdempotency(token.ClientID, idempotencyKeyHash)
+		if err != nil {
+			return err
+		}
+		if seen {
+			if prior.RequestHash != requestHash {
+				return ErrIdempotencyConflict
+			}
+			result, replay = prior.Result, true
+			return nil
+		}
+
+		if issuerRec.State != IssuerActive {
+			return ErrDefinitionUnavailable
+		}
+		defID, defVersion, err := ParseDefinitionRef(in.CredentialDefinition)
+		if err != nil {
+			return ErrDefinitionNotFound
+		}
+		def, err := tx.GetIssuableDefinition(in.IssuerID, defID, defVersion)
+		if err != nil {
+			return err
+		}
+		if err := def.ValidateClaims(in.Claims); err != nil {
+			return err
+		}
+
+		requestID, err := s.randomID("ir_")
+		if err != nil {
+			return ErrInvalidRequest
+		}
+		ref, err := s.randomID("ofr_")
+		if err != nil {
+			return ErrInvalidRequest
+		}
+		claimsJSON, err := json.Marshal(in.Claims)
+		if err != nil {
+			return ErrInvalidRequest
+		}
+		claimsCipher, claimsNonce, err := s.seal(claimsJSON, claimsAAD(issuerRec.TenantID, in.IssuerID, requestID))
+		if err != nil {
+			return ErrInvalidRequest
+		}
+		code, err := generateOpaqueToken(s.cfg.Random)
+		if err != nil {
+			return ErrInvalidRequest
+		}
+		codeHash := sha256.Sum256([]byte(code))
+		offer := CredentialOffer{
+			CredentialIssuer:           issuerRec.IssuerURI,
+			CredentialConfigurationIDs: []string{def.ConfigurationID},
+			Grants: map[string]PreAuthorizedGrant{
+				PreAuthorizedGrantType: {PreAuthorizedCode: code},
+			},
+		}
+		offerJSON, err := json.Marshal(offer)
+		if err != nil {
+			return ErrInvalidRequest
+		}
+		offerCipher, offerNonce, err := s.seal(offerJSON, offerAAD(issuerRec.TenantID, in.IssuerID, ref))
+		if err != nil {
+			return ErrInvalidRequest
+		}
+
+		expiresAt := now.Add(offerTTL)
+		record := StoredRequest{
+			ID: requestID, TenantID: issuerRec.TenantID, IssuerID: in.IssuerID, ClientID: token.ClientID,
+			DefID: defID, DefVersion: defVersion, ConfigID: def.ConfigurationID,
+			ClaimsCipher: claimsCipher, ClaimsNonce: claimsNonce, ClaimsKeyVer: s.cfg.ClaimsKeyVersion,
+			OfferRef: ref, OfferCipher: offerCipher, OfferNonce: offerNonce, OfferKeyVer: s.cfg.ClaimsKeyVersion,
+			OfferState: offerReady, IssuanceState: issuancePrepared,
+			SourceSystem: sourceSystem, SourceReference: sourceReference,
+			CreatedAt: now, ExpiresAt: expiresAt,
+		}
+		if err := tx.SaveRequestAndOffer(record, codeHash); err != nil {
+			return err
+		}
+
+		result = IssuanceRequestResult{
+			ID: requestID, OfferState: offerReady, IssuanceState: issuancePrepared,
+			IssuerID: in.IssuerID, CredentialConfigurationID: def.ConfigurationID,
+			CredentialOfferURI: "openid-credential-offer://?credential_offer_uri=" +
+				url.QueryEscape(issuerRec.IssuerURI+"/offers/"+ref),
+			ExpiresAt: expiresAt, CreatedAt: now,
+		}
+		if err := tx.SaveIdempotency(IdempotencyRecord{
+			ClientID: token.ClientID, KeyHash: idempotencyKeyHash,
+			RequestHash: requestHash, Result: result,
+		}); err != nil {
+			return err
+		}
+		return tx.AppendAudit(s.newAudit(issuerRec.TenantID, token.ClientID, "issuance_request.created", requestID, "succeeded", "", now))
+	})
 	if err != nil {
 		return IssuanceRequestResult{}, false, err
 	}
-	if err := def.ValidateClaims(in.Claims); err != nil {
-		return IssuanceRequestResult{}, false, err
-	}
-
-	requestID, err := s.randomID("ir_")
-	if err != nil {
-		return IssuanceRequestResult{}, false, ErrInvalidRequest
-	}
-	ref, err := s.randomID("ofr_")
-	if err != nil {
-		return IssuanceRequestResult{}, false, ErrInvalidRequest
-	}
-	claimsJSON, err := json.Marshal(in.Claims)
-	if err != nil {
-		return IssuanceRequestResult{}, false, ErrInvalidRequest
-	}
-	claimsCipher, claimsNonce, err := s.seal(claimsJSON, claimsAAD(tenantID, in.IssuerID, requestID))
-	if err != nil {
-		return IssuanceRequestResult{}, false, ErrInvalidRequest
-	}
-	// The offer store only learns an opaque request id: no claim ever reaches it.
-	offer, err := s.offers.CreateOffer(entry.record.IssuerURI, def.ConfigurationID, map[string]any{"request_id": requestID}, now, offerTTL)
-	if err != nil {
-		return IssuanceRequestResult{}, false, ErrInvalidRequest
-	}
-	offerJSON, err := json.Marshal(offer)
-	if err != nil {
-		return IssuanceRequestResult{}, false, ErrInvalidRequest
-	}
-	offerCipher, offerNonce, err := s.seal(offerJSON, offerAAD(tenantID, in.IssuerID, ref))
-	if err != nil {
-		return IssuanceRequestResult{}, false, ErrInvalidRequest
-	}
-
-	record := &requestRecord{
-		id: requestID, tenantID: tenantID, issuerID: in.IssuerID, clientID: token.ClientID,
-		defID: defID, defVersion: defVersion, configID: def.ConfigurationID,
-		claimsCipher: claimsCipher, claimsNonce: claimsNonce, keyVersion: s.cfg.ClaimsKeyVersion,
-		offerRef: ref, offerState: offerReady, issuanceState: issuancePrepared,
-		createdAt: now, expiresAt: now.Add(offerTTL),
-	}
-	s.reqs[requestID] = record
-	s.deliver[ref] = &offerDelivery{requestID: requestID, slug: entry.record.Slug, cipher: offerCipher, nonce: offerNonce}
-
-	result := IssuanceRequestResult{
-		ID: requestID, OfferState: offerReady, IssuanceState: issuancePrepared,
-		IssuerID: in.IssuerID, CredentialConfigurationID: def.ConfigurationID,
-		CredentialOfferURI: "openid-credential-offer://?credential_offer_uri=" +
-			url.QueryEscape(entry.record.IssuerURI+"/offers/"+ref),
-		ExpiresAt: record.expiresAt, CreatedAt: now,
-	}
-	s.idem[idemKey] = idempotencyEntry{hash: requestHash, result: result}
-	s.cfg.Audit.Record(tenantID, token.ClientID, "issuance_request.created", requestID, "succeeded", "", now)
-	return result, false, nil
+	return result, replay, nil
 }
 
 // GetRequest implements the read side of HK-012. A request that belongs to
 // another tenant or client is indistinguishable from a missing one.
 func (s *Service) GetRequest(token IntegrationToken, requestID string) (IssuanceRequestResult, error) {
-	now := s.now()
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	rec, ok := s.reqs[requestID]
-	if !ok || rec.tenantID != token.TenantID || rec.clientID != token.ClientID {
+	if strings.TrimSpace(token.TenantID) == "" || token.ClientID == "" || requestID == "" {
 		return IssuanceRequestResult{}, ErrResourceNotFound
 	}
-	if err := s.cfg.Clients.AuthorizeIssuerAccess(token, rec.tenantID, rec.issuerID, ScopeIssuanceRead, now); err != nil {
+	now := s.now()
+	var result IssuanceRequestResult
+	err := s.backend.WithTenantTx(token.TenantID, func(tx Tx) error {
+		rec, ok, err := tx.GetRequestForClient(requestID, token.ClientID)
+		if err != nil {
+			return err
+		}
+		if !ok || rec.TenantID != token.TenantID || rec.ClientID != token.ClientID {
+			return ErrResourceNotFound
+		}
+		client, clientOK, err := tx.GetClient(token.ClientID)
+		if err != nil {
+			return err
+		}
+		var clientPtr *StoredClient
+		if clientOK {
+			clientPtr = &client
+		}
+		if err := AuthorizeStoredIssuerAccess(clientPtr, token, rec.TenantID, rec.IssuerID, ScopeIssuanceRead, now); err != nil {
+			return err
+		}
+		offerState := rec.OfferState
+		if offerState == offerReady && !now.Before(rec.ExpiresAt) {
+			offerState = offerExpired
+		}
+		result = IssuanceRequestResult{
+			ID: rec.ID, OfferState: offerState, IssuanceState: rec.IssuanceState,
+			IssuerID: rec.IssuerID, CredentialConfigurationID: rec.ConfigID,
+			ExpiresAt: rec.ExpiresAt, CreatedAt: rec.CreatedAt,
+		}
+		return nil
+	})
+	if err != nil {
 		return IssuanceRequestResult{}, err
 	}
-	offerState := rec.offerState
-	if offerState == offerReady && !now.Before(rec.expiresAt) {
-		offerState = offerExpired
-	}
-	return IssuanceRequestResult{
-		ID: rec.id, OfferState: offerState, IssuanceState: rec.issuanceState,
-		IssuerID: rec.issuerID, CredentialConfigurationID: rec.configID,
-		ExpiresAt: rec.expiresAt, CreatedAt: rec.createdAt,
-	}, nil
+	return result, nil
 }
 
 // TokenResponse is the body of a successful token endpoint response.
@@ -433,121 +459,182 @@ type AuthorizationDetail struct {
 	CredentialIdentifiers     []string `json:"credential_identifiers"`
 }
 
-func (s *Service) storeToken(rec *accessRecord) (string, error) {
-	raw, err := generateOpaqueToken(s.cfg.Random)
-	if err != nil {
-		return "", err
-	}
-	s.tokens[sha256.Sum256([]byte(raw))] = rec
-	return raw, nil
-}
-
 // ClientCredentialsToken authenticates an integration client (HK-004/HK-013) and
 // returns an opaque access token of class "integration".
 func (s *Service) ClientCredentialsToken(clientID, clientSecret string, scopes []string) (TokenResponse, error) {
-	now := s.now()
-	integration, err := s.cfg.Clients.AuthenticateClient(clientID, clientSecret, scopes, now)
-	if err != nil {
-		return TokenResponse{}, err
+	if clientID == "" || clientSecret == "" {
+		return TokenResponse{}, ErrClientUnauthorized
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	raw, err := s.storeToken(&accessRecord{
-		class: IntegrationTokenClass, audience: IntegrationAudience,
-		expiresAt: integration.ExpiresAt, integration: integration,
+	now := s.now()
+	tenantID, ok, err := s.backend.ResolveTenantByClient(clientID)
+	if err != nil || !ok {
+		return TokenResponse{}, ErrClientUnauthorized
+	}
+
+	var resp TokenResponse
+	var deniedAudit *AuditRecord
+	err = s.backend.WithTenantTx(tenantID, func(tx Tx) error {
+		client, found, err := tx.GetClient(clientID)
+		if err != nil {
+			return err
+		}
+		if !found {
+			return ErrClientUnauthorized
+		}
+		integration, authErr := AuthenticateStoredClient(client, clientSecret, scopes, now)
+		if authErr != nil {
+			rec := s.newAudit(tenantID, clientID, "integration_client.authenticate", clientID, "denied", "", now)
+			deniedAudit = &rec
+			return ErrClientUnauthorized
+		}
+		raw, err := generateOpaqueToken(s.cfg.Random)
+		if err != nil {
+			return ErrInvalidRequest
+		}
+		tokenHash := sha256.Sum256([]byte(raw))
+		if err := tx.SaveToken(tokenHash, StoredToken{
+			Class: IntegrationTokenClass, Audience: IntegrationAudience,
+			IssuedAt: integration.IssuedAt, ExpiresAt: integration.ExpiresAt,
+			Integration: integration,
+		}); err != nil {
+			return err
+		}
+		if err := tx.AppendAudit(s.newAudit(tenantID, clientID, "integration_client.authenticate", clientID, "succeeded", "", now)); err != nil {
+			return err
+		}
+		resp = TokenResponse{
+			AccessToken: raw, TokenType: "Bearer",
+			ExpiresIn: int(integration.ExpiresAt.Sub(now) / time.Second),
+			Scope:     strings.Join(integration.Scopes, " "),
+		}
+		return nil
 	})
 	if err != nil {
-		return TokenResponse{}, ErrInvalidRequest
+		if deniedAudit != nil {
+			_ = s.backend.WithTenantTx(tenantID, func(tx Tx) error {
+				return tx.AppendAudit(*deniedAudit)
+			})
+		}
+		return TokenResponse{}, err
 	}
-	return TokenResponse{
-		AccessToken: raw, TokenType: "Bearer",
-		ExpiresIn: int(integration.ExpiresAt.Sub(now) / time.Second),
-		Scope:     strings.Join(integration.Scopes, " "),
-	}, nil
+	return resp, nil
 }
 
 // PreAuthorizedToken redeems a pre-authorized code exactly once (HK-011/HK-021)
 // and returns an opaque access token of class "oid4vci" whose audience is the
 // issuer identifier.
 func (s *Service) PreAuthorizedToken(code string) (TokenResponse, error) {
+	if code == "" {
+		return TokenResponse{}, ErrInvalidGrant
+	}
 	now := s.now()
-	offer, err := s.offers.RedeemOffer(code, now)
-	if err != nil {
+	codeHash := sha256.Sum256([]byte(code))
+	tenantID, ok, err := s.backend.ResolveTenantByOfferCode(codeHash)
+	if err != nil || !ok {
 		return TokenResponse{}, ErrInvalidGrant
 	}
-	requestID, _ := offer.SubjectClaims["request_id"].(string)
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	rec, ok := s.reqs[requestID]
-	if !ok || rec.offerState != offerReady {
-		return TokenResponse{}, ErrInvalidGrant
-	}
-	rec.offerState = offerRedeemed
-	credID, err := s.randomID("cred_")
-	if err != nil {
-		return TokenResponse{}, ErrInvalidRequest
-	}
-	expires := now.Add(s.cfg.AccessTokenTTL)
-	raw, err := s.storeToken(&accessRecord{
-		class: tokenClassOID4VCI, audience: offer.Issuer, expiresAt: expires,
-		requestID: requestID, credID: credID,
+	var resp TokenResponse
+	err = s.backend.WithTenantTx(tenantID, func(tx Tx) error {
+		offer, err := tx.RedeemOfferByCodeHash(codeHash, now)
+		if err != nil {
+			return ErrInvalidGrant
+		}
+		credID, err := s.randomID("cred_")
+		if err != nil {
+			return ErrInvalidRequest
+		}
+		raw, err := generateOpaqueToken(s.cfg.Random)
+		if err != nil {
+			return ErrInvalidRequest
+		}
+		expires := now.Add(s.cfg.AccessTokenTTL)
+		if err := tx.SaveToken(sha256.Sum256([]byte(raw)), StoredToken{
+			Class: tokenClassOID4VCI, Audience: offer.IssuerURI,
+			IssuedAt: now, ExpiresAt: expires,
+			RequestID: offer.RequestID, CredID: credID,
+		}); err != nil {
+			return err
+		}
+		if err := tx.AppendAudit(s.newAudit(tenantID, "wallet", "offer.redeemed", offer.RequestID, "succeeded", "", now)); err != nil {
+			return err
+		}
+		resp = TokenResponse{
+			AccessToken: raw, TokenType: "Bearer", ExpiresIn: int(s.cfg.AccessTokenTTL / time.Second),
+			AuthorizationDetails: []AuthorizationDetail{{
+				Type: "openid_credential", CredentialConfigurationID: offer.ConfigID,
+				CredentialIdentifiers: []string{credID},
+			}},
+		}
+		return nil
 	})
 	if err != nil {
-		return TokenResponse{}, ErrInvalidRequest
+		return TokenResponse{}, err
 	}
-	s.cfg.Audit.Record(rec.tenantID, "wallet", "offer.redeemed", requestID, "succeeded", "", now)
-	return TokenResponse{
-		AccessToken: raw, TokenType: "Bearer", ExpiresIn: int(s.cfg.AccessTokenTTL / time.Second),
-		AuthorizationDetails: []AuthorizationDetail{{
-			Type: "openid_credential", CredentialConfigurationID: rec.configID,
-			CredentialIdentifiers: []string{credID},
-		}},
-	}, nil
-}
-
-func (s *Service) lookupTokenLocked(raw, class, audience string, now time.Time) (*accessRecord, error) {
-	if raw == "" {
-		return nil, ErrInvalidToken
-	}
-	rec, ok := s.tokens[sha256.Sum256([]byte(raw))]
-	if !ok || rec.class != class || rec.audience != audience || rec.used || !now.Before(rec.expiresAt) {
-		return nil, ErrInvalidToken
-	}
-	return rec, nil
+	return resp, nil
 }
 
 // AuthenticateIntegration resolves a bearer token of class "integration".
 func (s *Service) AuthenticateIntegration(bearer string) (IntegrationToken, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	rec, err := s.lookupTokenLocked(bearer, IntegrationTokenClass, IntegrationAudience, s.now())
+	if bearer == "" {
+		return IntegrationToken{}, ErrInvalidToken
+	}
+	now := s.now()
+	tokenHash := sha256.Sum256([]byte(bearer))
+	tenantID, ok, err := s.backend.ResolveTenantByToken(tokenHash)
+	if err != nil || !ok {
+		return IntegrationToken{}, ErrInvalidToken
+	}
+	var out IntegrationToken
+	err = s.backend.WithTenantTx(tenantID, func(tx Tx) error {
+		rec, found, err := tx.LookupToken(tokenHash)
+		if err != nil || !found || rec.Class != IntegrationTokenClass || rec.Audience != IntegrationAudience ||
+			rec.Used || !now.Before(rec.ExpiresAt) {
+			return ErrInvalidToken
+		}
+		out = rec.Integration
+		return nil
+	})
 	if err != nil {
 		return IntegrationToken{}, err
 	}
-	return rec.integration, nil
+	return out, nil
 }
 
 // ResolveOffer returns the credential offer a QR points to. It disappears once
 // the offer is redeemed or expired.
 func (s *Service) ResolveOffer(slug, ref string) (CredentialOffer, error) {
+	if slug == "" || ref == "" {
+		return CredentialOffer{}, ErrResourceNotFound
+	}
 	now := s.now()
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	delivery, ok := s.deliver[ref]
-	if !ok || delivery.slug != slug {
-		return CredentialOffer{}, ErrResourceNotFound
-	}
-	rec := s.reqs[delivery.requestID]
-	if rec == nil || rec.offerState != offerReady || !now.Before(rec.expiresAt) {
-		return CredentialOffer{}, ErrResourceNotFound
-	}
-	plain, err := s.open(delivery.cipher, delivery.nonce, offerAAD(rec.tenantID, rec.issuerID, ref))
-	if err != nil {
+	tenantID, ok, err := s.backend.ResolveTenantBySlug(slug)
+	if err != nil || !ok {
 		return CredentialOffer{}, ErrResourceNotFound
 	}
 	var offer CredentialOffer
-	if err := json.Unmarshal(plain, &offer); err != nil {
+	err = s.backend.WithTenantTx(tenantID, func(tx Tx) error {
+		issuerRec, found, err := tx.GetIssuerBySlug(slug)
+		if err != nil || !found {
+			return ErrResourceNotFound
+		}
+		rec, found, err := tx.GetRequestByOfferRef(issuerRec.IssuerID, ref)
+		if err != nil || !found || rec.OfferState != offerReady || !now.Before(rec.ExpiresAt) {
+			return ErrResourceNotFound
+		}
+		if rec.OfferKeyVer != s.cfg.ClaimsKeyVersion {
+			return ErrResourceNotFound
+		}
+		plain, err := s.open(rec.OfferCipher, rec.OfferNonce, offerAAD(rec.TenantID, rec.IssuerID, ref))
+		if err != nil {
+			return ErrResourceNotFound
+		}
+		if err := json.Unmarshal(plain, &offer); err != nil {
+			return ErrResourceNotFound
+		}
+		return nil
+	})
+	if err != nil {
 		return CredentialOffer{}, ErrResourceNotFound
 	}
 	return offer, nil
@@ -555,13 +642,27 @@ func (s *Service) ResolveOffer(slug, ref string) (CredentialOffer, error) {
 
 // IssueNonce returns a fresh single-use c_nonce for the issuer (HK-022).
 func (s *Service) IssueNonce(slug string) (string, error) {
-	s.mu.Lock()
-	_, ok := s.bySlug[slug]
-	s.mu.Unlock()
-	if !ok {
+	tenantID, ok, err := s.backend.ResolveTenantBySlug(slug)
+	if err != nil || !ok {
 		return "", ErrResourceNotFound
 	}
-	return s.nonces.IssueNonce(s.now())
+	now := s.now()
+	nonce, err := generateOpaqueToken(s.cfg.Random)
+	if err != nil {
+		return "", ErrNonceInvalid
+	}
+	nonceHash := sha256.Sum256([]byte(nonce))
+	err = s.backend.WithTenantTx(tenantID, func(tx Tx) error {
+		issuerRec, found, err := tx.GetIssuerBySlug(slug)
+		if err != nil || !found {
+			return ErrResourceNotFound
+		}
+		return tx.SaveNonce(issuerRec.IssuerID, nonceHash, now, now.Add(DefaultNonceTTL))
+	})
+	if err != nil {
+		return "", err
+	}
+	return nonce, nil
 }
 
 // CredentialRequest is the body of POST /{slug}/credential.
@@ -572,98 +673,158 @@ type CredentialRequest struct {
 	} `json:"proofs"`
 }
 
+func (s *Service) resolveActiveSigner(tx Tx, issuerRec IssuerRecord) (Signer, error) {
+	activeKey, err := tx.GetActiveKey(issuerRec.IssuerID)
+	if err != nil {
+		return nil, err
+	}
+	if s.cfg.Signers == nil {
+		if provider, ok := tx.(activeSignerProvider); ok {
+			return provider.ActiveSigner(issuerRec.IssuerID)
+		}
+		return nil, ErrNoActiveKey
+	}
+	expectedPub, err := DecodePublicJWK(activeKey.JWK)
+	if err != nil {
+		return nil, ErrNoActiveKey
+	}
+	signer, err := s.cfg.Signers(issuerRec.TenantID, issuerRec.IssuerID, issuerRec.IssuerURI, activeKey.KID, activeKey.KMSKeyRef, expectedPub)
+	if err != nil || signer == nil {
+		return nil, ErrNoActiveKey
+	}
+	pub := signer.PublicKey()
+	if signer.Issuer() != issuerRec.IssuerURI || signer.KeyID() != activeKey.KID || pub == nil || !pub.Equal(expectedPub) {
+		return nil, ErrNoActiveKey
+	}
+	return signer, nil
+}
+
 // IssueCredential implements HK-022..HK-024: it authenticates the token, proves
 // holder possession, binds the credential to the holder key and signs exactly
 // once. The token and the request are burned only after a credential exists.
 func (s *Service) IssueCredential(slug, bearer string, req CredentialRequest) (string, error) {
+	if bearer == "" {
+		return "", ErrInvalidToken
+	}
 	now := s.now()
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	entry, ok := s.bySlug[slug]
-	if !ok {
+	tenantID, ok, err := s.backend.ResolveTenantBySlug(slug)
+	if err != nil || !ok {
 		return "", ErrResourceNotFound
 	}
-	issuerURI := entry.record.IssuerURI
-	acc, err := s.lookupTokenLocked(bearer, tokenClassOID4VCI, issuerURI, now)
-	if err != nil {
-		return "", err
-	}
-	if req.CredentialIdentifier == "" || req.CredentialIdentifier != acc.credID {
-		return "", ErrUnknownCredentialIdentifier
-	}
-	if len(req.Proofs.JWT) != 1 {
-		return "", ErrInvalidRequest
-	}
-	proof := req.Proofs.JWT[0]
-	nonce, err := PeekProofNonce(proof)
-	if err != nil {
-		return "", ErrProofInvalid
-	}
-	jkt, _, err := VerifyHolderProof(proof, issuerURI, nonce, now, DefaultProofSkew)
-	if err != nil {
-		return "", ErrProofInvalid
-	}
-	if err := s.nonces.ConsumeNonce(nonce, now); err != nil {
-		return "", ErrInvalidNonce
-	}
+	tokenHash := sha256.Sum256([]byte(bearer))
 
-	rec := s.reqs[acc.requestID]
-	if rec == nil || rec.issuanceState != issuancePrepared {
-		return "", ErrInvalidToken
-	}
-	def, err := s.cfg.Definitions.GetIssuable(rec.tenantID, rec.issuerID, rec.defID, rec.defVersion)
+	var jws string
+	err = s.backend.WithTenantTx(tenantID, func(tx Tx) error {
+		issuerRec, found, err := tx.GetIssuerBySlug(slug)
+		if err != nil {
+			return err
+		}
+		if !found {
+			return ErrResourceNotFound
+		}
+		issuerURI := issuerRec.IssuerURI
+		acc, found, err := tx.LockTokenForCredential(tokenHash)
+		if err != nil || !found || acc.Class != tokenClassOID4VCI || acc.Audience != issuerURI ||
+			acc.Used || !now.Before(acc.ExpiresAt) {
+			return ErrInvalidToken
+		}
+		if req.CredentialIdentifier == "" || req.CredentialIdentifier != acc.CredID {
+			return ErrUnknownCredentialIdentifier
+		}
+		if len(req.Proofs.JWT) != 1 {
+			return ErrInvalidRequest
+		}
+		proof := req.Proofs.JWT[0]
+		nonce, err := PeekProofNonce(proof)
+		if err != nil {
+			return ErrProofInvalid
+		}
+		jkt, _, err := VerifyHolderProof(proof, issuerURI, nonce, now, DefaultProofSkew)
+		if err != nil {
+			return ErrProofInvalid
+		}
+		if err := tx.ConsumeNonce(issuerRec.IssuerID, sha256.Sum256([]byte(nonce)), now); err != nil {
+			return ErrInvalidNonce
+		}
+
+		rec, found, err := tx.LockRequest(acc.RequestID)
+		if err != nil || !found || rec.IssuanceState != issuancePrepared {
+			return ErrInvalidToken
+		}
+		def, err := tx.GetIssuableDefinition(rec.IssuerID, rec.DefID, rec.DefVersion)
+		if err != nil {
+			return err
+		}
+		if rec.ClaimsKeyVer != s.cfg.ClaimsKeyVersion {
+			return ErrInvalidToken
+		}
+		plain, err := s.open(rec.ClaimsCipher, rec.ClaimsNonce, claimsAAD(rec.TenantID, rec.IssuerID, rec.ID))
+		if err != nil {
+			return ErrInvalidToken
+		}
+		var claims map[string]any
+		if err := json.Unmarshal(plain, &claims); err != nil {
+			return ErrInvalidToken
+		}
+		signer, err := s.resolveActiveSigner(tx, issuerRec)
+		if err != nil {
+			return err
+		}
+		credentialID, err := newUUID(s.cfg.Random)
+		if err != nil {
+			return ErrInvalidRequest
+		}
+		validity := def.DefaultValidity
+		if validity <= 0 {
+			validity = DefaultCredentialValidity
+		}
+		until := now.Add(validity)
+		input := CredentialInput{
+			ID:                "urn:uuid:" + credentialID,
+			Contexts:          append([]string{VCDMBaseContext}, def.Contexts...),
+			Types:             append([]string{"VerifiableCredential"}, def.Types...),
+			ValidFrom:         now,
+			ValidUntil:        &until,
+			CredentialSubject: claims,
+		}
+		signed, err := IssueVCJWT(signer, input, jkt)
+		if err != nil {
+			return err
+		}
+		if err := tx.MarkIssued(rec.ID, tokenHash, now); err != nil {
+			return err
+		}
+		if err := tx.AppendAudit(s.newAudit(rec.TenantID, "wallet", "credential.issued", rec.ID, "succeeded", "", now)); err != nil {
+			return err
+		}
+		jws = signed
+		return nil
+	})
 	if err != nil {
 		return "", err
 	}
-	plain, err := s.open(rec.claimsCipher, rec.claimsNonce, claimsAAD(rec.tenantID, rec.issuerID, rec.id))
-	if err != nil {
-		return "", ErrInvalidToken
-	}
-	var claims map[string]any
-	if err := json.Unmarshal(plain, &claims); err != nil {
-		return "", ErrInvalidToken
-	}
-	signer, err := entry.ring.ActiveSigner()
-	if err != nil {
-		return "", err
-	}
-	credentialID, err := newUUID(s.cfg.Random)
-	if err != nil {
-		return "", ErrInvalidRequest
-	}
-	validity := def.DefaultValidity
-	if validity <= 0 {
-		validity = DefaultCredentialValidity
-	}
-	until := now.Add(validity)
-	input := CredentialInput{
-		ID:                "urn:uuid:" + credentialID,
-		Contexts:          append([]string{VCDMBaseContext}, def.Contexts...),
-		Types:             append([]string{"VerifiableCredential"}, def.Types...),
-		ValidFrom:         now,
-		ValidUntil:        &until,
-		CredentialSubject: claims,
-	}
-	jws, err := IssueVCJWT(signer, input, jkt)
-	if err != nil {
-		return "", err
-	}
-	rec.issuanceState = issuanceIssued
-	acc.used = true
-	s.cfg.Audit.Record(rec.tenantID, "wallet", "credential.issued", rec.id, "succeeded", "", now)
 	return jws, nil
 }
 
 // IssuerJWKS implements the public JWKS lookup of the HTTP catalog.
 func (s *Service) IssuerJWKS(slug string) (JWKS, bool) {
-	s.mu.Lock()
-	entry, ok := s.bySlug[slug]
-	s.mu.Unlock()
-	if !ok {
+	tenantID, ok, err := s.backend.ResolveTenantBySlug(slug)
+	if err != nil || !ok {
 		return JWKS{}, false
 	}
-	doc, err := entry.ring.PublicJWKS()
+	var doc JWKS
+	err = s.backend.WithTenantTx(tenantID, func(tx Tx) error {
+		issuerRec, found, err := tx.GetIssuerBySlug(slug)
+		if err != nil || !found {
+			return ErrResourceNotFound
+		}
+		keys, err := tx.ListPublicKeys(issuerRec.IssuerID)
+		if err != nil {
+			return err
+		}
+		doc = JWKS{Keys: keys}
+		return nil
+	})
 	if err != nil {
 		return JWKS{}, false
 	}
@@ -673,29 +834,42 @@ func (s *Service) IssuerJWKS(slug string) (JWKS, bool) {
 // IssuerMetadata builds the OID4VCI issuer metadata from the published
 // definitions of the issuer.
 func (s *Service) IssuerMetadata(slug string) (IssuerMetadata, bool) {
-	s.mu.Lock()
-	entry, ok := s.bySlug[slug]
-	s.mu.Unlock()
-	if !ok {
+	tenantID, ok, err := s.backend.ResolveTenantBySlug(slug)
+	if err != nil || !ok {
 		return IssuerMetadata{}, false
 	}
-	configs := map[string]CredentialConfigurationMetadata{}
-	for _, def := range s.cfg.Definitions.ListPublished(entry.record.TenantID, entry.record.IssuerID) {
-		meta := CredentialConfigurationMetadata{
-			Format:                               CredentialFormat,
-			Scope:                                def.ConfigurationID,
-			CryptographicBindingMethodsSupported: []string{"jwk"},
-			CredentialSigningAlgValuesSupported:  []string{"ES256"},
-			CredentialDefinition:                 CredentialDefinitionMeta{Type: slices.Concat([]string{"VerifiableCredential"}, def.Types)},
-			ProofTypesSupported:                  map[string]ProofTypeMetadata{"jwt": {ProofSigningAlgValuesSupported: []string{"ES256"}}},
+	var doc IssuerMetadata
+	err = s.backend.WithTenantTx(tenantID, func(tx Tx) error {
+		issuerRec, found, err := tx.GetIssuerBySlug(slug)
+		if err != nil || !found {
+			return ErrResourceNotFound
 		}
-		if def.Locale != "" {
-			meta.CredentialMetadata = &CredentialDisplayMetadata{Display: []DisplayEntry{{Name: def.DisplayName, Locale: def.Locale}}}
+		defs, err := tx.ListPublishedDefinitions(issuerRec.IssuerID)
+		if err != nil {
+			return err
 		}
-		configs[def.ConfigurationID] = meta
+		configs := map[string]CredentialConfigurationMetadata{}
+		for _, def := range defs {
+			meta := CredentialConfigurationMetadata{
+				Format:                               CredentialFormat,
+				Scope:                                def.ConfigurationID,
+				CryptographicBindingMethodsSupported: []string{"jwk"},
+				CredentialSigningAlgValuesSupported:  []string{"ES256"},
+				CredentialDefinition:                 CredentialDefinitionMeta{Type: slices.Concat([]string{"VerifiableCredential"}, def.Types)},
+				ProofTypesSupported:                  map[string]ProofTypeMetadata{"jwt": {ProofSigningAlgValuesSupported: []string{"ES256"}}},
+			}
+			if def.Locale != "" {
+				meta.CredentialMetadata = &CredentialDisplayMetadata{Display: []DisplayEntry{{Name: def.DisplayName, Locale: def.Locale}}}
+			}
+			configs[def.ConfigurationID] = meta
+		}
+		doc = BuildIssuerMetadata(issuerRec.IssuerURI, configs)
+		doc.AuthorizationServers = []string{s.cfg.AuthorizationServer}
+		return nil
+	})
+	if err != nil {
+		return IssuerMetadata{}, false
 	}
-	doc := BuildIssuerMetadata(entry.record.IssuerURI, configs)
-	doc.AuthorizationServers = []string{s.cfg.AuthorizationServer}
 	return doc, true
 }
 

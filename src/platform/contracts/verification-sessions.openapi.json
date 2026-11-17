@@ -3,7 +3,7 @@
   "info": {
     "title": "HukID verification sessions — VER-T11-a contract baseline",
     "version": "0.1.0-draft",
-    "description": "Own contract for the per-tenant Verifier-as-a-Service (ADR-0033). Draft only: no operation is implemented and no capability is granted. verification:start and verification:read are proposed capabilities, not present in capabilities.json. Responses never carry the JWS, claims, vp_token, nonce or state (VER-FR08)."
+    "description": "Own contract for the per-tenant Verifier-as-a-Service (ADR-0033). Draft only: no operation is implemented and no handler consumes the capabilities. verification:start and verification:read are declared in capabilities.json (VER-T11-c1) for tenant_admin and security_admin; no handler consumes them yet. Responses never carry the JWS, claims, vp_token, nonce or state (VER-FR08)."
   },
   "servers": [
     {

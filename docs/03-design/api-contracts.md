@@ -14,7 +14,7 @@
 | HukID consola — miembros USR-T01 y lecturas USR-T03 | [Contrato/políticas](console-members-contract.md), [OpenAPI propio](../../src/platform/contracts/console-members.openapi.json); [cuatro lecturas](console-members-directory.md) y [cuatro mutaciones de invitación](console-invitation-delivery.md) implementadas; USR-T05 conecta [dos aceptaciones](console-invitation-acceptance.md); USR-T06 conecta [dos PATCH de membresías](console-members-lifecycle.md); USR-T08 conecta la [UI administrativa y aceptación](console-members-interface.md). |
 | HukID consola — persistencia USR-T02 | [Modelo, RLS y protocolo transaccional](console-members-persistence.md); no habilita rutas HTTP. |
 | HukID consola — dashboard de laboratorio | [Contrato](console-dashboard-contract.md), [API/BFF DASH-T03](console-dashboard-http.md) y [OpenAPI](../../src/platform/contracts/console-dashboard.openapi.json); cuatro GET implemented-test e [interfaz base DASH-T04](console-dashboard-interface.md). |
-| HukID verificación — sesiones por tenant (borrador) | [ADR-0033](../decisions/ADR-0033.md) y [OpenAPI](../../src/platform/contracts/verification-sessions.openapi.json); dos operaciones sin implementar y sin capacidades concedidas. |
+| HukID verificación — sesiones por tenant (borrador) | [ADR-0033](../decisions/ADR-0033.md) y [OpenAPI](../../src/platform/contracts/verification-sessions.openapi.json); capacidades `verification:start` y `verification:read` concedidas (VER-T11-c1) y el inicio implementado con handler propio, sin montar en `cmd/api` (VER-T11-c2); la lectura sigue sin implementar. Diagramas: [arquitectura del servicio](credential-verification-architecture.md) y [Events→HukID](events-hukid-credential-flow.md). |
 
 ## Frontera Events→HukID
 

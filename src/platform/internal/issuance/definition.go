@@ -88,6 +88,9 @@ type Definition struct {
 	// StatusPurposes enables Bitstring Status Lists for declared purposes
 	// ("revocation", "suspension") when set.
 	StatusPurposes []string
+	// PublishSchema embeds a W3C JsonSchema credentialSchema link and serves
+	// the derived JSON Schema for VER-T13 verification when true.
+	PublishSchema bool
 
 	State       DefinitionState
 	Hash        string
@@ -227,7 +230,8 @@ func definitionHash(d *Definition) (string, error) {
 		Fields          map[string]FieldSpec `json:"fields"`
 		DefaultValidity int64                `json:"defaultValiditySeconds"`
 		StatusPurposes  []string             `json:"statusPurposes,omitempty"`
-	}{d.ID, d.Version, d.ConfigurationID, d.Contexts, d.Types, d.Fields, int64(d.DefaultValidity / time.Second), d.StatusPurposes}
+		PublishSchema   bool                 `json:"publishSchema,omitempty"`
+	}{d.ID, d.Version, d.ConfigurationID, d.Contexts, d.Types, d.Fields, int64(d.DefaultValidity / time.Second), d.StatusPurposes, d.PublishSchema}
 	raw, err := json.Marshal(canonical)
 	if err != nil {
 		return "", err
@@ -366,6 +370,115 @@ func (r *DefinitionRegistry) ListPublished(tenantID, issuerID string) []Definiti
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Ref() < out[j].Ref() })
 	return out
+}
+
+// GetPublic returns a published or retired definition, excluding drafts.
+func (r *DefinitionRegistry) GetPublic(tenantID, issuerID, id, version string) (Definition, error) {
+	d, err := r.Get(tenantID, issuerID, id, version)
+	if err != nil {
+		return Definition{}, err
+	}
+	if d.State == DefinitionDraft {
+		return Definition{}, ErrDefinitionNotFound
+	}
+	return d, nil
+}
+
+// SchemaURL returns the canonical public JSON Schema URL for this definition.
+func (d Definition) SchemaURL(issuerURI string) string {
+	return strings.TrimRight(issuerURI, "/") + "/schemas/" + d.ID + "/" + d.Version + ".json"
+}
+
+// ContextURL returns the canonical public versioned JSON-LD context URL.
+func (d Definition) ContextURL(issuerURI string) string {
+	return strings.TrimRight(issuerURI, "/") + "/contexts/" + d.ID + "/" + d.Version + ".jsonld"
+}
+
+// BuildJSONSchema derives a deterministic JSON Schema Draft 2020-12 document
+// describing valid credentialSubject payloads for this definition (VER-T13).
+func (d Definition) BuildJSONSchema(issuerURI string) ([]byte, error) {
+	if err := validateDefinitionShape(d); err != nil {
+		return nil, err
+	}
+	node := fieldsToJSONSchema(d.Fields)
+	node["$schema"] = "https://json-schema.org/draft/2020-12/schema"
+	if strings.TrimSpace(issuerURI) != "" {
+		node["$id"] = d.SchemaURL(issuerURI)
+	}
+	node["title"] = d.DisplayName
+	return json.Marshal(node)
+}
+
+func fieldsToJSONSchema(fields map[string]FieldSpec) map[string]any {
+	props := make(map[string]any, len(fields))
+	var required []string
+	for _, name := range slices.Sorted(maps.Keys(fields)) {
+		spec := fields[name]
+		if spec.Required {
+			required = append(required, name)
+		}
+		props[name] = fieldSpecToJSONSchema(spec)
+	}
+	out := map[string]any{
+		"type":                 "object",
+		"additionalProperties": false,
+		"properties":           props,
+	}
+	if len(required) > 0 {
+		out["required"] = required
+	}
+	return out
+}
+
+func fieldSpecToJSONSchema(spec FieldSpec) map[string]any {
+	switch spec.Type {
+	case "string":
+		limit := spec.MaxLength
+		if limit == 0 {
+			limit = defaultMaxFieldLen
+		}
+		node := map[string]any{"type": "string", "maxLength": limit}
+		if spec.Required {
+			node["minLength"] = 1
+		}
+		return node
+	case "number", "boolean":
+		return map[string]any{"type": spec.Type}
+	case "object":
+		return fieldsToJSONSchema(spec.Fields)
+	default:
+		return map[string]any{"type": spec.Type}
+	}
+}
+
+// BuildJSONLDContext derives a deterministic immutable JSON-LD @context
+// mapping all declared fields of this definition under a versioned vocab.
+func (d Definition) BuildJSONLDContext(issuerURI string) ([]byte, error) {
+	if err := validateDefinitionShape(d); err != nil {
+		return nil, err
+	}
+	vocab := strings.TrimRight(issuerURI, "/") + "/vocab/" + d.ID + "/" + d.Version + "#"
+	ctxMap := map[string]any{
+		"@version":   1.1,
+		"@protected": true,
+		"@vocab":     vocab,
+	}
+	for _, t := range d.Types {
+		ctxMap[t] = vocab + t
+	}
+	collectContextTerms(ctxMap, vocab, d.Fields)
+	return json.Marshal(map[string]any{"@context": ctxMap})
+}
+
+func collectContextTerms(dst map[string]any, vocab string, fields map[string]FieldSpec) {
+	for _, name := range slices.Sorted(maps.Keys(fields)) {
+		if _, exists := dst[name]; !exists {
+			dst[name] = vocab + name
+		}
+		if fields[name].Type == "object" {
+			collectContextTerms(dst, vocab, fields[name].Fields)
+		}
+	}
 }
 
 // ValidateClaims checks claims against the definition: unknown fields, missing

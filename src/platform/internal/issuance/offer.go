@@ -54,6 +54,7 @@ type IssuerMetadata struct {
 	CredentialIssuer                  string                                     `json:"credential_issuer"`
 	AuthorizationServers              []string                                   `json:"authorization_servers"`
 	CredentialEndpoint                string                                     `json:"credential_endpoint"`
+	DeferredCredentialEndpoint        string                                     `json:"deferred_credential_endpoint,omitempty"`
 	NonceEndpoint                     string                                     `json:"nonce_endpoint"`
 	CredentialConfigurationsSupported map[string]CredentialConfigurationMetadata `json:"credential_configurations_supported"`
 }
@@ -101,6 +102,7 @@ func BuildIssuerMetadata(issuer string, configs map[string]CredentialConfigurati
 		CredentialIssuer:                  issuer,
 		AuthorizationServers:              []string{AuthorizationServerURL},
 		CredentialEndpoint:                base + "/credential",
+		DeferredCredentialEndpoint:        base + "/deferred_credential",
 		NonceEndpoint:                     base + "/nonce",
 		CredentialConfigurationsSupported: copied,
 	}
@@ -208,6 +210,16 @@ func (s *OfferStore) lookupRequestID(hash [32]byte) (string, bool) {
 	}
 	reqID, _ := rec.SubjectClaims["request_id"].(string)
 	return reqID, reqID != ""
+}
+
+func (s *OfferStore) cancelByRequestID(requestID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for hash, rec := range s.offers {
+		if id, _ := rec.SubjectClaims["request_id"].(string); id == requestID {
+			delete(s.offers, hash)
+		}
+	}
 }
 
 func (s *OfferStore) redeemHashed(hash [32]byte, now time.Time) (OfferRecord, error) {

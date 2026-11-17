@@ -15,23 +15,39 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"hukid.local/platform/internal/verification"
 )
 
 const (
 	// DefaultAccessTokenTTL bounds both integration and OID4VCI access tokens.
 	DefaultAccessTokenTTL = 5 * time.Minute
+	// DefaultDeferredInterval is the recommended wallet polling interval for HK-025.
+	DefaultDeferredInterval = 5 * time.Second
+	// DefaultDeferredTTL bounds how long a deferred transaction stays pollable.
+	DefaultDeferredTTL = 1 * time.Hour
 
 	minIdempotencyKeyLen = 16
 	maxIdempotencyKeyLen = 128
 
 	tokenClassOID4VCI = "oid4vci"
 
-	offerReady    = "ready"
-	offerRedeemed = "redeemed"
-	offerExpired  = "expired"
+	offerReady     = "ready"
+	offerRedeemed  = "redeemed"
+	offerExpired   = "expired"
+	offerCancelled = "cancelled"
 
-	issuancePrepared = "prepared"
-	issuanceIssued   = "issued"
+	issuancePrepared  = "prepared"
+	issuanceDeferred  = "deferred"
+	issuanceIssued    = "issued"
+	issuanceCancelled = "cancelled"
+	issuanceFailed    = "failed"
+
+	// Deferred transaction lifecycle states.
+	DeferredStatusPending   = "pending"
+	DeferredStatusIssued    = "issued"
+	DeferredStatusFailed    = "failed"
+	DeferredStatusCancelled = "cancelled"
 )
 
 var (
@@ -49,6 +65,12 @@ var (
 	ErrInvalidNonce = errors.New("invalid c_nonce")
 	// ErrUnknownCredentialIdentifier reports a credential identifier the token does not grant.
 	ErrUnknownCredentialIdentifier = errors.New("unknown credential identifier")
+	// ErrIssuancePending tells a polling wallet to retry deferred issuance later.
+	ErrIssuancePending = errors.New("issuance pending")
+	// ErrInvalidTransactionID rejects unknown, expired or cross-client deferred transaction IDs.
+	ErrInvalidTransactionID = errors.New("invalid transaction_id")
+	// ErrDeferredDenied reports a deferred issuance that failed or was cancelled.
+	ErrDeferredDenied = errors.New("deferred credential request denied")
 )
 
 // ServiceConfig wires the Phase 3 issuance service. When Backend is nil, an
@@ -71,6 +93,8 @@ type ServiceConfig struct {
 	OfferTTL            time.Duration
 	AccessTokenTTL      time.Duration
 	StatusListTTL       time.Duration
+	DeferredInterval    time.Duration
+	DeferredTTL         time.Duration
 }
 
 type issuerEntry struct {
@@ -121,6 +145,12 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	}
 	if cfg.StatusListTTL <= 0 {
 		cfg.StatusListTTL = DefaultStatusListTTL
+	}
+	if cfg.DeferredInterval <= 0 {
+		cfg.DeferredInterval = DefaultDeferredInterval
+	}
+	if cfg.DeferredTTL <= 0 {
+		cfg.DeferredTTL = DefaultDeferredTTL
 	}
 	if cfg.AuthorizationServer == "" {
 		cfg.AuthorizationServer = AuthorizationServerURL
@@ -202,12 +232,17 @@ func offerAAD(tenantID, issuerID, ref string) string {
 	return "hukid/offer/v1|" + tenantID + "|" + issuerID + "|" + ref
 }
 
+func deferredVCAAD(tenantID, issuerID, requestID string) string {
+	return "hukid/deferred-vc/v1|" + tenantID + "|" + issuerID + "|" + requestID
+}
+
 // DeliveryInput selects how the offer reaches the holder. Only the low-risk
 // pre-authorized flow without tx_code exists in v0.
 type DeliveryInput struct {
 	Flow             string `json:"flow,omitempty"`
 	ExpiresInSeconds int    `json:"expiresInSeconds,omitempty"`
 	TxCodeRequired   bool   `json:"txCodeRequired,omitempty"`
+	Deferred         bool   `json:"deferred,omitempty"`
 }
 
 // SourceInput identifies the originating record in the caller's system.
@@ -376,6 +411,7 @@ func (s *Service) CreateIssuanceRequest(token IntegrationToken, idempotencyKey s
 			ClaimsCipher: claimsCipher, ClaimsNonce: claimsNonce, ClaimsKeyVer: s.cfg.ClaimsKeyVersion,
 			OfferRef: ref, OfferCipher: offerCipher, OfferNonce: offerNonce, OfferKeyVer: s.cfg.ClaimsKeyVersion,
 			OfferState: offerReady, IssuanceState: issuancePrepared,
+			Deferred:     delivery.Deferred,
 			SourceSystem: sourceSystem, SourceReference: sourceReference,
 			CreatedAt: now, ExpiresAt: expiresAt,
 		}
@@ -440,6 +476,68 @@ func (s *Service) GetRequest(token IntegrationToken, requestID string) (Issuance
 			IssuerID: rec.IssuerID, CredentialConfigurationID: rec.ConfigID,
 			CredentialID: rec.IssuedCredentialID,
 			ExpiresAt:    rec.ExpiresAt, CreatedAt: rec.CreatedAt,
+		}
+		return nil
+	})
+	if err != nil {
+		return IssuanceRequestResult{}, err
+	}
+	return result, nil
+}
+
+// CancelRequest implements the owner-scoped cancellation side of HK-012.
+// Already-issued requests return ErrInvalidStatusTransition; already-cancelled
+// requests are idempotent.
+func (s *Service) CancelRequest(token IntegrationToken, requestID string) (IssuanceRequestResult, error) {
+	if strings.TrimSpace(token.TenantID) == "" || token.ClientID == "" || requestID == "" {
+		return IssuanceRequestResult{}, ErrResourceNotFound
+	}
+	now := s.now()
+	var result IssuanceRequestResult
+	err := s.backend.WithTenantTx(token.TenantID, func(tx Tx) error {
+		rec, ok, err := tx.LockRequest(requestID)
+		if err != nil {
+			return err
+		}
+		if !ok || rec.TenantID != token.TenantID || rec.ClientID != token.ClientID {
+			return ErrResourceNotFound
+		}
+		client, clientOK, err := tx.GetClient(token.ClientID)
+		if err != nil {
+			return err
+		}
+		var clientPtr *StoredClient
+		if clientOK {
+			clientPtr = &client
+		}
+		if err := AuthorizeStoredIssuerAccess(clientPtr, token, rec.TenantID, rec.IssuerID, ScopeIssuanceCreate, now); err != nil {
+			return err
+		}
+		switch rec.IssuanceState {
+		case issuanceIssued:
+			return ErrInvalidStatusTransition
+		case issuanceCancelled:
+			result = IssuanceRequestResult{
+				ID: rec.ID, OfferState: rec.OfferState, IssuanceState: rec.IssuanceState,
+				IssuerID: rec.IssuerID, CredentialConfigurationID: rec.ConfigID,
+				ExpiresAt: rec.ExpiresAt, CreatedAt: rec.CreatedAt,
+			}
+			return nil
+		}
+		if err := tx.CancelIssuanceRequest(rec.ID, now); err != nil {
+			return err
+		}
+		if err := tx.AppendAudit(s.newAudit(rec.TenantID, token.ClientID, "issuance_request.cancelled", rec.ID, "succeeded", "", now)); err != nil {
+			return err
+		}
+		offerState := rec.OfferState
+		if offerState == offerReady {
+			offerState = offerCancelled
+		}
+		result = IssuanceRequestResult{
+			ID: rec.ID, OfferState: offerState, IssuanceState: issuanceCancelled,
+			IssuerID: rec.IssuerID, CredentialConfigurationID: rec.ConfigID,
+			ExpiresAt: rec.ExpiresAt, CreatedAt: rec.CreatedAt,
 		}
 		return nil
 	})
@@ -706,21 +804,41 @@ func (s *Service) resolveActiveSigner(tx Tx, issuerRec IssuerRecord) (Signer, er
 	return signer, nil
 }
 
-// IssueCredential implements HK-022..HK-024: it authenticates the token, proves
-// holder possession, binds the credential to the holder key and signs exactly
-// once. The token and the request are burned only after a credential exists.
+// CredentialOutcome represents either an immediately issued vc+jwt or an
+// OID4VCI 1.0 deferred transaction_id + polling interval (HK-025).
+type CredentialOutcome struct {
+	Credential    string `json:"credential,omitempty"`
+	TransactionID string `json:"transaction_id,omitempty"`
+	Interval      int    `json:"interval,omitempty"`
+}
+
+// IssueCredential implements HK-022..HK-024 for immediate issuance. Requests
+// configured for deferred delivery return ErrIssuancePending; callers supporting
+// HK-025 should call RequestCredential instead.
 func (s *Service) IssueCredential(slug, bearer string, req CredentialRequest) (string, error) {
+	out, err := s.RequestCredential(slug, bearer, req)
+	if err != nil {
+		return "", err
+	}
+	if out.TransactionID != "" {
+		return "", ErrIssuancePending
+	}
+	return out.Credential, nil
+}
+
+// RequestCredential implements HK-022..HK-025 for POST /{slug}/credential.
+func (s *Service) RequestCredential(slug, bearer string, req CredentialRequest) (CredentialOutcome, error) {
 	if bearer == "" {
-		return "", ErrInvalidToken
+		return CredentialOutcome{}, ErrInvalidToken
 	}
 	now := s.now()
 	tenantID, ok, err := s.backend.ResolveTenantBySlug(slug)
 	if err != nil || !ok {
-		return "", ErrResourceNotFound
+		return CredentialOutcome{}, ErrResourceNotFound
 	}
 	tokenHash := sha256.Sum256([]byte(bearer))
 
-	var jws string
+	var out CredentialOutcome
 	err = s.backend.WithTenantTx(tenantID, func(tx Tx) error {
 		issuerRec, found, err := tx.GetIssuerBySlug(slug)
 		if err != nil {
@@ -765,99 +883,39 @@ func (s *Service) IssueCredential(slug, bearer string, req CredentialRequest) (s
 		if rec.ClaimsKeyVer != s.cfg.ClaimsKeyVersion {
 			return ErrInvalidToken
 		}
-		plain, err := s.open(rec.ClaimsCipher, rec.ClaimsNonce, claimsAAD(rec.TenantID, rec.IssuerID, rec.ID))
-		if err != nil {
-			return ErrInvalidToken
-		}
-		var claims map[string]any
-		if err := json.Unmarshal(plain, &claims); err != nil {
-			return ErrInvalidToken
-		}
-		signer, err := s.resolveActiveSigner(tx, issuerRec)
-		if err != nil {
-			return err
-		}
-		credentialID, err := newUUID(s.cfg.Random)
-		if err != nil {
-			return ErrInvalidRequest
-		}
-		validity := def.DefaultValidity
-		if validity <= 0 {
-			validity = DefaultCredentialValidity
-		}
-		until := now.Add(validity)
-
-		var statusEntries []CredentialStatusEntry
-		var revListID, suspListID string
-		var revIdx, suspIdx *int
-		var credHandle string
-		if len(def.StatusPurposes) > 0 {
-			credHandle, err = s.randomID("vc_")
+		if rec.Deferred {
+			txID, err := s.randomID("tx_")
 			if err != nil {
 				return ErrInvalidRequest
 			}
-			for _, purpose := range sortStatusPurposes(def.StatusPurposes) {
-				listID, slotIdx, allocErr := tx.AllocateStatusSlot(
-					issuerRec.IssuerID,
-					purpose,
-					DefaultStatusListSize,
-					func() (string, error) { return s.randomID("sl_") },
-					func(id string, rawBits []byte) (string, time.Time, time.Time, error) {
-						vf := now
-						vu := now.Add(s.cfg.StatusListTTL)
-						signedList, signErr := IssueStatusListVC(signer, id, purpose, rawBits, vf, vu)
-						return signedList, vf, vu, signErr
-					},
-					now,
-				)
-				if allocErr != nil {
-					return allocErr
-				}
-				statusEntries = append(statusEntries, BuildCredentialStatusEntry(issuerURI, purpose, listID, slotIdx))
-				idxVal := slotIdx
-				if purpose == PurposeRevocation {
-					revListID = listID
-					revIdx = &idxVal
-				} else if purpose == PurposeSuspension {
-					suspListID = listID
-					suspIdx = &idxVal
-				}
+			intervalSec := int(s.cfg.DeferredInterval / time.Second)
+			if intervalSec < 1 {
+				intervalSec = 1
 			}
-		}
-
-		input := CredentialInput{
-			ID:                "urn:uuid:" + credentialID,
-			Contexts:          append([]string{VCDMBaseContext}, def.Contexts...),
-			Types:             append([]string{"VerifiableCredential"}, def.Types...),
-			ValidFrom:         now,
-			ValidUntil:        &until,
-			CredentialSubject: claims,
-			CredentialStatus:  statusEntries,
-		}
-		signed, err := IssueVCJWT(signer, input, jkt)
-		if err != nil {
-			return err
-		}
-		if credHandle != "" {
-			digestSum := sha256.Sum256([]byte(signed))
-			if err := tx.SaveIssuedCredential(IssuedCredentialRecord{
-				CredentialID:     credHandle,
-				TenantID:         rec.TenantID,
-				IssuerID:         rec.IssuerID,
-				RequestID:        rec.ID,
-				ClientID:         rec.ClientID,
-				Digest:           "sha256:" + hex.EncodeToString(digestSum[:]),
-				RevocationListID: revListID,
-				RevocationIndex:  revIdx,
-				SuspensionListID: suspListID,
-				SuspensionIndex:  suspIdx,
-				DesiredStatus:    CredentialStatusActive,
-				PublishedStatus:  CredentialStatusActive,
-				StatusVersion:    1,
-				IssuedAt:         now,
-			}); err != nil {
+			dtx := DeferredTxRecord{
+				TxHash:          sha256.Sum256([]byte(txID)),
+				TenantID:        rec.TenantID,
+				IssuerID:        rec.IssuerID,
+				RequestID:       rec.ID,
+				TokenHash:       tokenHash,
+				Status:          DeferredStatusPending,
+				IntervalSeconds: intervalSec,
+				CreatedAt:       now,
+				ExpiresAt:       now.Add(s.cfg.DeferredTTL),
+			}
+			if err := tx.CreateDeferredTransaction(dtx, jkt, now); err != nil {
 				return err
 			}
+			if err := tx.AppendAudit(s.newAudit(rec.TenantID, "wallet", "credential.deferred_requested", rec.ID, "succeeded", "", now)); err != nil {
+				return err
+			}
+			out = CredentialOutcome{TransactionID: txID, Interval: intervalSec}
+			return nil
+		}
+
+		signed, credHandle, err := s.mintAndSaveCredential(tx, issuerRec, rec, def, jkt, now)
+		if err != nil {
+			return err
 		}
 		if err := tx.MarkIssued(rec.ID, tokenHash, credHandle, now); err != nil {
 			return err
@@ -865,13 +923,234 @@ func (s *Service) IssueCredential(slug, bearer string, req CredentialRequest) (s
 		if err := tx.AppendAudit(s.newAudit(rec.TenantID, "wallet", "credential.issued", rec.ID, "succeeded", "", now)); err != nil {
 			return err
 		}
-		jws = signed
+		out = CredentialOutcome{Credential: signed}
 		return nil
 	})
 	if err != nil {
-		return "", err
+		return CredentialOutcome{}, err
 	}
-	return jws, nil
+	return out, nil
+}
+
+func (s *Service) mintAndSaveCredential(tx Tx, issuerRec IssuerRecord, rec StoredRequest, def Definition, holderJKT string, now time.Time) (string, string, error) {
+	plain, err := s.open(rec.ClaimsCipher, rec.ClaimsNonce, claimsAAD(rec.TenantID, rec.IssuerID, rec.ID))
+	if err != nil {
+		return "", "", ErrInvalidToken
+	}
+	var claims map[string]any
+	if err := json.Unmarshal(plain, &claims); err != nil {
+		return "", "", ErrInvalidToken
+	}
+	signer, err := s.resolveActiveSigner(tx, issuerRec)
+	if err != nil {
+		return "", "", err
+	}
+	credentialID, err := newUUID(s.cfg.Random)
+	if err != nil {
+		return "", "", ErrInvalidRequest
+	}
+	validity := def.DefaultValidity
+	if validity <= 0 {
+		validity = DefaultCredentialValidity
+	}
+	until := now.Add(validity)
+
+	credHandle, err := s.randomID("vc_")
+	if err != nil {
+		return "", "", ErrInvalidRequest
+	}
+	var statusEntries []CredentialStatusEntry
+	var revListID, suspListID string
+	var revIdx, suspIdx *int
+	for _, purpose := range sortStatusPurposes(def.StatusPurposes) {
+		listID, slotIdx, allocErr := tx.AllocateStatusSlot(
+			issuerRec.IssuerID,
+			purpose,
+			DefaultStatusListSize,
+			func() (string, error) { return s.randomID("sl_") },
+			func(id string, rawBits []byte) (string, time.Time, time.Time, error) {
+				vf := now
+				vu := now.Add(s.cfg.StatusListTTL)
+				signedList, signErr := IssueStatusListVC(signer, id, purpose, rawBits, vf, vu)
+				return signedList, vf, vu, signErr
+			},
+			now,
+		)
+		if allocErr != nil {
+			return "", "", allocErr
+		}
+		statusEntries = append(statusEntries, BuildCredentialStatusEntry(issuerRec.IssuerURI, purpose, listID, slotIdx))
+		idxVal := slotIdx
+		if purpose == PurposeRevocation {
+			revListID = listID
+			revIdx = &idxVal
+		} else if purpose == PurposeSuspension {
+			suspListID = listID
+			suspIdx = &idxVal
+		}
+	}
+
+	var schemas []CredentialSchemaRef
+	if def.PublishSchema {
+		schemas = []CredentialSchemaRef{{
+			ID:   def.SchemaURL(issuerRec.IssuerURI),
+			Type: verification.CredentialSchemaType,
+		}}
+	}
+
+	input := CredentialInput{
+		ID:                "urn:uuid:" + credentialID,
+		Contexts:          append([]string{VCDMBaseContext}, def.Contexts...),
+		Types:             append([]string{"VerifiableCredential"}, def.Types...),
+		ValidFrom:         now,
+		ValidUntil:        &until,
+		CredentialSubject: claims,
+		CredentialStatus:  statusEntries,
+		CredentialSchema:  schemas,
+	}
+	signed, err := IssueVCJWT(signer, input, holderJKT)
+	if err != nil {
+		return "", "", err
+	}
+	digestSum := sha256.Sum256([]byte(signed))
+	if err := tx.SaveIssuedCredential(IssuedCredentialRecord{
+		CredentialID:     credHandle,
+		TenantID:         rec.TenantID,
+		IssuerID:         rec.IssuerID,
+		RequestID:        rec.ID,
+		ClientID:         rec.ClientID,
+		SigningKID:       signer.KeyID(),
+		Digest:           "sha256:" + hex.EncodeToString(digestSum[:]),
+		RevocationListID: revListID,
+		RevocationIndex:  revIdx,
+		SuspensionListID: suspListID,
+		SuspensionIndex:  suspIdx,
+		DesiredStatus:    CredentialStatusActive,
+		PublishedStatus:  CredentialStatusActive,
+		StatusVersion:    1,
+		IssuedAt:         now,
+	}); err != nil {
+		return "", "", err
+	}
+	return signed, credHandle, nil
+}
+
+// FulfillDeferredRequest completes asynchronous signing for a pending deferred
+// request (HK-025) and stores the resulting vc+jwt encrypted until retrieved.
+func (s *Service) FulfillDeferredRequest(tenantID, requestID string) error {
+	if strings.TrimSpace(tenantID) == "" || strings.TrimSpace(requestID) == "" {
+		return ErrResourceNotFound
+	}
+	now := s.now()
+	return s.backend.WithTenantTx(tenantID, func(tx Tx) error {
+		rec, found, err := tx.LockRequest(requestID)
+		if err != nil || !found {
+			return ErrResourceNotFound
+		}
+		if rec.IssuanceState != issuanceDeferred || rec.HolderJKT == "" {
+			return ErrInvalidStatusTransition
+		}
+		dtx, found, err := tx.LockDeferredByRequestID(requestID)
+		if err != nil || !found || dtx.Status != DeferredStatusPending {
+			return ErrInvalidStatusTransition
+		}
+		issuerRec, found, err := tx.GetIssuerByID(rec.IssuerID)
+		if err != nil || !found {
+			return ErrResourceNotFound
+		}
+		def, err := tx.GetIssuableDefinition(rec.IssuerID, rec.DefID, rec.DefVersion)
+		if err != nil {
+			return err
+		}
+		signed, credHandle, err := s.mintAndSaveCredential(tx, issuerRec, rec, def, rec.HolderJKT, now)
+		if err != nil {
+			return err
+		}
+		vcCipher, vcNonce, err := s.seal([]byte(signed), deferredVCAAD(rec.TenantID, rec.IssuerID, rec.ID))
+		if err != nil {
+			return ErrInvalidRequest
+		}
+		if err := tx.CompleteDeferredTransaction(rec.ID, credHandle, vcCipher, vcNonce, s.cfg.ClaimsKeyVersion, now); err != nil {
+			return err
+		}
+		return tx.AppendAudit(s.newAudit(rec.TenantID, "worker", "credential.issued", rec.ID, "succeeded", "", now))
+	})
+}
+
+// FailDeferredRequest transitions a pending deferred request to terminal failure.
+func (s *Service) FailDeferredRequest(tenantID, requestID, errorCode string) error {
+	if strings.TrimSpace(tenantID) == "" || strings.TrimSpace(requestID) == "" || len(errorCode) > 64 {
+		return ErrInvalidRequest
+	}
+	now := s.now()
+	return s.backend.WithTenantTx(tenantID, func(tx Tx) error {
+		if err := tx.FailDeferredTransaction(requestID, errorCode, now); err != nil {
+			return err
+		}
+		return tx.AppendAudit(s.newAudit(tenantID, "worker", "credential.deferred_failed", requestID, "denied", "", now))
+	})
+}
+
+// DeferredCredential implements POST /{slug}/deferred_credential (OID4VCI 1.0 §9).
+func (s *Service) DeferredCredential(slug, bearer, transactionID string) (string, int, error) {
+	if bearer == "" {
+		return "", 0, ErrInvalidToken
+	}
+	if strings.TrimSpace(transactionID) == "" {
+		return "", 0, ErrInvalidTransactionID
+	}
+	now := s.now()
+	tenantID, ok, err := s.backend.ResolveTenantBySlug(slug)
+	if err != nil || !ok {
+		return "", 0, ErrResourceNotFound
+	}
+	tokenHash := sha256.Sum256([]byte(bearer))
+	txHash := sha256.Sum256([]byte(transactionID))
+
+	var vcJWT string
+	var retryInterval int
+	err = s.backend.WithTenantTx(tenantID, func(tx Tx) error {
+		issuerRec, found, err := tx.GetIssuerBySlug(slug)
+		if err != nil || !found {
+			return ErrResourceNotFound
+		}
+		acc, found, err := tx.LockTokenForCredential(tokenHash)
+		if err != nil || !found || acc.Class != tokenClassOID4VCI || acc.Audience != issuerRec.IssuerURI ||
+			acc.Used || !now.Before(acc.ExpiresAt) {
+			return ErrInvalidToken
+		}
+		dtx, found, err := tx.LockDeferredByTxHash(txHash)
+		if err != nil || !found || dtx.IssuerID != issuerRec.IssuerID || dtx.RequestID != acc.RequestID || !now.Before(dtx.ExpiresAt) {
+			return ErrInvalidTransactionID
+		}
+		retryInterval = dtx.IntervalSeconds
+		switch dtx.Status {
+		case DeferredStatusPending:
+			return ErrIssuancePending
+		case DeferredStatusFailed, DeferredStatusCancelled:
+			_ = tx.MarkDeferredDelivered(txHash, tokenHash, now)
+			return ErrDeferredDenied
+		case DeferredStatusIssued:
+			if dtx.VCKeyVer != s.cfg.ClaimsKeyVersion || len(dtx.VCCipher) == 0 {
+				return ErrDeferredDenied
+			}
+			plain, openErr := s.open(dtx.VCCipher, dtx.VCNonce, deferredVCAAD(dtx.TenantID, dtx.IssuerID, dtx.RequestID))
+			if openErr != nil {
+				return ErrDeferredDenied
+			}
+			if err := tx.MarkDeferredDelivered(txHash, tokenHash, now); err != nil {
+				return err
+			}
+			vcJWT = string(plain)
+			return nil
+		default:
+			return ErrDeferredDenied
+		}
+	})
+	if err != nil {
+		return "", retryInterval, err
+	}
+	return vcJWT, 0, nil
 }
 
 // IssuerJWKS implements the public JWKS lookup of the HTTP catalog.
@@ -1152,4 +1431,95 @@ func (s *Service) ResolveStatusList(slug, purpose, listID string) (string, error
 		return "", ErrResourceNotFound
 	}
 	return jwt, nil
+}
+
+// RotateIssuerKey retires any current active key and activates newKID (HK-002).
+func (s *Service) RotateIssuerKey(tenantID, issuerID, newKID, kmsKeyRef string, jwk PublicJWK, actorID, correlationID string) error {
+	if strings.TrimSpace(tenantID) == "" || strings.TrimSpace(issuerID) == "" {
+		return ErrInvalidFoundationInput
+	}
+	now := s.now()
+	return s.backend.WithTenantTx(tenantID, func(tx Tx) error {
+		return tx.RotateKey(issuerID, newKID, kmsKeyRef, jwk, actorID, correlationID, now)
+	})
+}
+
+// CompromiseIssuerKey transitions kid to compromised, immediately halting
+// signing with it, removing it from JWKS and listing impacted credentialIds (HK-052).
+func (s *Service) CompromiseIssuerKey(tenantID, issuerID, kid, actorID, correlationID string) (CompromiseKeyReport, error) {
+	if strings.TrimSpace(tenantID) == "" || strings.TrimSpace(issuerID) == "" || strings.TrimSpace(kid) == "" {
+		return CompromiseKeyReport{}, ErrResourceNotFound
+	}
+	now := s.now()
+	var report CompromiseKeyReport
+	err := s.backend.WithTenantTx(tenantID, func(tx Tx) error {
+		if err := tx.CompromiseKey(issuerID, kid, actorID, correlationID, now); err != nil {
+			return err
+		}
+		impacted, err := tx.ListIssuedCredentialsByKID(issuerID, kid)
+		if err != nil {
+			return err
+		}
+		if impacted == nil {
+			impacted = []string{}
+		}
+		report = CompromiseKeyReport{
+			IssuerID:              issuerID,
+			KID:                   kid,
+			State:                 KeyCompromised,
+			ImpactedCredentialIDs: impacted,
+		}
+		return nil
+	})
+	if err != nil {
+		return CompromiseKeyReport{}, err
+	}
+	return report, nil
+}
+
+// ResolveCredentialSchema renders the immutable JSON Schema for a published or
+// retired definition version (VER-T13).
+func (s *Service) ResolveCredentialSchema(slug, id, version string) ([]byte, error) {
+	return s.resolveDefinitionArtifact(slug, id, version, func(def Definition, issuerURI string) ([]byte, error) {
+		return def.BuildJSONSchema(issuerURI)
+	})
+}
+
+// ResolveDefinitionContext renders the immutable versioned JSON-LD @context
+// for a published or retired definition version (Profile §2.6).
+func (s *Service) ResolveDefinitionContext(slug, id, version string) ([]byte, error) {
+	return s.resolveDefinitionArtifact(slug, id, version, func(def Definition, issuerURI string) ([]byte, error) {
+		return def.BuildJSONLDContext(issuerURI)
+	})
+}
+
+func (s *Service) resolveDefinitionArtifact(slug, id, version string, build func(Definition, string) ([]byte, error)) ([]byte, error) {
+	if slug == "" || !definitionIDRe.MatchString(id) || !semverPattern.MatchString(version) {
+		return nil, ErrResourceNotFound
+	}
+	tenantID, ok, err := s.backend.ResolveTenantBySlug(slug)
+	if err != nil || !ok {
+		return nil, ErrResourceNotFound
+	}
+	var out []byte
+	err = s.backend.WithTenantTx(tenantID, func(tx Tx) error {
+		issuerRec, found, err := tx.GetIssuerBySlug(slug)
+		if err != nil || !found {
+			return ErrResourceNotFound
+		}
+		def, err := tx.GetPublicDefinition(issuerRec.IssuerID, id, version)
+		if err != nil {
+			return ErrResourceNotFound
+		}
+		data, err := build(def, issuerRec.IssuerURI)
+		if err != nil {
+			return ErrResourceNotFound
+		}
+		out = data
+		return nil
+	})
+	if err != nil {
+		return nil, ErrResourceNotFound
+	}
+	return out, nil
 }

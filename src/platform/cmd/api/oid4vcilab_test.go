@@ -316,7 +316,8 @@ func TestVCILabPersistentKeyAndDualMountE2E(t *testing.T) {
 	}
 	verifier = verifier.
 		WithCredentialContexts(issuance.CertificateContext).
-		WithStatusResolver(httpResolver, verification.StatusPolicy{MaxStaleness: 10 * time.Minute})
+		WithStatusResolver(httpResolver, verification.StatusPolicy{MaxStaleness: 10 * time.Minute}).
+		WithSchemaResolver(httpResolver)
 
 	holderJKT, err := verification.JWKThumbprint(&holder.PublicKey)
 	if err != nil {

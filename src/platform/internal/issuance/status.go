@@ -75,6 +75,7 @@ type IssuedCredentialRecord struct {
 	IssuerID         string
 	RequestID        string
 	ClientID         string
+	SigningKID       string
 	Digest           string
 	RevocationListID string
 	RevocationIndex  *int

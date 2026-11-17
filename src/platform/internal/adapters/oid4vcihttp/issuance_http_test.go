@@ -744,3 +744,167 @@ func TestIssuanceHTTPStatusNegativeAndPublicEndpoint(t *testing.T) {
 		t.Fatalf("expected 404 for unknown status purpose, got %d", badPurposeRec.Code)
 	}
 }
+
+func TestIssuanceHTTPEtapaACancelDeferredSchemaAndContext(t *testing.T) {
+	env := setupHTTPTestEnv(t)
+
+	def := issuance.Definition{
+		TenantID:        "tenant-unas",
+		IssuerID:        "iss_unas",
+		ID:              "unas-certificate",
+		Version:         "2.1.0",
+		ConfigurationID: "unas_certificate_etapa_a_v21",
+		DisplayName:     "Certificado Esquema y Diferido",
+		Locale:          "es-PE",
+		Contexts:        []string{issuance.CertificateContext},
+		Types:           []string{issuance.CertificateType},
+		DefaultValidity: 365 * 24 * time.Hour,
+		StatusPurposes:  []string{issuance.PurposeRevocation},
+		PublishSchema:   true,
+		Fields: map[string]issuance.FieldSpec{
+			"participantName": {Type: "string", Required: true, MaxLength: 120},
+			"eventName":       {Type: "string", Required: true, MaxLength: 160},
+		},
+	}
+	if err := env.defs.CreateDraft(def, "admin-1", "cor-ea1", env.now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := env.defs.Publish("tenant-unas", "iss_unas", def.ID, def.Version, "admin-1", "cor-ea2", env.now); err != nil {
+		t.Fatal(err)
+	}
+
+	form := url.Values{"grant_type": {"client_credentials"}, "client_id": {"cli_events"}, "client_secret": {"events-client-secret-0123456789abcdef"}}
+	tokRec := httptest.NewRecorder()
+	tokReq := httptest.NewRequest(http.MethodPost, "/oauth2/token", strings.NewReader(form.Encode()))
+	tokReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	env.mux.ServeHTTP(tokRec, tokReq)
+	var eventsTok issuance.TokenResponse
+	_ = json.Unmarshal(tokRec.Body.Bytes(), &eventsTok)
+
+	// 1. Metadata includes deferred_credential_endpoint.
+	metaRec := httptest.NewRecorder()
+	env.mux.ServeHTTP(metaRec, httptest.NewRequest(http.MethodGet, "/unas/.well-known/openid-credential-issuer", nil))
+	if metaRec.Code != http.StatusOK || !strings.Contains(metaRec.Body.String(), `"deferred_credential_endpoint":"https://issuer.hukid.pe/unas/deferred_credential"`) {
+		t.Fatalf("expected deferred_credential_endpoint in metadata, got %d %s", metaRec.Code, metaRec.Body.String())
+	}
+
+	// 2. Public schema + versioned JSON-LD context endpoints (VER-T13).
+	schemaRec := httptest.NewRecorder()
+	env.mux.ServeHTTP(schemaRec, httptest.NewRequest(http.MethodGet, "/unas/schemas/unas-certificate/2.1.0.json", nil))
+	if schemaRec.Code != http.StatusOK || schemaRec.Header().Get("Content-Type") != "application/schema+json" || !strings.Contains(schemaRec.Body.String(), `"participantName"`) {
+		t.Fatalf("unexpected schema response: %d ct=%q body=%s", schemaRec.Code, schemaRec.Header().Get("Content-Type"), schemaRec.Body.String())
+	}
+	ctxRec := httptest.NewRecorder()
+	env.mux.ServeHTTP(ctxRec, httptest.NewRequest(http.MethodGet, "/unas/contexts/unas-certificate/2.1.0.jsonld", nil))
+	if ctxRec.Code != http.StatusOK || ctxRec.Header().Get("Content-Type") != "application/ld+json" || !strings.Contains(ctxRec.Body.String(), `"@protected":true`) {
+		t.Fatalf("unexpected context response: %d ct=%q body=%s", ctxRec.Code, ctxRec.Header().Get("Content-Type"), ctxRec.Body.String())
+	}
+
+	// 3. DELETE /v1/issuance-requests/{id} cancels ready request + removes offer.
+	cancelCreateReq := httptest.NewRequest(http.MethodPost, "/v1/issuance-requests", strings.NewReader(`{"issuerId":"iss_unas","credentialDefinition":"unas-certificate@2.1.0","claims":{"participantName":"Cancel Me","eventName":"Lab"}}`))
+	cancelCreateReq.Header.Set("Authorization", "Bearer "+eventsTok.AccessToken)
+	cancelCreateReq.Header.Set("Idempotency-Key", "http-cancel-create-0001")
+	cancelCreateReq.Header.Set("Content-Type", "application/json")
+	cancelCreateRec := httptest.NewRecorder()
+	env.mux.ServeHTTP(cancelCreateRec, cancelCreateReq)
+	var cancelTarget issuance.IssuanceRequestResult
+	_ = json.Unmarshal(cancelCreateRec.Body.Bytes(), &cancelTarget)
+
+	delRec := httptest.NewRecorder()
+	delReq := httptest.NewRequest(http.MethodDelete, "/v1/issuance-requests/"+cancelTarget.ID, nil)
+	delReq.Header.Set("Authorization", "Bearer "+eventsTok.AccessToken)
+	env.mux.ServeHTTP(delRec, delReq)
+	if delRec.Code != http.StatusOK || !strings.Contains(delRec.Body.String(), `"issuanceState":"cancelled"`) {
+		t.Fatalf("expected 200 cancelled on DELETE, got %d %s", delRec.Code, delRec.Body.String())
+	}
+	refCancel := cancelTarget.CredentialOfferURI[strings.LastIndex(cancelTarget.CredentialOfferURI, "ofr_"):]
+	goneOfferRec := httptest.NewRecorder()
+	env.mux.ServeHTTP(goneOfferRec, httptest.NewRequest(http.MethodGet, "/unas/offers/"+refCancel, nil))
+	if goneOfferRec.Code != http.StatusNotFound {
+		t.Fatalf("expected cancelled offer to return 404, got %d", goneOfferRec.Code)
+	}
+
+	// 4. Deferred issuance via HTTP: 202 {transaction_id, interval} -> 400 issuance_pending -> fulfill -> 200 vc+jwt!
+	defReq := httptest.NewRequest(http.MethodPost, "/v1/issuance-requests", strings.NewReader(`{"issuerId":"iss_unas","credentialDefinition":"unas-certificate@2.1.0","claims":{"participantName":"Lucia Async","eventName":"Cloud Async"},"delivery":{"deferred":true}}`))
+	defReq.Header.Set("Authorization", "Bearer "+eventsTok.AccessToken)
+	defReq.Header.Set("Idempotency-Key", "http-deferred-create-01")
+	defReq.Header.Set("Content-Type", "application/json")
+	defRec := httptest.NewRecorder()
+	env.mux.ServeHTTP(defRec, defReq)
+	if defRec.Code != http.StatusCreated {
+		t.Fatalf("deferred create status=%d body=%s", defRec.Code, defRec.Body.String())
+	}
+	var defCreated issuance.IssuanceRequestResult
+	_ = json.Unmarshal(defRec.Body.Bytes(), &defCreated)
+	refDef := defCreated.CredentialOfferURI[strings.LastIndex(defCreated.CredentialOfferURI, "ofr_"):]
+
+	offerRec := httptest.NewRecorder()
+	env.mux.ServeHTTP(offerRec, httptest.NewRequest(http.MethodGet, "/unas/offers/"+refDef, nil))
+	var offerBody map[string]any
+	_ = json.Unmarshal(offerRec.Body.Bytes(), &offerBody)
+	preCode := offerBody["grants"].(map[string]any)[issuance.PreAuthorizedGrantType].(map[string]any)["pre-authorized_code"].(string)
+
+	vciRec := httptest.NewRecorder()
+	vciReq := httptest.NewRequest(http.MethodPost, "/oauth2/token", strings.NewReader(url.Values{"grant_type": {issuance.PreAuthorizedGrantType}, "pre-authorized_code": {preCode}}.Encode()))
+	vciReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	env.mux.ServeHTTP(vciRec, vciReq)
+	var vciTok issuance.TokenResponse
+	_ = json.Unmarshal(vciRec.Body.Bytes(), &vciTok)
+
+	nonceRec := httptest.NewRecorder()
+	env.mux.ServeHTTP(nonceRec, httptest.NewRequest(http.MethodPost, "/unas/nonce", nil))
+	var nonceMap map[string]string
+	_ = json.Unmarshal(nonceRec.Body.Bytes(), &nonceMap)
+
+	proofJWT, _ := issuance.BuildHolderProof(mustKey(t), "https://issuer.hukid.pe/unas", nonceMap["c_nonce"], env.now, nil)
+	credBody, _ := json.Marshal(map[string]any{
+		"credential_identifier": vciTok.AuthorizationDetails[0].CredentialIdentifiers[0],
+		"proofs":                map[string]any{"jwt": []string{proofJWT}},
+	})
+	credRec := httptest.NewRecorder()
+	credReq := httptest.NewRequest(http.MethodPost, "/unas/credential", strings.NewReader(string(credBody)))
+	credReq.Header.Set("Authorization", "Bearer "+vciTok.AccessToken)
+	credReq.Header.Set("Content-Type", "application/json")
+	env.mux.ServeHTTP(credRec, credReq)
+	if credRec.Code != http.StatusAccepted {
+		t.Fatalf("expected 202 Accepted on deferred credential request, got %d %s", credRec.Code, credRec.Body.String())
+	}
+	var credOut struct {
+		TransactionID string `json:"transaction_id"`
+		Interval      int    `json:"interval"`
+	}
+	_ = json.Unmarshal(credRec.Body.Bytes(), &credOut)
+	if credOut.TransactionID == "" || credOut.Interval != 5 {
+		t.Fatalf("unexpected 202 body: %s", credRec.Body.String())
+	}
+
+	pollDeferred := func() *httptest.ResponseRecorder {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/unas/deferred_credential", strings.NewReader(`{"transaction_id":"`+credOut.TransactionID+`"}`))
+		req.Header.Set("Authorization", "Bearer "+vciTok.AccessToken)
+		req.Header.Set("Content-Type", "application/json")
+		env.mux.ServeHTTP(rec, req)
+		return rec
+	}
+
+	pendingRec := pollDeferred()
+	if pendingRec.Code != http.StatusBadRequest || !strings.Contains(pendingRec.Body.String(), `"error":"issuance_pending"`) {
+		t.Fatalf("expected 400 issuance_pending while pending, got %d %s", pendingRec.Code, pendingRec.Body.String())
+	}
+
+	if err := env.service.FulfillDeferredRequest("tenant-unas", defCreated.ID); err != nil {
+		t.Fatalf("fulfill deferred: %v", err)
+	}
+	doneRec := pollDeferred()
+	if doneRec.Code != http.StatusOK || !strings.Contains(doneRec.Body.String(), `"credential":"eyJ`) {
+		t.Fatalf("expected 200 vc+jwt after fulfill, got %d %s", doneRec.Code, doneRec.Body.String())
+	}
+	// Completed request cannot be cancelled (409).
+	delIssuedRec := httptest.NewRecorder()
+	delIssuedReq := httptest.NewRequest(http.MethodDelete, "/v1/issuance-requests/"+defCreated.ID, nil)
+	delIssuedReq.Header.Set("Authorization", "Bearer "+eventsTok.AccessToken)
+	env.mux.ServeHTTP(delIssuedRec, delIssuedReq)
+	if delIssuedRec.Code != http.StatusConflict {
+		t.Fatalf("expected 409 cancelling issued request, got %d %s", delIssuedRec.Code, delIssuedRec.Body.String())
+	}
+}

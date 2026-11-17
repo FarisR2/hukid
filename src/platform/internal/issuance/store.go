@@ -47,6 +47,8 @@ type StoredRequest struct {
 	OfferState         string
 	IssuanceState      string
 	IssuedCredentialID string
+	Deferred           bool
+	HolderJKT          string
 	SourceSystem       string
 	SourceReference    string
 	CreatedAt          time.Time
@@ -91,6 +93,32 @@ type StatusIdempotencyRecord struct {
 	Result      StatusChangeResult
 }
 
+// DeferredTxRecord tracks an OID4VCI 1.0 deferred issuance transaction (HK-025).
+type DeferredTxRecord struct {
+	TxHash          [32]byte
+	TenantID        string
+	IssuerID        string
+	RequestID       string
+	TokenHash       [32]byte
+	Status          string
+	ErrorCode       string
+	VCCipher        []byte
+	VCNonce         []byte
+	VCKeyVer        string
+	IntervalSeconds int
+	CreatedAt       time.Time
+	ExpiresAt       time.Time
+	CompletedAt     *time.Time
+}
+
+// CompromiseKeyReport summarizes the impact of marking an issuer signing key compromised (HK-052).
+type CompromiseKeyReport struct {
+	IssuerID              string   `json:"issuerId"`
+	KID                   string   `json:"kid"`
+	State                 KeyState `json:"state"`
+	ImpactedCredentialIDs []string `json:"impactedCredentialIds"`
+}
+
 // Backend abstracts tenant-scoped issuance persistence. Implementations run Tx
 // callbacks with row locking (Postgres FOR UPDATE / FORCE RLS) or mutex isolation.
 type Backend interface {
@@ -109,12 +137,14 @@ type Tx interface {
 	ListPublicKeys(issuerID string) ([]PublicJWK, error)
 	GetClient(clientID string) (StoredClient, bool, error)
 	GetIssuableDefinition(issuerID, id, version string) (Definition, error)
+	GetPublicDefinition(issuerID, id, version string) (Definition, error)
 	ListPublishedDefinitions(issuerID string) ([]Definition, error)
 	LockIdempotency(clientID string, keyHash [32]byte) (IdempotencyRecord, bool, error)
 	SaveIdempotency(rec IdempotencyRecord) error
 	SaveRequestAndOffer(req StoredRequest, codeHash [32]byte) error
 	GetRequestForClient(requestID, clientID string) (StoredRequest, bool, error)
 	GetRequestByOfferRef(issuerID, ref string) (StoredRequest, bool, error)
+	CancelIssuanceRequest(requestID string, now time.Time) error
 	RedeemOfferByCodeHash(codeHash [32]byte, now time.Time) (StoredOffer, error)
 	SaveNonce(issuerID string, nonceHash [32]byte, createdAt, expiresAt time.Time) error
 	ConsumeNonce(issuerID string, nonceHash [32]byte, now time.Time) error
@@ -123,6 +153,15 @@ type Tx interface {
 	LockTokenForCredential(tokenHash [32]byte) (StoredToken, bool, error)
 	LockRequest(requestID string) (StoredRequest, bool, error)
 	MarkIssued(requestID string, tokenHash [32]byte, issuedCredentialID string, now time.Time) error
+	CreateDeferredTransaction(rec DeferredTxRecord, holderJKT string, now time.Time) error
+	LockDeferredByTxHash(txHash [32]byte) (DeferredTxRecord, bool, error)
+	LockDeferredByRequestID(requestID string) (DeferredTxRecord, bool, error)
+	CompleteDeferredTransaction(requestID, issuedCredID string, vcCipher, vcNonce []byte, vcKeyVer string, now time.Time) error
+	FailDeferredTransaction(requestID, errorCode string, now time.Time) error
+	MarkDeferredDelivered(txHash, tokenHash [32]byte, now time.Time) error
+	RotateKey(issuerID, newKID, kmsKeyRef string, jwk PublicJWK, actorID, correlationID string, now time.Time) error
+	CompromiseKey(issuerID, kid, actorID, correlationID string, now time.Time) error
+	ListIssuedCredentialsByKID(issuerID, kid string) ([]string, error)
 	AllocateStatusSlot(issuerID, purpose string, listSize int, newListID func() (string, error), signInitial func(listID string, rawBits []byte) (jwt string, validFrom, validUntil time.Time, err error), now time.Time) (string, int, error)
 	SaveIssuedCredential(rec IssuedCredentialRecord) error
 	LockIssuedCredential(credentialID string) (IssuedCredentialRecord, bool, error)
@@ -219,39 +258,43 @@ type memoryTokenEntry struct {
 }
 
 type memoryBackend struct {
-	mu          sync.Mutex
-	clients     *ClientRegistry
-	defs        *DefinitionRegistry
-	audit       *AuditLog
-	offers      *OfferStore
-	nonces      *NonceStore
-	byID        map[string]*issuerEntry
-	bySlug      map[string]*issuerEntry
-	reqs        map[string]*StoredRequest
-	byRef       map[string]*StoredRequest
-	idem        map[memoryIdemKey]IdempotencyRecord
-	tokens      map[[32]byte]*memoryTokenEntry
-	statusLists map[string]*StatusListRecord
-	issuedCreds map[string]*IssuedCredentialRecord
-	statusIdem  map[memoryIdemKey]StatusIdempotencyRecord
+	mu            sync.Mutex
+	clients       *ClientRegistry
+	defs          *DefinitionRegistry
+	audit         *AuditLog
+	offers        *OfferStore
+	nonces        *NonceStore
+	byID          map[string]*issuerEntry
+	bySlug        map[string]*issuerEntry
+	reqs          map[string]*StoredRequest
+	byRef         map[string]*StoredRequest
+	idem          map[memoryIdemKey]IdempotencyRecord
+	tokens        map[[32]byte]*memoryTokenEntry
+	statusLists   map[string]*StatusListRecord
+	issuedCreds   map[string]*IssuedCredentialRecord
+	statusIdem    map[memoryIdemKey]StatusIdempotencyRecord
+	deferredByTx  map[[32]byte]*DeferredTxRecord
+	deferredByReq map[string]*DeferredTxRecord
 }
 
 func newMemoryBackend(cfg ServiceConfig) *memoryBackend {
 	return &memoryBackend{
-		clients:     cfg.Clients,
-		defs:        cfg.Definitions,
-		audit:       cfg.Audit,
-		offers:      NewOfferStore(cfg.Random),
-		nonces:      NewNonceStore(DefaultNonceTTL, cfg.Random),
-		byID:        map[string]*issuerEntry{},
-		bySlug:      map[string]*issuerEntry{},
-		reqs:        map[string]*StoredRequest{},
-		byRef:       map[string]*StoredRequest{},
-		idem:        map[memoryIdemKey]IdempotencyRecord{},
-		tokens:      map[[32]byte]*memoryTokenEntry{},
-		statusLists: map[string]*StatusListRecord{},
-		issuedCreds: map[string]*IssuedCredentialRecord{},
-		statusIdem:  map[memoryIdemKey]StatusIdempotencyRecord{},
+		clients:       cfg.Clients,
+		defs:          cfg.Definitions,
+		audit:         cfg.Audit,
+		offers:        NewOfferStore(cfg.Random),
+		nonces:        NewNonceStore(DefaultNonceTTL, cfg.Random),
+		byID:          map[string]*issuerEntry{},
+		bySlug:        map[string]*issuerEntry{},
+		reqs:          map[string]*StoredRequest{},
+		byRef:         map[string]*StoredRequest{},
+		idem:          map[memoryIdemKey]IdempotencyRecord{},
+		tokens:        map[[32]byte]*memoryTokenEntry{},
+		statusLists:   map[string]*StatusListRecord{},
+		issuedCreds:   map[string]*IssuedCredentialRecord{},
+		statusIdem:    map[memoryIdemKey]StatusIdempotencyRecord{},
+		deferredByTx:  map[[32]byte]*DeferredTxRecord{},
+		deferredByReq: map[string]*DeferredTxRecord{},
 	}
 }
 
@@ -353,18 +396,18 @@ func (t *memoryTx) ActiveSigner(issuerID string) (Signer, error) {
 }
 
 func (t *memoryTx) GetActiveKey(issuerID string) (StoredKey, error) {
-	signer, err := t.ActiveSigner(issuerID)
-	if err != nil {
-		return StoredKey{}, err
+	entry, ok := t.m.byID[issuerID]
+	if !ok || entry.record.TenantID != t.tenantID {
+		return StoredKey{}, ErrResourceNotFound
 	}
-	jwk, err := ExportPublicJWK(signer.PublicKey(), signer.KeyID())
+	meta, jwk, err := entry.ring.ActiveKeyMetadata()
 	if err != nil {
 		return StoredKey{}, err
 	}
 	return StoredKey{
-		KID:       signer.KeyID(),
-		KMSKeyRef: "memory://" + signer.KeyID(),
-		IssuerURI: signer.Issuer(),
+		KID:       meta.KID,
+		KMSKeyRef: "memory://" + meta.KID,
+		IssuerURI: meta.IssuerURI,
 		JWK:       jwk,
 	}, nil
 }
@@ -409,6 +452,10 @@ func (t *memoryTx) GetClient(clientID string) (StoredClient, bool, error) {
 
 func (t *memoryTx) GetIssuableDefinition(issuerID, id, version string) (Definition, error) {
 	return t.m.defs.GetIssuable(t.tenantID, issuerID, id, version)
+}
+
+func (t *memoryTx) GetPublicDefinition(issuerID, id, version string) (Definition, error) {
+	return t.m.defs.GetPublic(t.tenantID, issuerID, id, version)
 }
 
 func (t *memoryTx) ListPublishedDefinitions(issuerID string) ([]Definition, error) {
@@ -522,6 +569,146 @@ func (t *memoryTx) MarkIssued(requestID string, tokenHash [32]byte, issuedCreden
 	rec.IssuedCredentialID = issuedCredentialID
 	tok.record.Used = true
 	return nil
+}
+
+func (t *memoryTx) CancelIssuanceRequest(requestID string, now time.Time) error {
+	rec, ok := t.m.reqs[requestID]
+	if !ok || rec.TenantID != t.tenantID {
+		return ErrResourceNotFound
+	}
+	if rec.OfferState == offerReady {
+		rec.OfferState = offerCancelled
+		rec.OfferCipher, rec.OfferNonce, rec.OfferKeyVer = nil, nil, ""
+		t.m.offers.cancelByRequestID(requestID)
+	}
+	rec.IssuanceState = issuanceCancelled
+	for _, entry := range t.m.tokens {
+		if entry.tenantID == t.tenantID && entry.record.Class == tokenClassOID4VCI && entry.record.RequestID == requestID {
+			entry.record.Used = true
+		}
+	}
+	if dtx, ok := t.m.deferredByReq[requestID]; ok && dtx.Status == DeferredStatusPending {
+		dtx.Status = DeferredStatusCancelled
+		ts := now.UTC()
+		dtx.CompletedAt = &ts
+	}
+	return nil
+}
+
+func (t *memoryTx) CreateDeferredTransaction(rec DeferredTxRecord, holderJKT string, _ time.Time) error {
+	req, ok := t.m.reqs[rec.RequestID]
+	if !ok || req.TenantID != t.tenantID || req.IssuanceState != issuancePrepared {
+		return ErrInvalidToken
+	}
+	req.IssuanceState = issuanceDeferred
+	req.HolderJKT = holderJKT
+	copyRec := rec
+	copyRec.VCCipher = nil
+	copyRec.VCNonce = nil
+	copyRec.VCKeyVer = ""
+	t.m.deferredByTx[rec.TxHash] = &copyRec
+	t.m.deferredByReq[rec.RequestID] = &copyRec
+	return nil
+}
+
+func (t *memoryTx) LockDeferredByTxHash(txHash [32]byte) (DeferredTxRecord, bool, error) {
+	dtx, ok := t.m.deferredByTx[txHash]
+	if !ok || dtx.TenantID != t.tenantID {
+		return DeferredTxRecord{}, false, nil
+	}
+	copied := *dtx
+	copied.VCCipher = slices.Clone(dtx.VCCipher)
+	copied.VCNonce = slices.Clone(dtx.VCNonce)
+	return copied, true, nil
+}
+
+func (t *memoryTx) LockDeferredByRequestID(requestID string) (DeferredTxRecord, bool, error) {
+	dtx, ok := t.m.deferredByReq[requestID]
+	if !ok || dtx.TenantID != t.tenantID {
+		return DeferredTxRecord{}, false, nil
+	}
+	copied := *dtx
+	copied.VCCipher = slices.Clone(dtx.VCCipher)
+	copied.VCNonce = slices.Clone(dtx.VCNonce)
+	return copied, true, nil
+}
+
+func (t *memoryTx) CompleteDeferredTransaction(requestID, issuedCredID string, vcCipher, vcNonce []byte, vcKeyVer string, now time.Time) error {
+	req, ok := t.m.reqs[requestID]
+	if !ok || req.TenantID != t.tenantID || req.IssuanceState != issuanceDeferred {
+		return ErrInvalidStatusTransition
+	}
+	dtx, ok := t.m.deferredByReq[requestID]
+	if !ok || dtx.TenantID != t.tenantID || dtx.Status != DeferredStatusPending {
+		return ErrInvalidStatusTransition
+	}
+	ts := now.UTC()
+	req.IssuanceState = issuanceIssued
+	req.IssuedCredentialID = issuedCredID
+	dtx.Status = DeferredStatusIssued
+	dtx.VCCipher = slices.Clone(vcCipher)
+	dtx.VCNonce = slices.Clone(vcNonce)
+	dtx.VCKeyVer = vcKeyVer
+	dtx.CompletedAt = &ts
+	return nil
+}
+
+func (t *memoryTx) FailDeferredTransaction(requestID, errorCode string, now time.Time) error {
+	req, ok := t.m.reqs[requestID]
+	if !ok || req.TenantID != t.tenantID || req.IssuanceState != issuanceDeferred {
+		return ErrInvalidStatusTransition
+	}
+	dtx, ok := t.m.deferredByReq[requestID]
+	if !ok || dtx.TenantID != t.tenantID || dtx.Status != DeferredStatusPending {
+		return ErrInvalidStatusTransition
+	}
+	ts := now.UTC()
+	req.IssuanceState = issuanceFailed
+	dtx.Status = DeferredStatusFailed
+	dtx.ErrorCode = errorCode
+	dtx.CompletedAt = &ts
+	return nil
+}
+
+func (t *memoryTx) MarkDeferredDelivered(txHash, tokenHash [32]byte, _ time.Time) error {
+	dtx, ok := t.m.deferredByTx[txHash]
+	if !ok || dtx.TenantID != t.tenantID {
+		return ErrInvalidToken
+	}
+	tok, ok := t.m.tokens[tokenHash]
+	if !ok || tok.tenantID != t.tenantID {
+		return ErrInvalidToken
+	}
+	dtx.VCCipher, dtx.VCNonce, dtx.VCKeyVer = nil, nil, ""
+	tok.record.Used = true
+	return nil
+}
+
+func (t *memoryTx) RotateKey(issuerID, newKID, kmsKeyRef string, jwk PublicJWK, actorID, correlationID string, now time.Time) error {
+	entry, ok := t.m.byID[issuerID]
+	if !ok || entry.record.TenantID != t.tenantID {
+		return ErrResourceNotFound
+	}
+	return entry.ring.RotateKeyMetadata(newKID, kmsKeyRef, jwk, actorID, correlationID, now)
+}
+
+func (t *memoryTx) CompromiseKey(issuerID, kid, actorID, correlationID string, now time.Time) error {
+	entry, ok := t.m.byID[issuerID]
+	if !ok || entry.record.TenantID != t.tenantID {
+		return ErrResourceNotFound
+	}
+	return entry.ring.CompromiseKey(kid, actorID, correlationID, now)
+}
+
+func (t *memoryTx) ListIssuedCredentialsByKID(issuerID, kid string) ([]string, error) {
+	var ids []string
+	for _, rec := range t.m.issuedCreds {
+		if rec.TenantID == t.tenantID && rec.IssuerID == issuerID && rec.SigningKID == kid && rec.DesiredStatus != CredentialStatusRevoked {
+			ids = append(ids, rec.CredentialID)
+		}
+	}
+	slices.Sort(ids)
+	return ids, nil
 }
 
 func (t *memoryTx) AllocateStatusSlot(

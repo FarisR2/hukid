@@ -303,6 +303,7 @@ func configureOID4VCILab(ctx context.Context, address string, out io.Writer, now
 			Types:           []string{issuance.CertificateType},
 			DefaultValidity: 365 * 24 * time.Hour,
 			StatusPurposes:  []string{issuance.PurposeRevocation, issuance.PurposeSuspension},
+			PublishSchema:   true,
 			Fields: map[string]issuance.FieldSpec{
 				"participantName": {Type: "string", Required: true, MaxLength: 120},
 				"eventName":       {Type: "string", Required: true, MaxLength: 160},

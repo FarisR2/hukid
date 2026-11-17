@@ -7,6 +7,8 @@ import (
 	"maps"
 	"strings"
 	"time"
+
+	"hukid.local/platform/internal/verification"
 )
 
 const (
@@ -34,6 +36,12 @@ var (
 	ErrInvalidCredentialInput = errors.New("invalid credential input")
 )
 
+// CredentialSchemaRef identifies one W3C VCDM 2.0 JsonSchema entry.
+type CredentialSchemaRef struct {
+	ID   string `json:"id"`
+	Type string `json:"type"`
+}
+
 // CredentialInput contains the domain payload used to mint a vc+jwt credential.
 type CredentialInput struct {
 	ID                string
@@ -43,6 +51,7 @@ type CredentialInput struct {
 	ValidUntil        *time.Time
 	CredentialSubject map[string]any
 	CredentialStatus  []CredentialStatusEntry
+	CredentialSchema  []CredentialSchemaRef
 }
 
 // NewReceiptInput builds a Phase 0 electronic receipt credential input.
@@ -112,6 +121,13 @@ func IssueVCJWT(signer Signer, input CredentialInput, holderJKT string) (string,
 	if len(input.CredentialStatus) > 0 {
 		payload["credentialStatus"] = input.CredentialStatus
 	}
+	if len(input.CredentialSchema) > 0 {
+		if len(input.CredentialSchema) == 1 {
+			payload["credentialSchema"] = input.CredentialSchema[0]
+		} else {
+			payload["credentialSchema"] = input.CredentialSchema
+		}
+	}
 
 	return signCompactVC(signer, payload)
 }
@@ -172,6 +188,11 @@ func validateCredentialInput(input CredentialInput) error {
 	}
 	if !hasBaseType || specificTypes == 0 {
 		return ErrInvalidCredentialInput
+	}
+	for _, sc := range input.CredentialSchema {
+		if strings.TrimSpace(sc.ID) == "" || sc.Type != verification.CredentialSchemaType {
+			return ErrInvalidCredentialInput
+		}
 	}
 	return nil
 }

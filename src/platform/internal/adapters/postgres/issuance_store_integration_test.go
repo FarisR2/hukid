@@ -774,3 +774,193 @@ func TestIssuanceBackendStatusListsRevocationAndVerifier(t *testing.T) {
 	}
 	assertCleared(t, pool)
 }
+
+type pgSchemaResolver struct{ svc *issuance.Service }
+
+func (r pgSchemaResolver) ResolveSchema(schemaURL string) ([]byte, error) {
+	u, err := url.Parse(schemaURL)
+	if err != nil {
+		return nil, verification.ErrSchemaResolution
+	}
+	parts := strings.Split(strings.TrimPrefix(u.Path, "/unas/schemas/"), "/")
+	if len(parts) != 2 {
+		return nil, verification.ErrSchemaResolution
+	}
+	ver, hasJSON := strings.CutSuffix(parts[1], ".json")
+	if !hasJSON {
+		return nil, verification.ErrSchemaResolution
+	}
+	data, err := r.svc.ResolveCredentialSchema("unas", parts[0], ver)
+	if err != nil {
+		return nil, verification.ErrSchemaResolution
+	}
+	return data, nil
+}
+
+func TestIssuanceBackendEtapaADeferredCancelCompromiseAndSchema(t *testing.T) {
+	db := newTestDatabase(t)
+	mustMigrate(t, db)
+	mustBootstrap(t, db)
+
+	now := time.Date(2026, 11, 16, 21, 30, 0, 0, time.UTC)
+	clk := func() time.Time { return now }
+	backend, err := NewIssuanceBackend(db.poolWithConns(t, "hukid_issuance_runtime", 4))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	issuerID := "44444444-4444-4444-8444-444444444444"
+	clientID := "55555555-5555-4555-8555-555555555555"
+	secret := "pg-etapa-a-client-secret-01234567"
+	if _, err := backend.CreateIssuer(testContext, TestTenantA, issuerID, "unas", "IncubaUNAS", now); err != nil {
+		t.Fatal(err)
+	}
+
+	k1, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	k1JWK, _ := issuance.ExportPublicJWK(&k1.PublicKey, "pg-key-1")
+	if err := backend.RegisterKey(testContext, TestTenantA, issuerID, "pg-key-1", "kms://k1", k1JWK, TestActorA, "cor-ek1", now); err != nil {
+		t.Fatal(err)
+	}
+	k2, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	k2JWK, _ := issuance.ExportPublicJWK(&k2.PublicKey, "pg-key-2")
+
+	def := issuance.Definition{
+		TenantID:        TestTenantA,
+		IssuerID:        issuerID,
+		ID:              "unas-certificate",
+		Version:         "2.0.0",
+		ConfigurationID: "unas_cert_etapa_a_pg",
+		DisplayName:     "Certificado UNAS Schema",
+		Locale:          "es-PE",
+		Contexts:        []string{issuance.CertificateContext},
+		Types:           []string{issuance.CertificateType},
+		DefaultValidity: 365 * 24 * time.Hour,
+		StatusPurposes:  []string{issuance.PurposeRevocation},
+		PublishSchema:   true,
+		Fields: map[string]issuance.FieldSpec{
+			"participantName": {Type: "string", Required: true, MaxLength: 120},
+			"eventName":       {Type: "string", Required: true, MaxLength: 160},
+		},
+	}
+	if err := backend.CreateDraftDefinition(testContext, def, TestActorA, "cor-ed1", now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := backend.PublishDefinition(testContext, TestTenantA, issuerID, def.ID, def.Version, TestActorA, "cor-ed2", now); err != nil {
+		t.Fatal(err)
+	}
+	if err := backend.RegisterClient(testContext, TestTenantA, clientID, "Events Etapa A", secret, []string{issuerID}, []string{issuance.ScopeIssuanceCreate, issuance.ScopeIssuanceRead, issuance.ScopeStatusWrite}, nil, TestActorA, "cor-ec1", now); err != nil {
+		t.Fatal(err)
+	}
+
+	claimsKey := make([]byte, 32)
+	_, _ = rand.Read(claimsKey)
+	keyMap := map[string]*ecdsa.PrivateKey{"pg-key-1": k1, "pg-key-2": k2}
+	mkSvc := func() *issuance.Service {
+		svc, err := issuance.NewService(issuance.ServiceConfig{
+			ClaimsKey:           claimsKey,
+			ClaimsKeyVersion:    "pg-etapa-a-1",
+			Backend:             backend,
+			AuthorizationServer: "https://auth.hukid.pe",
+			Now:                 clk,
+			Signers: func(_, _, issuerURI, kid, _ string, expected *ecdsa.PublicKey) (issuance.Signer, error) {
+				priv, ok := keyMap[kid]
+				if !ok || !priv.PublicKey.Equal(expected) {
+					return nil, issuance.ErrNoActiveKey
+				}
+				return issuance.NewMemorySigner(issuerURI, kid, priv, nil)
+			},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return svc
+	}
+
+	svc1 := mkSvc()
+	tokResp, err := svc1.ClientCredentialsToken(clientID, secret, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	authTok, _ := svc1.AuthenticateIntegration(tokResp.AccessToken)
+
+	// 1. Cancel ready request in Postgres.
+	cancelRes, _, err := svc1.CreateIssuanceRequest(authTok, "pg-cancel-req-key-01", issuance.IssuanceRequestInput{
+		IssuerID: issuerID, CredentialDefinition: "unas-certificate@2.0.0",
+		Claims: map[string]any{"participantName": "Cancel PG", "eventName": "Cloud"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cancelled, err := svc1.CancelRequest(authTok, cancelRes.ID)
+	if err != nil || cancelled.IssuanceState != "cancelled" || cancelled.OfferState != "cancelled" {
+		t.Fatalf("unexpected pg cancel: %+v err=%v", cancelled, err)
+	}
+
+	// 2. Deferred issuance persisted in Postgres across service restart + schema verification (VER-T13).
+	defReq, _, err := svc1.CreateIssuanceRequest(authTok, "pg-deferred-req-key1", issuance.IssuanceRequestInput{
+		IssuerID: issuerID, CredentialDefinition: "unas-certificate@2.0.0",
+		Claims:   map[string]any{"participantName": "Deferred PG", "eventName": "Cloud"},
+		Delivery: &issuance.DeliveryInput{Deferred: true},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	offer, _ := svc1.ResolveOffer("unas", defReq.CredentialOfferURI[strings.LastIndex(defReq.CredentialOfferURI, "ofr_"):])
+	vciTok, _ := svc1.PreAuthorizedToken(offer.Grants[issuance.PreAuthorizedGrantType].PreAuthorizedCode)
+	nonce, _ := svc1.IssueNonce("unas")
+	holder, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	proof, _ := issuance.BuildHolderProof(holder, "https://issuer.hukid.pe/unas", nonce, now, nil)
+	out, err := svc1.RequestCredential("unas", vciTok.AccessToken, issuance.CredentialRequest{
+		CredentialIdentifier: vciTok.AuthorizationDetails[0].CredentialIdentifiers[0],
+		Proofs: struct {
+			JWT []string `json:"jwt"`
+		}{JWT: []string{proof}},
+	})
+	if err != nil || out.TransactionID == "" {
+		t.Fatalf("expected deferred tx in pg, got %+v err=%v", out, err)
+	}
+
+	// Restart service -> fulfill -> retrieve VC -> verify against JWKS + Status + JsonSchema!
+	svc2 := mkSvc()
+	if _, _, err := svc2.DeferredCredential("unas", vciTok.AccessToken, out.TransactionID); !errors.Is(err, issuance.ErrIssuancePending) {
+		t.Fatalf("expected ErrIssuancePending across restart, got %v", err)
+	}
+	if err := svc2.FulfillDeferredRequest(TestTenantA, defReq.ID); err != nil {
+		t.Fatalf("fulfill deferred pg: %v", err)
+	}
+	vcJWT, _, err := svc2.DeferredCredential("unas", vciTok.AccessToken, out.TransactionID)
+	if err != nil || vcJWT == "" {
+		t.Fatalf("retrieve deferred pg vc: %v", err)
+	}
+	polled, _ := svc2.GetRequest(authTok, defReq.ID)
+	if polled.IssuanceState != "issued" || !strings.HasPrefix(polled.CredentialID, "vc_") {
+		t.Fatalf("unexpected final deferred state: %+v", polled)
+	}
+
+	jwks1, _ := svc2.IssuerJWKS("unas")
+	pub1, _ := issuance.DecodePublicJWK(jwks1.Keys[0])
+	keyRes := verification.NewMemoryKeyResolver()
+	_ = keyRes.Add("https://issuer.hukid.pe/unas", jwks1.Keys[0].Kid, pub1)
+	verifier, _ := verification.NewVerifier(keyRes, verification.ClockFunc(clk), verification.DefaultLimits, 0)
+	verifier = verifier.
+		WithCredentialContexts(issuance.CertificateContext).
+		WithStatusResolver(pgStatusResolver{svc: svc2}, verification.StatusPolicy{}).
+		WithSchemaResolver(pgSchemaResolver{svc: svc2})
+	rep, err := verifier.Verify(vcJWT)
+	if err != nil || rep.TechnicalResult != verification.Valid {
+		t.Fatalf("expected valid deferred VC with schema+status, got %+v err=%v", rep, err)
+	}
+
+	// 3. Rotate key -> compromise pg-key-1 -> lists polled.CredentialID, excludes pg-key-1 from JWKS!
+	if err := svc2.RotateIssuerKey(TestTenantA, issuerID, "pg-key-2", "kms://k2", k2JWK, TestActorA, "cor-er2"); err != nil {
+		t.Fatalf("rotate pg key: %v", err)
+	}
+	compRep, err := svc2.CompromiseIssuerKey(TestTenantA, issuerID, "pg-key-1", TestActorA, "cor-ecp1")
+	if err != nil || compRep.State != issuance.KeyCompromised || len(compRep.ImpactedCredentialIDs) != 1 || compRep.ImpactedCredentialIDs[0] != polled.CredentialID {
+		t.Fatalf("unexpected pg compromise report: %+v err=%v", compRep, err)
+	}
+	jwksAfter, _ := svc2.IssuerJWKS("unas")
+	if len(jwksAfter.Keys) != 1 || jwksAfter.Keys[0].Kid != "pg-key-2" {
+		t.Fatalf("expected only pg-key-2 in JWKS after compromise, got %+v", jwksAfter)
+	}
+}

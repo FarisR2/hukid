@@ -200,6 +200,8 @@ type KeyMetadata struct {
 
 type ringEntry struct {
 	meta   KeyMetadata
+	jwk    PublicJWK
+	rawPub *ecdsa.PublicKey
 	signer *MemorySigner
 }
 
@@ -248,6 +250,7 @@ func (r *KeyRing) RegisterKey(kid string, key *ecdsa.PrivateKey, actorID, correl
 		}
 	}
 	r.order = append(r.order, kid)
+	jwk, _ := signer.JWK()
 	r.keys[kid] = &ringEntry{
 		meta: KeyMetadata{
 			KID:       kid,
@@ -255,6 +258,8 @@ func (r *KeyRing) RegisterKey(kid string, key *ecdsa.PrivateKey, actorID, correl
 			State:     KeyActive,
 			CreatedAt: now.UTC(),
 		},
+		jwk:    jwk,
+		rawPub: signer.PublicKey(),
 		signer: signer,
 	}
 	r.audit.Record(r.tenantID, actorID, "issuer_key.registered", kid, "succeeded", correlationID, now)
@@ -283,6 +288,7 @@ func (r *KeyRing) RotateKey(newKID string, newKey *ecdsa.PrivateKey, actorID, co
 		}
 	}
 	r.order = append(r.order, newKID)
+	jwk, _ := signer.JWK()
 	r.keys[newKID] = &ringEntry{
 		meta: KeyMetadata{
 			KID:       newKID,
@@ -290,7 +296,51 @@ func (r *KeyRing) RotateKey(newKID string, newKey *ecdsa.PrivateKey, actorID, co
 			State:     KeyActive,
 			CreatedAt: ts,
 		},
+		jwk:    jwk,
+		rawPub: signer.PublicKey(),
 		signer: signer,
+	}
+	r.audit.Record(r.tenantID, actorID, "issuer_key.rotated", newKID, "succeeded", correlationID, now)
+	return nil
+}
+
+// RotateKeyMetadata retires the active key and installs an externally signed
+// key's public JWK (e.g. KMS-backed signing) as active (HK-002).
+func (r *KeyRing) RotateKeyMetadata(newKID, kmsKeyRef string, jwk PublicJWK, actorID, correlationID string, now time.Time) error {
+	if strings.TrimSpace(newKID) == "" || strings.TrimSpace(kmsKeyRef) == "" {
+		return ErrInvalidFoundationInput
+	}
+	pub, err := DecodePublicJWK(jwk)
+	if err != nil {
+		return err
+	}
+	jwk.Kid = newKID
+	jwk.Alg = "ES256"
+	jwk.Use = "sig"
+	ts := now.UTC()
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, exists := r.keys[newKID]; exists {
+		return ErrKeyConflict
+	}
+	for _, entry := range r.keys {
+		if entry.meta.State == KeyActive {
+			entry.meta.State = KeyRetired
+			retired := ts
+			entry.meta.RetiredAt = &retired
+		}
+	}
+	r.order = append(r.order, newKID)
+	r.keys[newKID] = &ringEntry{
+		meta: KeyMetadata{
+			KID:       newKID,
+			IssuerURI: r.issuer,
+			State:     KeyActive,
+			CreatedAt: ts,
+		},
+		jwk:    jwk,
+		rawPub: pub,
 	}
 	r.audit.Record(r.tenantID, actorID, "issuer_key.rotated", newKID, "succeeded", correlationID, now)
 	return nil
@@ -316,12 +366,27 @@ func (r *KeyRing) CompromiseKey(kid, actorID, correlationID string, now time.Tim
 	return nil
 }
 
+// ActiveKeyMetadata returns the currently active key metadata and JWK.
+func (r *KeyRing) ActiveKeyMetadata() (KeyMetadata, PublicJWK, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	for _, kid := range r.order {
+		if entry := r.keys[kid]; entry.meta.State == KeyActive {
+			return entry.meta, entry.jwk, nil
+		}
+	}
+	return KeyMetadata{}, PublicJWK{}, ErrNoActiveKey
+}
+
 // ActiveSigner returns the currently active Signer or ErrNoActiveKey if none is active.
 func (r *KeyRing) ActiveSigner() (Signer, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	for _, kid := range r.order {
 		if entry := r.keys[kid]; entry.meta.State == KeyActive {
+			if entry.signer == nil {
+				return nil, ErrNoActiveKey
+			}
 			return entry.signer, nil
 		}
 	}
@@ -338,9 +403,13 @@ func (r *KeyRing) PublicJWKS() (JWKS, error) {
 		if entry.meta.State == KeyCompromised {
 			continue
 		}
-		jwk, err := entry.signer.JWK()
-		if err != nil {
-			return JWKS{}, err
+		jwk := entry.jwk
+		if jwk.X == "" && entry.signer != nil {
+			var err error
+			jwk, err = entry.signer.JWK()
+			if err != nil {
+				return JWKS{}, err
+			}
 		}
 		keys = append(keys, jwk)
 	}
@@ -369,7 +438,11 @@ func (r *KeyRing) SyncToResolver(resolver *verification.MemoryKeyResolver) error
 		if entry.meta.State == KeyCompromised {
 			continue
 		}
-		if err := resolver.Add(r.issuer, entry.meta.KID, entry.signer.PublicKey()); err != nil {
+		pub := entry.rawPub
+		if pub == nil && entry.signer != nil {
+			pub = entry.signer.PublicKey()
+		}
+		if err := resolver.Add(r.issuer, entry.meta.KID, pub); err != nil {
 			return err
 		}
 	}

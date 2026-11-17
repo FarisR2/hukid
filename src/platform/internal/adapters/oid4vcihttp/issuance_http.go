@@ -24,10 +24,11 @@ type IssuanceHandler struct {
 	Service *issuance.Service
 }
 
-// Routes registers the Phase 3 endpoints on mux.
+// Routes registers the Phase 3–4 endpoints on mux.
 func (h *IssuanceHandler) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/issuance-requests", h.createRequest)
 	mux.HandleFunc("GET /v1/issuance-requests/{id}", h.getRequest)
+	mux.HandleFunc("DELETE /v1/issuance-requests/{id}", h.cancelRequest)
 	mux.HandleFunc("POST /v1/credentials/{id}/suspensions", h.suspendCredential)
 	mux.HandleFunc("DELETE /v1/credentials/{id}/suspension", h.reactivateCredential)
 	mux.HandleFunc("POST /v1/credentials/{id}/revocations", h.revokeCredential)
@@ -35,8 +36,11 @@ func (h *IssuanceHandler) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /.well-known/oauth-authorization-server", h.authorizationServer)
 	mux.HandleFunc("GET /{slug}/offers/{ref}", h.offer)
 	mux.HandleFunc("GET /{slug}/status/{purpose}/{listId}", h.statusList)
+	mux.HandleFunc("GET /{slug}/schemas/{defId}/{version}", h.credentialSchema)
+	mux.HandleFunc("GET /{slug}/contexts/{defId}/{version}", h.credentialContext)
 	mux.HandleFunc("POST /{slug}/nonce", h.nonce)
 	mux.HandleFunc("POST /{slug}/credential", h.credential)
+	mux.HandleFunc("POST /{slug}/deferred_credential", h.deferredCredential)
 }
 
 func (h *IssuanceHandler) ready() bool { return h != nil && h.Service != nil }
@@ -109,19 +113,27 @@ func isJSON(r *http.Request) bool {
 	return strings.HasPrefix(strings.ToLower(r.Header.Get("Content-Type")), "application/json")
 }
 
-func (h *IssuanceHandler) createRequest(w http.ResponseWriter, r *http.Request) {
+func (h *IssuanceHandler) authenticateIntegration(w http.ResponseWriter, r *http.Request) (issuance.IntegrationToken, bool) {
 	if !h.ready() {
 		problem(w, http.StatusServiceUnavailable, "server_error", "Service unavailable", nil)
-		return
+		return issuance.IntegrationToken{}, false
 	}
 	raw, ok := bearer(r)
 	if !ok {
 		invalidIntegrationToken(w)
-		return
+		return issuance.IntegrationToken{}, false
 	}
 	token, err := h.Service.AuthenticateIntegration(raw)
 	if err != nil {
 		invalidIntegrationToken(w)
+		return issuance.IntegrationToken{}, false
+	}
+	return token, true
+}
+
+func (h *IssuanceHandler) createRequest(w http.ResponseWriter, r *http.Request) {
+	token, ok := h.authenticateIntegration(w, r)
+	if !ok {
 		return
 	}
 	key := r.Header.Get("Idempotency-Key")
@@ -148,18 +160,8 @@ func (h *IssuanceHandler) createRequest(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *IssuanceHandler) getRequest(w http.ResponseWriter, r *http.Request) {
-	if !h.ready() {
-		problem(w, http.StatusServiceUnavailable, "server_error", "Service unavailable", nil)
-		return
-	}
-	raw, ok := bearer(r)
+	token, ok := h.authenticateIntegration(w, r)
 	if !ok {
-		invalidIntegrationToken(w)
-		return
-	}
-	token, err := h.Service.AuthenticateIntegration(raw)
-	if err != nil {
-		invalidIntegrationToken(w)
 		return
 	}
 	result, err := h.Service.GetRequest(token, r.PathValue("id"))
@@ -170,19 +172,22 @@ func (h *IssuanceHandler) getRequest(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, "application/json", result)
 }
 
-func (h *IssuanceHandler) requireIntegrationCommand(w http.ResponseWriter, r *http.Request) (issuance.IntegrationToken, string, bool) {
-	if !h.ready() {
-		problem(w, http.StatusServiceUnavailable, "server_error", "Service unavailable", nil)
-		return issuance.IntegrationToken{}, "", false
-	}
-	raw, ok := bearer(r)
+func (h *IssuanceHandler) cancelRequest(w http.ResponseWriter, r *http.Request) {
+	token, ok := h.authenticateIntegration(w, r)
 	if !ok {
-		invalidIntegrationToken(w)
-		return issuance.IntegrationToken{}, "", false
+		return
 	}
-	token, err := h.Service.AuthenticateIntegration(raw)
+	result, err := h.Service.CancelRequest(token, r.PathValue("id"))
 	if err != nil {
-		invalidIntegrationToken(w)
+		writeIntegrationError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, "application/json", result)
+}
+
+func (h *IssuanceHandler) requireIntegrationCommand(w http.ResponseWriter, r *http.Request) (issuance.IntegrationToken, string, bool) {
+	token, ok := h.authenticateIntegration(w, r)
+	if !ok {
 		return issuance.IntegrationToken{}, "", false
 	}
 	key := r.Header.Get("Idempotency-Key")
@@ -262,7 +267,7 @@ func writeIntegrationError(w http.ResponseWriter, err error) {
 	case errors.Is(err, issuance.ErrUnsupportedDelivery):
 		problem(w, http.StatusUnprocessableEntity, "delivery_not_supported", "The delivery option is not supported", nil)
 	case errors.Is(err, issuance.ErrNoActiveKey):
-		problem(w, http.StatusServiceUnavailable, "server_error", "No active signing key", nil)
+		problem(w, http.StatusServiceUnavailable, "signing_unavailable", "No active signing key", nil)
 	case errors.Is(err, issuance.ErrInvalidRequest):
 		problem(w, http.StatusBadRequest, "malformed_request", "The request is not valid", nil)
 	default:
@@ -379,6 +384,36 @@ func (h *IssuanceHandler) statusList(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write([]byte(jwt))
 }
 
+func (h *IssuanceHandler) credentialSchema(w http.ResponseWriter, r *http.Request) {
+	h.serveDefinitionArtifact(w, r, ".json", "application/schema+json", h.Service.ResolveCredentialSchema)
+}
+
+func (h *IssuanceHandler) credentialContext(w http.ResponseWriter, r *http.Request) {
+	h.serveDefinitionArtifact(w, r, ".jsonld", "application/ld+json", h.Service.ResolveDefinitionContext)
+}
+
+func (h *IssuanceHandler) serveDefinitionArtifact(w http.ResponseWriter, r *http.Request, suffix, contentType string, resolve func(slug, id, version string) ([]byte, error)) {
+	slug, ok := h.validSlug(w, r)
+	if !ok {
+		return
+	}
+	version, hasSuffix := strings.CutSuffix(r.PathValue("version"), suffix)
+	if !hasSuffix || version == "" {
+		oauthError(w, http.StatusNotFound, "not_found")
+		return
+	}
+	body, err := resolve(slug, r.PathValue("defId"), version)
+	if err != nil {
+		oauthError(w, http.StatusNotFound, "not_found")
+		return
+	}
+	w.Header().Set("Cache-Control", "public, max-age=3600, immutable")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Content-Type", contentType)
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(body)
+}
+
 func (h *IssuanceHandler) nonce(w http.ResponseWriter, r *http.Request) {
 	slug, ok := h.validSlug(w, r)
 	if !ok {
@@ -409,11 +444,16 @@ func (h *IssuanceHandler) credential(w http.ResponseWriter, r *http.Request) {
 		oauthError(w, http.StatusBadRequest, "invalid_credential_request")
 		return
 	}
-	jws, err := h.Service.IssueCredential(slug, raw, req)
+	out, err := h.Service.RequestCredential(slug, raw, req)
 	switch {
+	case err == nil && out.TransactionID != "":
+		writeJSON(w, http.StatusAccepted, "application/json", map[string]any{
+			"transaction_id": out.TransactionID,
+			"interval":       out.Interval,
+		})
 	case err == nil:
 		writeJSON(w, http.StatusOK, "application/json", map[string]any{
-			"credentials": []map[string]string{{"credential": jws}},
+			"credentials": []map[string]string{{"credential": out.Credential}},
 		})
 	case errors.Is(err, issuance.ErrInvalidToken):
 		w.Header().Set("WWW-Authenticate", `Bearer error="invalid_token"`)
@@ -432,6 +472,49 @@ func (h *IssuanceHandler) credential(w http.ResponseWriter, r *http.Request) {
 		oauthError(w, http.StatusNotFound, "not_found")
 	case errors.Is(err, issuance.ErrNoActiveKey):
 		oauthError(w, http.StatusServiceUnavailable, "server_error")
+	default:
+		oauthError(w, http.StatusInternalServerError, "server_error")
+	}
+}
+
+func (h *IssuanceHandler) deferredCredential(w http.ResponseWriter, r *http.Request) {
+	slug, ok := h.validSlug(w, r)
+	if !ok {
+		return
+	}
+	raw, ok := bearer(r)
+	if !ok {
+		w.Header().Set("WWW-Authenticate", `Bearer error="invalid_token"`)
+		oauthError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+	var req struct {
+		TransactionID string `json:"transaction_id"`
+	}
+	if !isJSON(r) || decodeBody(w, r, maxTokenBody, &req, false) != nil {
+		oauthError(w, http.StatusBadRequest, "invalid_transaction_id")
+		return
+	}
+	vcJWT, interval, err := h.Service.DeferredCredential(slug, raw, req.TransactionID)
+	switch {
+	case err == nil:
+		writeJSON(w, http.StatusOK, "application/json", map[string]any{
+			"credentials": []map[string]string{{"credential": vcJWT}},
+		})
+	case errors.Is(err, issuance.ErrInvalidToken):
+		w.Header().Set("WWW-Authenticate", `Bearer error="invalid_token"`)
+		oauthError(w, http.StatusUnauthorized, "invalid_token")
+	case errors.Is(err, issuance.ErrIssuancePending):
+		writeJSON(w, http.StatusBadRequest, "application/json", map[string]any{
+			"error":    "issuance_pending",
+			"interval": interval,
+		})
+	case errors.Is(err, issuance.ErrDeferredDenied):
+		oauthError(w, http.StatusBadRequest, "credential_request_denied")
+	case errors.Is(err, issuance.ErrInvalidTransactionID):
+		oauthError(w, http.StatusBadRequest, "invalid_transaction_id")
+	case errors.Is(err, issuance.ErrResourceNotFound):
+		oauthError(w, http.StatusNotFound, "not_found")
 	default:
 		oauthError(w, http.StatusInternalServerError, "server_error")
 	}

@@ -246,7 +246,7 @@ func scanDefinitionRow(row pgx.Row) (issuance.Definition, error) {
 	var pubAt, retAt *time.Time
 	err := row.Scan(&d.TenantID, &d.IssuerID, &d.ID, &d.Version, &d.ConfigurationID,
 		&d.DisplayName, &d.Locale, &d.Contexts, &d.Types, &fieldsRaw, &validitySecs,
-		&d.StatusPurposes, &state, &d.Hash, &d.CreatedAt, &pubAt, &retAt)
+		&d.StatusPurposes, &d.PublishSchema, &state, &d.Hash, &d.CreatedAt, &pubAt, &retAt)
 	if err != nil {
 		return issuance.Definition{}, err
 	}
@@ -267,7 +267,20 @@ func scanDefinitionRow(row pgx.Row) (issuance.Definition, error) {
 	return d, nil
 }
 
-const selectDefinitionCols = `SELECT tenant_id::text,issuer_id::text,definition_id,version,configuration_id,display_name,locale,contexts,types,fields_json,default_validity_seconds,status_purposes,state,content_hash,created_at,published_at,retired_at FROM definition.definition_versions`
+const selectDefinitionCols = `SELECT tenant_id::text,issuer_id::text,definition_id,version,configuration_id,display_name,locale,contexts,types,fields_json,default_validity_seconds,status_purposes,publish_schema,state,content_hash,created_at,published_at,retired_at FROM definition.definition_versions`
+
+func (t *postgresIssuanceTx) GetPublicDefinition(issuerID, id, version string) (issuance.Definition, error) {
+	if !validID(issuerID) {
+		return issuance.Definition{}, issuance.ErrDefinitionNotFound
+	}
+	d, err := scanDefinitionRow(t.tx.QueryRow(t.ctx,
+		selectDefinitionCols+` WHERE issuer_id=$1 AND definition_id=$2 AND version=$3 AND state <> 'draft'`,
+		issuerID, id, version))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return issuance.Definition{}, issuance.ErrDefinitionNotFound
+	}
+	return d, err
+}
 
 func (t *postgresIssuanceTx) GetIssuableDefinition(issuerID, id, version string) (issuance.Definition, error) {
 	if !validID(issuerID) {
@@ -355,11 +368,11 @@ func (t *postgresIssuanceTx) SaveRequestAndOffer(req issuance.StoredRequest, cod
 		return issuance.ErrResourceNotFound
 	}
 	_, err := t.tx.Exec(t.ctx,
-		`INSERT INTO issuance.issuance_requests(request_id,tenant_id,issuer_id,client_id,definition_id,definition_version,configuration_id,claims_ciphertext,claims_nonce,claims_key_version,offer_ref,offer_ciphertext,offer_nonce,offer_key_version,offer_state,issuance_state,source_system,source_reference,created_at,expires_at)
-		 VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)`,
+		`INSERT INTO issuance.issuance_requests(request_id,tenant_id,issuer_id,client_id,definition_id,definition_version,configuration_id,claims_ciphertext,claims_nonce,claims_key_version,offer_ref,offer_ciphertext,offer_nonce,offer_key_version,offer_state,issuance_state,deferred,holder_jkt,source_system,source_reference,created_at,expires_at)
+		 VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)`,
 		req.ID, req.TenantID, req.IssuerID, req.ClientID, req.DefID, req.DefVersion, req.ConfigID,
 		req.ClaimsCipher, req.ClaimsNonce, req.ClaimsKeyVer, req.OfferRef, req.OfferCipher, req.OfferNonce, req.OfferKeyVer,
-		req.OfferState, req.IssuanceState, req.SourceSystem, req.SourceReference, req.CreatedAt.UTC(), req.ExpiresAt.UTC())
+		req.OfferState, req.IssuanceState, req.Deferred, req.HolderJKT, req.SourceSystem, req.SourceReference, req.CreatedAt.UTC(), req.ExpiresAt.UTC())
 	if err != nil {
 		return err
 	}
@@ -375,7 +388,7 @@ func scanStoredRequest(row pgx.Row) (issuance.StoredRequest, bool, error) {
 	var offerVer pgtype.Text
 	err := row.Scan(&r.ID, &r.TenantID, &r.IssuerID, &r.ClientID, &r.DefID, &r.DefVersion, &r.ConfigID,
 		&r.ClaimsCipher, &r.ClaimsNonce, &r.ClaimsKeyVer, &r.OfferRef, &r.OfferCipher, &r.OfferNonce, &offerVer,
-		&r.OfferState, &r.IssuanceState, &r.IssuedCredentialID, &r.SourceSystem, &r.SourceReference, &r.CreatedAt, &r.ExpiresAt)
+		&r.OfferState, &r.IssuanceState, &r.IssuedCredentialID, &r.Deferred, &r.HolderJKT, &r.SourceSystem, &r.SourceReference, &r.CreatedAt, &r.ExpiresAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return issuance.StoredRequest{}, false, nil
 	}
@@ -388,7 +401,7 @@ func scanStoredRequest(row pgx.Row) (issuance.StoredRequest, bool, error) {
 	return r, true, nil
 }
 
-const selectRequestCols = `SELECT request_id,tenant_id::text,issuer_id::text,client_id::text,definition_id,definition_version,configuration_id,claims_ciphertext,claims_nonce,claims_key_version,offer_ref,offer_ciphertext,offer_nonce,offer_key_version,offer_state,issuance_state,issued_credential_id,source_system,source_reference,created_at,expires_at FROM issuance.issuance_requests`
+const selectRequestCols = `SELECT request_id,tenant_id::text,issuer_id::text,client_id::text,definition_id,definition_version,configuration_id,claims_ciphertext,claims_nonce,claims_key_version,offer_ref,offer_ciphertext,offer_nonce,offer_key_version,offer_state,issuance_state,issued_credential_id,deferred,holder_jkt,source_system,source_reference,created_at,expires_at FROM issuance.issuance_requests`
 
 func (t *postgresIssuanceTx) GetRequestForClient(requestID, clientID string) (issuance.StoredRequest, bool, error) {
 	if !validID(clientID) || requestID == "" {
@@ -413,21 +426,21 @@ func (t *postgresIssuanceTx) LockRequest(requestID string) (issuance.StoredReque
 
 func (t *postgresIssuanceTx) RedeemOfferByCodeHash(codeHash [32]byte, now time.Time) (issuance.StoredOffer, error) {
 	var out issuance.StoredOffer
-	var redeemedAt *time.Time
+	var redeemedAt, cancelledAt *time.Time
 	var offerState string
 	err := t.tx.QueryRow(t.ctx,
-		`SELECT o.tenant_id::text,o.issuer_id::text,o.issuer_uri,o.request_id,o.configuration_id,o.expires_at,o.redeemed_at,r.offer_state
+		`SELECT o.tenant_id::text,o.issuer_id::text,o.issuer_uri,o.request_id,o.configuration_id,o.expires_at,o.redeemed_at,o.cancelled_at,r.offer_state
 		 FROM issuance.credential_offers o
 		 JOIN issuance.issuance_requests r ON r.tenant_id=o.tenant_id AND r.request_id=o.request_id
 		 WHERE o.code_hash=$1
 		 FOR UPDATE`, codeHash[:]).
-		Scan(&out.TenantID, &out.IssuerID, &out.IssuerURI, &out.RequestID, &out.ConfigID, &out.ExpiresAt, &redeemedAt, &offerState)
+		Scan(&out.TenantID, &out.IssuerID, &out.IssuerURI, &out.RequestID, &out.ConfigID, &out.ExpiresAt, &redeemedAt, &cancelledAt, &offerState)
 	if errors.Is(err, pgx.ErrNoRows) || err != nil {
 		return issuance.StoredOffer{}, issuance.ErrOfferInvalid
 	}
 	nowUTC := now.UTC()
 	out.ExpiresAt = out.ExpiresAt.UTC()
-	if redeemedAt != nil || !nowUTC.Before(out.ExpiresAt) || offerState != "ready" {
+	if redeemedAt != nil || cancelledAt != nil || !nowUTC.Before(out.ExpiresAt) || offerState != "ready" {
 		return issuance.StoredOffer{}, issuance.ErrOfferInvalid
 	}
 	tag, err := t.tx.Exec(t.ctx, `UPDATE issuance.credential_offers SET redeemed_at=$2 WHERE code_hash=$1 AND redeemed_at IS NULL`, codeHash[:], nowUTC)
@@ -569,6 +582,191 @@ func (t *postgresIssuanceTx) MarkIssued(requestID string, tokenHash [32]byte, is
 	return nil
 }
 
+func (t *postgresIssuanceTx) CancelIssuanceRequest(requestID string, now time.Time) error {
+	nowUTC := now.UTC()
+	var offerState, issState string
+	err := t.tx.QueryRow(t.ctx,
+		`SELECT offer_state,issuance_state FROM issuance.issuance_requests WHERE request_id=$1 FOR UPDATE`,
+		requestID).Scan(&offerState, &issState)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return issuance.ErrResourceNotFound
+	}
+	if err != nil {
+		return err
+	}
+	if issState == "issued" {
+		return issuance.ErrInvalidStatusTransition
+	}
+	nextOffer := offerState
+	if offerState == "ready" {
+		nextOffer = "cancelled"
+		if _, err := t.tx.Exec(t.ctx,
+			`UPDATE issuance.issuance_requests
+			 SET offer_state='cancelled',offer_ciphertext=NULL,offer_nonce=NULL,offer_key_version=NULL,issuance_state='cancelled'
+			 WHERE request_id=$1`, requestID); err != nil {
+			return err
+		}
+		if _, err := t.tx.Exec(t.ctx,
+			`UPDATE issuance.credential_offers SET cancelled_at=$2 WHERE request_id=$1 AND redeemed_at IS NULL AND cancelled_at IS NULL`,
+			requestID, nowUTC); err != nil {
+			return err
+		}
+	} else if _, err := t.tx.Exec(t.ctx,
+		`UPDATE issuance.issuance_requests SET issuance_state='cancelled' WHERE request_id=$1`, requestID); err != nil {
+		return err
+	}
+	_ = nextOffer
+	if _, err := t.tx.Exec(t.ctx,
+		`UPDATE issuance.access_tokens SET used_at=$2 WHERE request_id=$1 AND token_class='oid4vci' AND used_at IS NULL`,
+		requestID, nowUTC); err != nil {
+		return err
+	}
+	if _, err := t.tx.Exec(t.ctx,
+		`UPDATE issuance.deferred_transactions SET status='cancelled',completed_at=$2 WHERE request_id=$1 AND status='pending'`,
+		requestID, nowUTC); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (t *postgresIssuanceTx) CreateDeferredTransaction(rec issuance.DeferredTxRecord, holderJKT string, _ time.Time) error {
+	tag, err := t.tx.Exec(t.ctx,
+		`UPDATE issuance.issuance_requests SET issuance_state='deferred',holder_jkt=$2 WHERE request_id=$1 AND issuance_state='prepared'`,
+		rec.RequestID, holderJKT)
+	if err != nil || tag.RowsAffected() != 1 {
+		return issuance.ErrInvalidToken
+	}
+	_, err = t.tx.Exec(t.ctx,
+		`INSERT INTO issuance.deferred_transactions(tx_hash,tenant_id,issuer_id,request_id,token_hash,status,error_code,interval_seconds,created_at,expires_at)
+		 VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+		rec.TxHash[:], rec.TenantID, rec.IssuerID, rec.RequestID, rec.TokenHash[:],
+		rec.Status, rec.ErrorCode, rec.IntervalSeconds, rec.CreatedAt.UTC(), rec.ExpiresAt.UTC())
+	return err
+}
+
+func scanDeferredTx(row pgx.Row) (issuance.DeferredTxRecord, bool, error) {
+	var d issuance.DeferredTxRecord
+	var txHash, tokHash []byte
+	var vcVer pgtype.Text
+	var completedAt *time.Time
+	err := row.Scan(&txHash, &d.TenantID, &d.IssuerID, &d.RequestID, &tokHash, &d.Status, &d.ErrorCode,
+		&d.VCCipher, &d.VCNonce, &vcVer, &d.IntervalSeconds, &d.CreatedAt, &d.ExpiresAt, &completedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return issuance.DeferredTxRecord{}, false, nil
+	}
+	if err != nil {
+		return issuance.DeferredTxRecord{}, false, err
+	}
+	if len(txHash) != 32 || len(tokHash) != 32 {
+		return issuance.DeferredTxRecord{}, false, issuance.ErrInvalidRequest
+	}
+	copy(d.TxHash[:], txHash)
+	copy(d.TokenHash[:], tokHash)
+	d.VCKeyVer = vcVer.String
+	d.CreatedAt = d.CreatedAt.UTC()
+	d.ExpiresAt = d.ExpiresAt.UTC()
+	if completedAt != nil {
+		c := completedAt.UTC()
+		d.CompletedAt = &c
+	}
+	return d, true, nil
+}
+
+const selectDeferredCols = `SELECT tx_hash,tenant_id::text,issuer_id::text,request_id,token_hash,status,error_code,vc_ciphertext,vc_nonce,vc_key_version,interval_seconds,created_at,expires_at,completed_at FROM issuance.deferred_transactions`
+
+func (t *postgresIssuanceTx) LockDeferredByTxHash(txHash [32]byte) (issuance.DeferredTxRecord, bool, error) {
+	return scanDeferredTx(t.tx.QueryRow(t.ctx, selectDeferredCols+` WHERE tx_hash=$1 FOR UPDATE`, txHash[:]))
+}
+
+func (t *postgresIssuanceTx) LockDeferredByRequestID(requestID string) (issuance.DeferredTxRecord, bool, error) {
+	if requestID == "" {
+		return issuance.DeferredTxRecord{}, false, nil
+	}
+	return scanDeferredTx(t.tx.QueryRow(t.ctx, selectDeferredCols+` WHERE request_id=$1 FOR UPDATE`, requestID))
+}
+
+func (t *postgresIssuanceTx) CompleteDeferredTransaction(requestID, issuedCredID string, vcCipher, vcNonce []byte, vcKeyVer string, now time.Time) error {
+	nowUTC := now.UTC()
+	tag, err := t.tx.Exec(t.ctx,
+		`UPDATE issuance.issuance_requests SET issuance_state='issued',issued_credential_id=$3,issued_at=$2 WHERE request_id=$1 AND issuance_state='deferred'`,
+		requestID, nowUTC, issuedCredID)
+	if err != nil || tag.RowsAffected() != 1 {
+		return issuance.ErrInvalidStatusTransition
+	}
+	tag, err = t.tx.Exec(t.ctx,
+		`UPDATE issuance.deferred_transactions
+		 SET status='issued',vc_ciphertext=$2,vc_nonce=$3,vc_key_version=$4,completed_at=$5
+		 WHERE request_id=$1 AND status='pending'`,
+		requestID, vcCipher, vcNonce, vcKeyVer, nowUTC)
+	if err != nil || tag.RowsAffected() != 1 {
+		return issuance.ErrInvalidStatusTransition
+	}
+	return nil
+}
+
+func (t *postgresIssuanceTx) FailDeferredTransaction(requestID, errorCode string, now time.Time) error {
+	nowUTC := now.UTC()
+	tag, err := t.tx.Exec(t.ctx,
+		`UPDATE issuance.issuance_requests SET issuance_state='failed' WHERE request_id=$1 AND issuance_state='deferred'`,
+		requestID)
+	if err != nil || tag.RowsAffected() != 1 {
+		return issuance.ErrInvalidStatusTransition
+	}
+	tag, err = t.tx.Exec(t.ctx,
+		`UPDATE issuance.deferred_transactions SET status='failed',error_code=$2,completed_at=$3 WHERE request_id=$1 AND status='pending'`,
+		requestID, errorCode, nowUTC)
+	if err != nil || tag.RowsAffected() != 1 {
+		return issuance.ErrInvalidStatusTransition
+	}
+	return nil
+}
+
+func (t *postgresIssuanceTx) MarkDeferredDelivered(txHash, tokenHash [32]byte, now time.Time) error {
+	nowUTC := now.UTC()
+	if _, err := t.tx.Exec(t.ctx,
+		`UPDATE issuance.deferred_transactions SET vc_ciphertext=NULL,vc_nonce=NULL,vc_key_version=NULL WHERE tx_hash=$1`,
+		txHash[:]); err != nil {
+		return err
+	}
+	tag, err := t.tx.Exec(t.ctx,
+		`UPDATE issuance.access_tokens SET used_at=$2 WHERE token_hash=$1 AND used_at IS NULL`,
+		tokenHash[:], nowUTC)
+	if err != nil || tag.RowsAffected() != 1 {
+		return issuance.ErrInvalidToken
+	}
+	return nil
+}
+
+func (t *postgresIssuanceTx) RotateKey(issuerID, newKID, kmsKeyRef string, jwk issuance.PublicJWK, actorID, correlationID string, now time.Time) error {
+	return rotateKeyTx(t.ctx, t.tx, t.tenantID, issuerID, newKID, kmsKeyRef, jwk, actorID, correlationID, now)
+}
+
+func (t *postgresIssuanceTx) CompromiseKey(issuerID, kid, actorID, correlationID string, now time.Time) error {
+	return compromiseKeyTx(t.ctx, t.tx, t.tenantID, issuerID, kid, actorID, correlationID, now)
+}
+
+func (t *postgresIssuanceTx) ListIssuedCredentialsByKID(issuerID, kid string) ([]string, error) {
+	if !validID(issuerID) || kid == "" {
+		return nil, nil
+	}
+	rows, err := t.tx.Query(t.ctx,
+		`SELECT credential_id FROM status.issued_credentials WHERE issuer_id=$1 AND signing_kid=$2 AND desired_status <> 'revoked' ORDER BY issued_at,credential_id`,
+		issuerID, kid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
 func (t *postgresIssuanceTx) AllocateStatusSlot(
 	issuerID, purpose string,
 	listSize int,
@@ -622,9 +820,9 @@ func (t *postgresIssuanceTx) AllocateStatusSlot(
 
 func (t *postgresIssuanceTx) SaveIssuedCredential(rec issuance.IssuedCredentialRecord) error {
 	_, err := t.tx.Exec(t.ctx,
-		`INSERT INTO status.issued_credentials(credential_id,tenant_id,issuer_id,request_id,client_id,jws_digest,revocation_list_id,revocation_index,suspension_list_id,suspension_index,desired_status,published_status,status_version,reason_code,issued_at)
-		 VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
-		rec.CredentialID, rec.TenantID, rec.IssuerID, rec.RequestID, rec.ClientID, rec.Digest,
+		`INSERT INTO status.issued_credentials(credential_id,tenant_id,issuer_id,request_id,client_id,signing_kid,jws_digest,revocation_list_id,revocation_index,suspension_list_id,suspension_index,desired_status,published_status,status_version,reason_code,issued_at)
+		 VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+		rec.CredentialID, rec.TenantID, rec.IssuerID, rec.RequestID, rec.ClientID, rec.SigningKID, rec.Digest,
 		rec.RevocationListID, rec.RevocationIndex, rec.SuspensionListID, rec.SuspensionIndex,
 		rec.DesiredStatus, rec.PublishedStatus, rec.StatusVersion, rec.ReasonCode, rec.IssuedAt.UTC())
 	return err
@@ -637,11 +835,11 @@ func (t *postgresIssuanceTx) LockIssuedCredential(credentialID string) (issuance
 	var rec issuance.IssuedCredentialRecord
 	var suspAt, revAt *time.Time
 	err := t.tx.QueryRow(t.ctx,
-		`SELECT credential_id,tenant_id::text,issuer_id::text,request_id,client_id::text,jws_digest,
+		`SELECT credential_id,tenant_id::text,issuer_id::text,request_id,client_id::text,signing_kid,jws_digest,
 		        revocation_list_id,revocation_index,suspension_list_id,suspension_index,
 		        desired_status,published_status,status_version,reason_code,issued_at,suspended_at,revoked_at
 		 FROM status.issued_credentials WHERE credential_id=$1 FOR UPDATE`, credentialID).
-		Scan(&rec.CredentialID, &rec.TenantID, &rec.IssuerID, &rec.RequestID, &rec.ClientID, &rec.Digest,
+		Scan(&rec.CredentialID, &rec.TenantID, &rec.IssuerID, &rec.RequestID, &rec.ClientID, &rec.SigningKID, &rec.Digest,
 			&rec.RevocationListID, &rec.RevocationIndex, &rec.SuspensionListID, &rec.SuspensionIndex,
 			&rec.DesiredStatus, &rec.PublishedStatus, &rec.StatusVersion, &rec.ReasonCode, &rec.IssuedAt, &suspAt, &revAt)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -798,8 +996,7 @@ func (b *IssuanceBackend) RegisterKey(ctx context.Context, tenantID, issuerID, k
 	return mapKeyPGError(err)
 }
 
-// RotateKey atomically retires any current active key and activates newKID.
-func (b *IssuanceBackend) RotateKey(ctx context.Context, tenantID, issuerID, newKID, newKMSKeyRef string, newJWK issuance.PublicJWK, actorID, correlationID string, now time.Time) error {
+func rotateKeyTx(ctx context.Context, tx pgx.Tx, tenantID, issuerID, newKID, newKMSKeyRef string, newJWK issuance.PublicJWK, actorID, correlationID string, now time.Time) error {
 	if !validID(issuerID) || newKID == "" || strings.TrimSpace(newKMSKeyRef) == "" {
 		return issuance.ErrInvalidFoundationInput
 	}
@@ -807,21 +1004,49 @@ func (b *IssuanceBackend) RotateKey(ctx context.Context, tenantID, issuerID, new
 		return issuance.ErrInvalidFoundationInput
 	}
 	ts := now.UTC()
-	err := WithIssuanceTenant(ctx, b.pool, tenantID, func(tx pgx.Tx) error {
-		if _, err := tx.Exec(ctx,
-			`UPDATE tenancy.issuer_keys SET state='retired',retired_at=$2 WHERE issuer_id=$1 AND state='active'`,
-			issuerID, ts); err != nil {
-			return err
-		}
-		if _, err := tx.Exec(ctx,
-			`INSERT INTO tenancy.issuer_keys(tenant_id,issuer_id,kid,kms_key_ref,alg,crv,x_coord,y_coord,state,created_at)
-			 VALUES($1,$2,$3,$4,'ES256','P-256',$5,$6,'active',$7)`,
-			tenantID, issuerID, newKID, newKMSKeyRef, newJWK.X, newJWK.Y, ts); err != nil {
-			return err
-		}
-		return appendPostgresAudit(ctx, tx, newPostgresAuditEvent(tenantID, actorID, "issuer_key.rotated", newKID, "succeeded", correlationID, ts))
+	if _, err := tx.Exec(ctx,
+		`UPDATE tenancy.issuer_keys SET state='retired',retired_at=$2 WHERE issuer_id=$1 AND state='active'`,
+		issuerID, ts); err != nil {
+		return mapKeyPGError(err)
+	}
+	if _, err := tx.Exec(ctx,
+		`INSERT INTO tenancy.issuer_keys(tenant_id,issuer_id,kid,kms_key_ref,alg,crv,x_coord,y_coord,state,created_at)
+		 VALUES($1,$2,$3,$4,'ES256','P-256',$5,$6,'active',$7)`,
+		tenantID, issuerID, newKID, newKMSKeyRef, newJWK.X, newJWK.Y, ts); err != nil {
+		return mapKeyPGError(err)
+	}
+	return mapKeyPGError(appendPostgresAudit(ctx, tx, newPostgresAuditEvent(tenantID, actorID, "issuer_key.rotated", newKID, "succeeded", correlationID, ts)))
+}
+
+func compromiseKeyTx(ctx context.Context, tx pgx.Tx, tenantID, issuerID, kid, actorID, correlationID string, now time.Time) error {
+	if !validID(issuerID) || kid == "" {
+		return issuance.ErrResourceNotFound
+	}
+	ts := now.UTC()
+	var state string
+	err := tx.QueryRow(ctx, `SELECT state FROM tenancy.issuer_keys WHERE issuer_id=$1 AND kid=$2 FOR UPDATE`, issuerID, kid).Scan(&state)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return issuance.ErrResourceNotFound
+	}
+	if err != nil {
+		return err
+	}
+	if state == string(issuance.KeyCompromised) {
+		return nil
+	}
+	if _, err := tx.Exec(ctx,
+		`UPDATE tenancy.issuer_keys SET state='compromised',compromised_at=$3 WHERE issuer_id=$1 AND kid=$2`,
+		issuerID, kid, ts); err != nil {
+		return err
+	}
+	return appendPostgresAudit(ctx, tx, newPostgresAuditEvent(tenantID, actorID, "issuer_key.compromised", kid, "succeeded", correlationID, ts))
+}
+
+// RotateKey atomically retires any current active key and activates newKID.
+func (b *IssuanceBackend) RotateKey(ctx context.Context, tenantID, issuerID, newKID, newKMSKeyRef string, newJWK issuance.PublicJWK, actorID, correlationID string, now time.Time) error {
+	return WithIssuanceTenant(ctx, b.pool, tenantID, func(tx pgx.Tx) error {
+		return rotateKeyTx(ctx, tx, tenantID, issuerID, newKID, newKMSKeyRef, newJWK, actorID, correlationID, now)
 	})
-	return mapKeyPGError(err)
 }
 
 // CompromiseKey marks kid as compromised, omitting it from JWKS and preventing signing.
@@ -829,25 +1054,8 @@ func (b *IssuanceBackend) CompromiseKey(ctx context.Context, tenantID, issuerID,
 	if !validID(issuerID) || kid == "" {
 		return issuance.ErrResourceNotFound
 	}
-	ts := now.UTC()
 	return WithIssuanceTenant(ctx, b.pool, tenantID, func(tx pgx.Tx) error {
-		var state string
-		err := tx.QueryRow(ctx, `SELECT state FROM tenancy.issuer_keys WHERE issuer_id=$1 AND kid=$2 FOR UPDATE`, issuerID, kid).Scan(&state)
-		if errors.Is(err, pgx.ErrNoRows) {
-			return issuance.ErrResourceNotFound
-		}
-		if err != nil {
-			return err
-		}
-		if state == string(issuance.KeyCompromised) {
-			return nil
-		}
-		if _, err := tx.Exec(ctx,
-			`UPDATE tenancy.issuer_keys SET state='compromised',compromised_at=$3 WHERE issuer_id=$1 AND kid=$2`,
-			issuerID, kid, ts); err != nil {
-			return err
-		}
-		return appendPostgresAudit(ctx, tx, newPostgresAuditEvent(tenantID, actorID, "issuer_key.compromised", kid, "succeeded", correlationID, ts))
+		return compromiseKeyTx(ctx, tx, tenantID, issuerID, kid, actorID, correlationID, now)
 	})
 }
 
@@ -950,10 +1158,10 @@ func (b *IssuanceBackend) CreateDraftDefinition(ctx context.Context, def issuanc
 			return err
 		}
 		_, err := tx.Exec(ctx,
-			`INSERT INTO definition.definition_versions(tenant_id,issuer_id,definition_id,version,configuration_id,display_name,locale,contexts,types,fields_json,default_validity_seconds,status_purposes,state,content_hash,created_at)
-			 VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'draft','',$13)`,
+			`INSERT INTO definition.definition_versions(tenant_id,issuer_id,definition_id,version,configuration_id,display_name,locale,contexts,types,fields_json,default_validity_seconds,status_purposes,publish_schema,state,content_hash,created_at)
+			 VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'draft','',$14)`,
 			def.TenantID, def.IssuerID, def.ID, def.Version, def.ConfigurationID, def.DisplayName,
-			def.Locale, contexts, def.Types, fieldsJSON, int64(def.DefaultValidity/time.Second), purposes, ts)
+			def.Locale, contexts, def.Types, fieldsJSON, int64(def.DefaultValidity/time.Second), purposes, def.PublishSchema, ts)
 		if err != nil {
 			return err
 		}
@@ -996,9 +1204,9 @@ func (b *IssuanceBackend) ReplaceDraftDefinition(ctx context.Context, def issuan
 		}
 		_, err = tx.Exec(ctx,
 			`UPDATE definition.definition_versions
-			 SET configuration_id=$4,display_name=$5,locale=$6,contexts=$7,types=$8,fields_json=$9,default_validity_seconds=$10,status_purposes=$11
+			 SET configuration_id=$4,display_name=$5,locale=$6,contexts=$7,types=$8,fields_json=$9,default_validity_seconds=$10,status_purposes=$11,publish_schema=$12
 			 WHERE issuer_id=$1 AND definition_id=$2 AND version=$3`,
-			def.IssuerID, def.ID, def.Version, def.ConfigurationID, def.DisplayName, def.Locale, contexts, def.Types, fieldsJSON, int64(def.DefaultValidity/time.Second), purposes)
+			def.IssuerID, def.ID, def.Version, def.ConfigurationID, def.DisplayName, def.Locale, contexts, def.Types, fieldsJSON, int64(def.DefaultValidity/time.Second), purposes, def.PublishSchema)
 		if err != nil {
 			return err
 		}

@@ -556,3 +556,257 @@ func TestServiceStatusListsSuspendReactivateRevokeAndIdempotency(t *testing.T) {
 		t.Fatalf("expected Invalid with status.revoked, got %+v err=%v", report, err)
 	}
 }
+
+type serviceSchemaResolver struct {
+	svc    *Service
+	prefix string
+}
+
+func (r *serviceSchemaResolver) ResolveSchema(schemaURL string) ([]byte, error) {
+	rest, ok := strings.CutPrefix(schemaURL, r.prefix)
+	if !ok {
+		return nil, verification.ErrSchemaResolution
+	}
+	parts := strings.Split(rest, "/")
+	if len(parts) != 2 {
+		return nil, verification.ErrSchemaResolution
+	}
+	ver, hasJSON := strings.CutSuffix(parts[1], ".json")
+	if !hasJSON {
+		return nil, verification.ErrSchemaResolution
+	}
+	data, err := r.svc.ResolveCredentialSchema("unas", parts[0], ver)
+	if err != nil {
+		return nil, verification.ErrSchemaResolution
+	}
+	return data, nil
+}
+
+func TestServiceCancelRequestLifecycle(t *testing.T) {
+	h := newServiceHarness(t)
+	_ = h.clients.RegisterClient(
+		"tenant-unas", "cli_events_2", "Events B", "events-b-secret-0123456789abcdef",
+		[]string{"iss_unas"}, []string{ScopeIssuanceCreate, ScopeIssuanceRead}, nil, "admin-1", "cor-c1", h.clock.Now(),
+	)
+
+	tokA, _ := h.svc.ClientCredentialsToken("cli_events", "events-secret-0123456789abcdef", []string{ScopeIssuanceCreate, ScopeIssuanceRead})
+	authA, _ := h.svc.AuthenticateIntegration(tokA.AccessToken)
+	tokB, _ := h.svc.ClientCredentialsToken("cli_events_2", "events-b-secret-0123456789abcdef", []string{ScopeIssuanceCreate, ScopeIssuanceRead})
+	authB, _ := h.svc.AuthenticateIntegration(tokB.AccessToken)
+
+	// 1. Cancel ready request -> offer disappears, idempotent second cancel succeeds.
+	r1, _, err := h.svc.CreateIssuanceRequest(authA, "cancel-ready-key-0001", IssuanceRequestInput{
+		IssuerID:             "iss_unas",
+		CredentialDefinition: "unas-certificate@1.0.0",
+		Claims:               map[string]any{"participantName": "Luis Soto", "eventName": "Cloud Day"},
+	})
+	if err != nil {
+		t.Fatalf("create request: %v", err)
+	}
+	if _, err := h.svc.CancelRequest(authB, r1.ID); !errors.Is(err, ErrResourceNotFound) {
+		t.Fatalf("expected ErrResourceNotFound cross-client cancel, got %v", err)
+	}
+	cancelled, err := h.svc.CancelRequest(authA, r1.ID)
+	if err != nil || cancelled.IssuanceState != "cancelled" || cancelled.OfferState != "cancelled" {
+		t.Fatalf("unexpected cancel result: %+v err=%v", cancelled, err)
+	}
+	if _, err := h.svc.ResolveOffer("unas", r1.CredentialOfferURI[strings.LastIndex(r1.CredentialOfferURI, "ofr_"):]); !errors.Is(err, ErrResourceNotFound) {
+		t.Fatalf("expected offer removed after cancel, got %v", err)
+	}
+	if again, err := h.svc.CancelRequest(authA, r1.ID); err != nil || again.IssuanceState != "cancelled" {
+		t.Fatalf("expected idempotent cancel, got %+v err=%v", again, err)
+	}
+
+	// 2. Cancel after offer redeemed -> burns OID4VCI access token; cancel after issued -> ErrInvalidStatusTransition.
+	r2, _, err := h.svc.CreateIssuanceRequest(authA, "cancel-redeemed-key-01", IssuanceRequestInput{
+		IssuerID:             "iss_unas",
+		CredentialDefinition: "unas-certificate@1.0.0",
+		Claims:               map[string]any{"participantName": "Rosa Diaz", "eventName": "Cloud Day"},
+	})
+	if err != nil {
+		t.Fatalf("create r2: %v", err)
+	}
+	offer2, _ := h.svc.ResolveOffer("unas", r2.CredentialOfferURI[strings.LastIndex(r2.CredentialOfferURI, "ofr_"):])
+	vciTok, _ := h.svc.PreAuthorizedToken(offer2.Grants[PreAuthorizedGrantType].PreAuthorizedCode)
+	if _, err := h.svc.CancelRequest(authA, r2.ID); err != nil {
+		t.Fatalf("cancel redeemed request: %v", err)
+	}
+	nonce, _ := h.svc.IssueNonce("unas")
+	proof, _ := BuildHolderProof(mustGenerateKey(t), h.issuer.IssuerURI, nonce, h.clock.Now(), nil)
+	if _, err := h.svc.IssueCredential("unas", vciTok.AccessToken, CredentialRequest{
+		CredentialIdentifier: vciTok.AuthorizationDetails[0].CredentialIdentifiers[0],
+		Proofs: struct {
+			JWT []string `json:"jwt"`
+		}{JWT: []string{proof}},
+	}); !errors.Is(err, ErrInvalidToken) {
+		t.Fatalf("expected ErrInvalidToken after request cancel, got %v", err)
+	}
+
+	r3, _, err := h.svc.CreateIssuanceRequest(authA, "cancel-issued-key-0001", IssuanceRequestInput{
+		IssuerID:             "iss_unas",
+		CredentialDefinition: "unas-certificate@1.0.0",
+		Claims:               map[string]any{"participantName": "Marco Vega", "eventName": "Cloud Day"},
+	})
+	if err != nil {
+		t.Fatalf("create r3: %v", err)
+	}
+	offer3, _ := h.svc.ResolveOffer("unas", r3.CredentialOfferURI[strings.LastIndex(r3.CredentialOfferURI, "ofr_"):])
+	vciTok3, _ := h.svc.PreAuthorizedToken(offer3.Grants[PreAuthorizedGrantType].PreAuthorizedCode)
+	nonce3, _ := h.svc.IssueNonce("unas")
+	proof3, _ := BuildHolderProof(mustGenerateKey(t), h.issuer.IssuerURI, nonce3, h.clock.Now(), nil)
+	if _, err := h.svc.IssueCredential("unas", vciTok3.AccessToken, CredentialRequest{
+		CredentialIdentifier: vciTok3.AuthorizationDetails[0].CredentialIdentifiers[0],
+		Proofs: struct {
+			JWT []string `json:"jwt"`
+		}{JWT: []string{proof3}},
+	}); err != nil {
+		t.Fatalf("issue r3: %v", err)
+	}
+	if _, err := h.svc.CancelRequest(authA, r3.ID); !errors.Is(err, ErrInvalidStatusTransition) {
+		t.Fatalf("expected ErrInvalidStatusTransition canceling issued request, got %v", err)
+	}
+}
+
+func TestServiceDeferredIssuanceSchemaAndKeyCompromise(t *testing.T) {
+	h := newServiceHarness(t)
+
+	def := sampleCertificateDefinition("tenant-unas", "iss_unas")
+	def.Version = "3.0.0"
+	def.ConfigurationID = "unas_certificate_schema_v3"
+	def.StatusPurposes = []string{PurposeRevocation}
+	def.PublishSchema = true
+	if err := h.defs.CreateDraft(def, "admin-1", "cor-d1", h.clock.Now()); err != nil {
+		t.Fatalf("create draft: %v", err)
+	}
+	if _, err := h.defs.Publish("tenant-unas", "iss_unas", def.ID, def.Version, "admin-1", "cor-d2", h.clock.Now()); err != nil {
+		t.Fatalf("publish def: %v", err)
+	}
+
+	tokResp, _ := h.svc.ClientCredentialsToken("cli_events", "events-secret-0123456789abcdef", []string{ScopeIssuanceCreate, ScopeIssuanceRead})
+	authTok, _ := h.svc.AuthenticateIntegration(tokResp.AccessToken)
+
+	// 1. Deferred issuance with PublishSchema: true.
+	res, _, err := h.svc.CreateIssuanceRequest(authTok, "deferred-req-key-0001", IssuanceRequestInput{
+		IssuerID:             "iss_unas",
+		CredentialDefinition: "unas-certificate@3.0.0",
+		Claims:               map[string]any{"participantName": "Sofia Castro", "eventName": "Arquitectura Cloud", "hours": 10},
+		Delivery:             &DeliveryInput{Flow: "pre-authorized_code", Deferred: true},
+	})
+	if err != nil {
+		t.Fatalf("create deferred request: %v", err)
+	}
+	offer, _ := h.svc.ResolveOffer("unas", res.CredentialOfferURI[strings.LastIndex(res.CredentialOfferURI, "ofr_"):])
+	vciTok, _ := h.svc.PreAuthorizedToken(offer.Grants[PreAuthorizedGrantType].PreAuthorizedCode)
+	nonce, _ := h.svc.IssueNonce("unas")
+	proof, _ := BuildHolderProof(mustGenerateKey(t), h.issuer.IssuerURI, nonce, h.clock.Now(), nil)
+
+	outcome, err := h.svc.RequestCredential("unas", vciTok.AccessToken, CredentialRequest{
+		CredentialIdentifier: vciTok.AuthorizationDetails[0].CredentialIdentifiers[0],
+		Proofs: struct {
+			JWT []string `json:"jwt"`
+		}{JWT: []string{proof}},
+	})
+	if err != nil || outcome.TransactionID == "" || outcome.Interval != 5 {
+		t.Fatalf("expected transaction_id and interval=5, got %+v err=%v", outcome, err)
+	}
+	// Polling while pending returns ErrIssuancePending; duplicate /credential call (even with a fresh nonce) is rejected.
+	if _, _, err := h.svc.DeferredCredential("unas", vciTok.AccessToken, outcome.TransactionID); !errors.Is(err, ErrIssuancePending) {
+		t.Fatalf("expected ErrIssuancePending while pending, got %v", err)
+	}
+	nonceDup, _ := h.svc.IssueNonce("unas")
+	proofDup, _ := BuildHolderProof(mustGenerateKey(t), h.issuer.IssuerURI, nonceDup, h.clock.Now(), nil)
+	if _, err := h.svc.RequestCredential("unas", vciTok.AccessToken, CredentialRequest{
+		CredentialIdentifier: vciTok.AuthorizationDetails[0].CredentialIdentifiers[0],
+		Proofs: struct {
+			JWT []string `json:"jwt"`
+		}{JWT: []string{proofDup}},
+	}); !errors.Is(err, ErrInvalidToken) {
+		t.Fatalf("expected duplicate /credential call rejected with ErrInvalidToken, got %v", err)
+	}
+
+	// Complete asynchronously, then retrieve once via DeferredCredential.
+	if err := h.svc.FulfillDeferredRequest("tenant-unas", res.ID); err != nil {
+		t.Fatalf("fulfill deferred request: %v", err)
+	}
+	vcJWT, _, err := h.svc.DeferredCredential("unas", vciTok.AccessToken, outcome.TransactionID)
+	if err != nil || vcJWT == "" {
+		t.Fatalf("expected deferred vcJWT, got err=%v", err)
+	}
+	if _, _, err := h.svc.DeferredCredential("unas", vciTok.AccessToken, outcome.TransactionID); !errors.Is(err, ErrInvalidToken) {
+		t.Fatalf("expected token burned after deferred delivery, got %v", err)
+	}
+	polled, err := h.svc.GetRequest(authTok, res.ID)
+	if err != nil || polled.IssuanceState != "issued" || !strings.HasPrefix(polled.CredentialID, "vc_") {
+		t.Fatalf("unexpected polled state: %+v err=%v", polled, err)
+	}
+
+	// Verify with VER-T09 + VER-T13 resolvers!
+	resolver, _ := h.ring.BuildResolver()
+	verifier, _ := verification.NewVerifier(resolver, h.clock, verification.DefaultLimits, verification.DefaultClockSkew)
+	verifier = verifier.
+		WithCredentialContexts(CertificateContext).
+		WithStatusResolver(&serviceStatusResolver{svc: h.svc, prefix: h.issuer.IssuerURI + "/status/"}, verification.StatusPolicy{}).
+		WithSchemaResolver(&serviceSchemaResolver{svc: h.svc, prefix: h.issuer.IssuerURI + "/schemas/"})
+	report, err := verifier.Verify(vcJWT)
+	if err != nil || report.TechnicalResult != verification.Valid {
+		t.Fatalf("expected Valid schema+status report, got %+v err=%v", report, err)
+	}
+	if ctxBytes, err := h.svc.ResolveDefinitionContext("unas", def.ID, def.Version); err != nil || !strings.Contains(string(ctxBytes), "participantName") {
+		t.Fatalf("expected versioned JSON-LD context, got %q err=%v", string(ctxBytes), err)
+	}
+
+	// 2. Key rotation + compromise impact list (HK-052).
+	key2 := mustGenerateKey(t)
+	if err := h.ring.RotateKey("test-key-2", key2, "sec-admin", "cor-rot", h.clock.Now()); err != nil {
+		t.Fatalf("rotate key: %v", err)
+	}
+	r2, _, _ := h.svc.CreateIssuanceRequest(authTok, "post-rotate-key-0001", IssuanceRequestInput{
+		IssuerID:             "iss_unas",
+		CredentialDefinition: "unas-certificate@3.0.0",
+		Claims:               map[string]any{"participantName": "Pedro Luna", "eventName": "Arquitectura Cloud"},
+	})
+	o2, _ := h.svc.ResolveOffer("unas", r2.CredentialOfferURI[strings.LastIndex(r2.CredentialOfferURI, "ofr_"):])
+	t2, _ := h.svc.PreAuthorizedToken(o2.Grants[PreAuthorizedGrantType].PreAuthorizedCode)
+	n2, _ := h.svc.IssueNonce("unas")
+	p2, _ := BuildHolderProof(mustGenerateKey(t), h.issuer.IssuerURI, n2, h.clock.Now(), nil)
+	if _, err := h.svc.IssueCredential("unas", t2.AccessToken, CredentialRequest{
+		CredentialIdentifier: t2.AuthorizationDetails[0].CredentialIdentifiers[0],
+		Proofs: struct {
+			JWT []string `json:"jwt"`
+		}{JWT: []string{p2}},
+	}); err != nil {
+		t.Fatalf("issue post-rotate: %v", err)
+	}
+
+	// Compromise old key testKID -> removes testKID from JWKS and lists only polled.CredentialID!
+	compRep, err := h.svc.CompromiseIssuerKey("tenant-unas", "iss_unas", testKID, "sec-admin", "cor-comp-1")
+	if err != nil || compRep.State != KeyCompromised || len(compRep.ImpactedCredentialIDs) != 1 || compRep.ImpactedCredentialIDs[0] != polled.CredentialID {
+		t.Fatalf("unexpected compromise impact report: %+v err=%v", compRep, err)
+	}
+	jwksAfter, ok := h.svc.IssuerJWKS("unas")
+	if !ok || len(jwksAfter.Keys) != 1 || jwksAfter.Keys[0].Kid != "test-key-2" {
+		t.Fatalf("expected only test-key-2 in JWKS, got %+v", jwksAfter)
+	}
+
+	// Compromise active key test-key-2 -> immediate ErrNoActiveKey on new signing attempts.
+	if _, err := h.svc.CompromiseIssuerKey("tenant-unas", "iss_unas", "test-key-2", "sec-admin", "cor-comp-2"); err != nil {
+		t.Fatalf("compromise active key: %v", err)
+	}
+	r3, _, _ := h.svc.CreateIssuanceRequest(authTok, "post-comp-active-001", IssuanceRequestInput{
+		IssuerID:             "iss_unas",
+		CredentialDefinition: "unas-certificate@3.0.0",
+		Claims:               map[string]any{"participantName": "Nadia Quispe", "eventName": "Arquitectura Cloud"},
+	})
+	o3, _ := h.svc.ResolveOffer("unas", r3.CredentialOfferURI[strings.LastIndex(r3.CredentialOfferURI, "ofr_"):])
+	t3, _ := h.svc.PreAuthorizedToken(o3.Grants[PreAuthorizedGrantType].PreAuthorizedCode)
+	n3, _ := h.svc.IssueNonce("unas")
+	p3, _ := BuildHolderProof(mustGenerateKey(t), h.issuer.IssuerURI, n3, h.clock.Now(), nil)
+	if _, err := h.svc.IssueCredential("unas", t3.AccessToken, CredentialRequest{
+		CredentialIdentifier: t3.AuthorizationDetails[0].CredentialIdentifiers[0],
+		Proofs: struct {
+			JWT []string `json:"jwt"`
+		}{JWT: []string{p3}},
+	}); !errors.Is(err, ErrNoActiveKey) {
+		t.Fatalf("expected ErrNoActiveKey after compromising active key, got %v", err)
+	}
+}

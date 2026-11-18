@@ -29,7 +29,7 @@ Las decisiones #1–#4 de arriba quedaron cerradas por delegación y son revocab
 
 | # | Decisión abierta | Estado |
 | --- | --- | --- |
-| 5 | Aprobar el texto del [ADR-0034](../decisions/ADR-0034.md) (custodia cifrada por tenant de la clave de firma del verifier). | El owner eligió la opción A el 2026-11-17; el texto alineado con VER-T11-d está en propuesta, sin aprobación formal. |
+| 5 | Aprobar el texto del [ADR-0034](../decisions/ADR-0034.md) (custodia cifrada por tenant de la clave de firma del verifier). | **Resuelta: aprobado por el owner el 2026-11-17**, tal como está escrito. Revocable. |
 | 6 | Aprobación formal de FEAT-004, [ADR-0030](../decisions/ADR-0030.md) y [ADR-0031](../decisions/ADR-0031.md). | ADR-0033 está aprobado y no las cubre. |
 | 7 | Custodia de la clave privada de firma de cada emisor y puerto KMS (fases 0 y 1 del roadmap). | Distinta de la clave del verifier. Abierta. |
 | 8 | Credential definition de participación de Events: claims mínimos, mapping y evidencia. | Abierta. |

@@ -192,8 +192,9 @@ func (s *Session) RequestObjectClaims() (map[string]any, error) {
 
 // SignRequestObject signs the request object with ES256. chain is the verifier
 // certificate chain (leaf first, DER) placed in x5c for the x509_san_dns
-// client identifier prefix; it may be empty in the laboratory.
-func (s *Session) SignRequestObject(key *ecdsa.PrivateKey, chain [][]byte) (string, error) {
+// client identifier prefix; it may be empty in the laboratory. kid, when not
+// empty, is the id of the custodied key and goes in the JWS header.
+func (s *Session) SignRequestObject(key *ecdsa.PrivateKey, kid string, chain [][]byte) (string, error) {
 	if key == nil || key.Curve != elliptic.P256() {
 		return "", ErrConfig
 	}
@@ -213,7 +214,11 @@ func (s *Session) SignRequestObject(key *ecdsa.PrivateKey, chain [][]byte) (stri
 		}
 		options = options.WithHeader("x5c", encoded)
 	}
-	signer, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.ES256, Key: key}, options)
+	signingKey := jose.SigningKey{Algorithm: jose.ES256, Key: key}
+	if kid != "" {
+		signingKey.Key = jose.JSONWebKey{Key: key, KeyID: kid, Algorithm: string(jose.ES256), Use: "sig"}
+	}
+	signer, err := jose.NewSigner(signingKey, options)
 	if err != nil {
 		return "", ErrConfig
 	}

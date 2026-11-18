@@ -368,7 +368,7 @@ func TestSignedRequestObject(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	compactObject, err := s.SignRequestObject(signer, [][]byte{der})
+	compactObject, err := s.SignRequestObject(signer, "", [][]byte{der})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -429,7 +429,7 @@ func TestSignedRequestObject(t *testing.T) {
 	if !strings.Contains(string(payload), `"A256GCM"`) {
 		t.Error("encrypted_response_enc_values_supported missing")
 	}
-	if _, err := s.SignRequestObject(nil, nil); !errors.Is(err, ErrConfig) {
+	if _, err := s.SignRequestObject(nil, "", nil); !errors.Is(err, ErrConfig) {
 		t.Errorf("nil signer: %v", err)
 	}
 }

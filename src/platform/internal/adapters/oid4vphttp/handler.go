@@ -124,14 +124,14 @@ func (h *Handler) request(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusNotFound, "invalid_request_uri")
 		return
 	}
-	key, chain := h.SigningKey, h.Chain
+	key, chain, kid := h.SigningKey, h.Chain, ""
 	if h.Keys != nil {
 		if session.SessionID() == "" {
 			fail(w, http.StatusNotFound, "invalid_request_uri")
 			return
 		}
 		var err error
-		key, _, chain, err = h.Keys.SigningKey(r.Context(), session.SessionID())
+		key, kid, chain, err = h.Keys.SigningKey(r.Context(), session.SessionID())
 		if errors.Is(err, oid4vp.ErrNoSigningKey) {
 			fail(w, http.StatusNotFound, "invalid_request_uri")
 			return
@@ -141,7 +141,7 @@ func (h *Handler) request(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	object, err := session.SignRequestObject(key, chain)
+	object, err := session.SignRequestObject(key, kid, chain)
 	if err != nil {
 		fail(w, http.StatusInternalServerError, "server_error")
 		return

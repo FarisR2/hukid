@@ -1,6 +1,6 @@
 # FEAT-004 — Tareas
 
-Estado: **VER-T01–T08 hechas; VER-T10 en curso (incrementos a–d); VER-T09, T11–T13 diferidas**. Las casillas se marcan solo con implementación y evidencia. Owner: Team 5, backend. Las tareas VER-T09–T13 están diferidas por dependencias externas a esta feature; HK-043 no queda completa hasta cerrar VER-T09 y VER-T13.
+Estado: **VER-T01–T08 hechas; VER-T10 (incrementos a–e), VER-T11 (incrementos a–d3; falta T11-e, la consola, diferida) y VER-T12 (adaptador hecho, sin integrar) en curso sin cerrar; VER-T09 y VER-T13 diferidas**. Las casillas se marcan solo con implementación y evidencia. Owner: Team 5, backend. VER-T09 y VER-T13 están diferidas por dependencias externas a esta feature (listas de status y Definition Registry); HK-043 no queda completa hasta cerrarlas.
 
 | Estado / ID | Objetivo y artefacto | Depende de | Componentes | Aceptación / verificación | Riesgo |
 | --- | --- | --- | --- | --- | --- |

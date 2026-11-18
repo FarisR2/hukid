@@ -96,6 +96,13 @@ func TestVerifierKeyDoesNotCrossTenantsOrSessions(t *testing.T) {
 	if _, _, _, err := store.SigningKey(testContext, fresh); !errors.Is(err, ErrNoSigningKey) {
 		t.Fatalf("a copied envelope opened: %v", err)
 	}
+	// Copying the key id as well must not open it either: only the tenant in the
+	// AAD tells the two owners apart once the kid is the same.
+	mustExec(t, db.admin, `UPDATE verification.verifier_keys SET kid=(SELECT kid FROM verification.verifier_keys WHERE tenant_id=$1) WHERE tenant_id=$2`, vsTenantA, vsTenantB)
+	fresh, _ = startSession(t, db, vsTenantB, 5*time.Minute)
+	if _, _, _, err := store.SigningKey(testContext, fresh); !errors.Is(err, ErrNoSigningKey) {
+		t.Fatalf("an envelope copied with its kid opened under another tenant: %v", err)
+	}
 }
 
 func TestVerifierKeyRuntimeHasNoDirectAccess(t *testing.T) {
@@ -128,6 +135,12 @@ func TestVerifierKeyNeedsAPendingUnexpiredSession(t *testing.T) {
 	mustExec(t, db.admin, `UPDATE verification.sessions SET created_at=created_at-interval '10 minutes',expires_at=expires_at-interval '10 minutes' WHERE session_id=$1`, session)
 	if _, _, _, err := store.SigningKey(testContext, session); !errors.Is(err, ErrNoSigningKey) {
 		t.Fatalf("expired session: %v", err)
+	}
+	// A session that already completed no longer yields a key.
+	done := mustSession(t, db, vsTenantA)
+	mustExec(t, db.admin, `UPDATE verification.sessions SET status='completed',result='pass',report_digest=decode(repeat('00',32),'hex'),completed_at=clock_timestamp() WHERE session_id=$1`, done)
+	if _, _, _, err := store.SigningKey(testContext, done); !errors.Is(err, ErrNoSigningKey) {
+		t.Fatalf("completed session: %v", err)
 	}
 	// A tenant without a key yields the same generic error.
 	if _, _, _, err := store.SigningKey(testContext, mustSession(t, db, vsTenantB)); !errors.Is(err, ErrNoSigningKey) {

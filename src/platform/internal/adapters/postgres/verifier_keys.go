@@ -37,7 +37,7 @@ func VerifierKeyAAD(tenant, kid string) string { return "verifier-key:" + tenant
 // belong to a role allowed to run verification.rotate_verifier_key (owner or a
 // provisioning login), never hukid_verification_runtime.
 type VerifierKeyProvisioner struct {
-	Pool   *pgxpool.Pool
+	Pool   Querier
 	Cipher authentication.Cipher
 	Now    func() time.Time
 }

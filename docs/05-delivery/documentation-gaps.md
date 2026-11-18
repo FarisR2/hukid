@@ -23,6 +23,23 @@ Hasta que se decidan, ningún ADR ni artefacto ejecutable debe presentar estos p
 
 La [propuesta FEAT-004](../features/FEAT-004-credential-verification/spec.md) y su [ADR-0030](../decisions/ADR-0030.md) cubren solo el núcleo de verificación de la fase 0, sin depender de #1–#4: las tareas que sí las necesitan (VER-T10 y VER-T11) quedan diferidas. El núcleo está implementado en laboratorio (VER-T01–T08, [gate V4](verification-gate.md)) por indicación del owner de iniciar la implementación; la aprobación formal de ambos documentos no está registrada. Siguen abiertos: status, resolución HTTPS del JWKS y schema (VER-T09, T12, T13), la interoperabilidad con un verifier externo, el conformance gate del perfil y los valores propuestos (límites de entrada, tolerancia de reloj, contextos permitidos).
 
+### Decisiones abiertas del owner — 2026-11-17
+
+Las decisiones #1–#4 de arriba quedaron cerradas por delegación y son revocables. Quedan abiertas, y no se resuelven por inferencia, las siguientes:
+
+| # | Decisión abierta | Estado |
+| --- | --- | --- |
+| 5 | Aprobar el texto del [ADR-0034](../decisions/ADR-0034.md) (custodia cifrada por tenant de la clave de firma del verifier). | El owner eligió la opción A el 2026-11-17; el texto alineado con VER-T11-d está en propuesta, sin aprobación formal. |
+| 6 | Aprobación formal de FEAT-004, [ADR-0030](../decisions/ADR-0030.md) y [ADR-0031](../decisions/ADR-0031.md). | ADR-0033 está aprobado y no las cubre. |
+| 7 | Custodia de la clave privada de firma de cada emisor y puerto KMS (fases 0 y 1 del roadmap). | Distinta de la clave del verifier. Abierta. |
+| 8 | Credential definition de participación de Events: claims mínimos, mapping y evidencia. | Abierta. |
+| 9 | Canal de entrega de la oferta, app no instalada y autenticación del destinatario en credenciales nominativas. | Abierta. |
+| 10 | Si el ticket QR de Events sirve de entrada a una verificación. | No está documentado; sería una decisión nueva. |
+| 11 | Valores propuestos de FEAT-004: límites de entrada, tolerancia de reloj, contextos permitidos, TTL y límites del resolver JWKS. | Propuestos, sin aprobar. |
+| 12 | Qué hacer con el trabajo de juanrmos conservado en la etiqueta `backup-fake-2026-11-17`. | El owner indicó que se verá más adelante. |
+
+Pendientes de implementación que no son decisiones: el login de mantenimiento que ejecute `purge_sessions` y `purge_retired_keys` (la retención de 30 días ya está aprobada con ADR-0033) y el alta de la clave y de `verifier_configs` del tenant, que hoy no tiene CLI ni API.
+
 ## Correcciones de auditoría frontend — 2026-11-08
 
 La [reauditoría](../frontend/audits/2026-11-08-consola-correcciones.md) cierra F-001–F-006 del frontend base y consolida el [design system aprobado](../frontend/design-system.md). Mantiene abiertos lector de pantalla, zoom nativo, dispositivos/motores alternativos, axe/Lighthouse y métricas de campo. La prueba de confirmación con scopes issuer es UI-only y no demuestra ownership ni asignaciones reales. Sin cambio de contratos/DDL, cierre de DASH-T05, CI remoto nuevo ni aprobación productiva. Los informes y pruebas se versionan; capturas y métricas generadas se conservan localmente.

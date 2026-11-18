@@ -24,6 +24,9 @@ const (
 	defaultVerificationTTL = 5 * time.Minute
 	minVerificationTTL     = time.Minute
 	maxVerificationBody    = 1 << 10
+	// verificationExpiryMargin is how much earlier the in-memory session
+	// expires than the persisted row.
+	verificationExpiryMargin = 2 * time.Second
 )
 
 // VerificationStarter persists a pending session for the authorized tenant and
@@ -146,7 +149,11 @@ func (h *VerificationHandler) start(w http.ResponseWriter, r *http.Request) {
 		VerificationProblem(w, err)
 		return
 	}
-	session, err := oid4vp.NewSession(oid4vp.Config{ClientID: clientID, ResponseURI: responseURI, TTL: ttl, SessionID: sessionID, TenantID: tenant}, h.now(), nil)
+	// The in-memory session must expire before the row does: complete_session
+	// refuses an expired row after the anti-replay already consumed the request,
+	// so a response accepted in the gap would be lost. The margin also absorbs
+	// clock skew between this process and the database.
+	session, err := oid4vp.NewSession(oid4vp.Config{ClientID: clientID, ResponseURI: responseURI, TTL: ttl, SessionID: sessionID, TenantID: tenant, NotAfter: expiresAt.Add(-verificationExpiryMargin)}, h.now(), nil)
 	if err != nil {
 		VerificationProblem(w, err)
 		return

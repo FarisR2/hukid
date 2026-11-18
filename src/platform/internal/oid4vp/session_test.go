@@ -318,6 +318,29 @@ func TestExpiredSessionIsRejectedBeforeDecrypting(t *testing.T) {
 	}
 }
 
+func TestNotAfterCapsTheSessionExpiry(t *testing.T) {
+	base := Config{ClientID: testClientID, ResponseURI: "https://verifier.example/oid4vp/response", TTL: 5 * time.Minute}
+	capped := base
+	capped.NotAfter = testNow.Add(2 * time.Minute)
+	s, err := NewSession(capped, testNow, nil)
+	if err != nil || !s.ExpiresAt().Equal(capped.NotAfter) {
+		t.Fatalf("NotAfter before TTL end: expiry %v, err %v", s.ExpiresAt(), err)
+	}
+	loose := base
+	loose.NotAfter = testNow.Add(time.Hour)
+	s, err = NewSession(loose, testNow, nil)
+	if err != nil || !s.ExpiresAt().Equal(testNow.Add(5*time.Minute)) {
+		t.Fatalf("NotAfter after TTL end must not extend the session: expiry %v, err %v", s.ExpiresAt(), err)
+	}
+	for _, notAfter := range []time.Time{testNow, testNow.Add(-time.Second)} {
+		stale := base
+		stale.NotAfter = notAfter
+		if _, err := NewSession(stale, testNow, nil); !errors.Is(err, ErrConfig) {
+			t.Fatalf("NotAfter %v accepted: %v", notAfter, err)
+		}
+	}
+}
+
 func TestSessionsAreIndependentAndUnpredictable(t *testing.T) {
 	a, b := testSession(t), testSession(t)
 	if a.nonce == b.nonce || a.state == b.state || a.kid == b.kid || a.encKey.Equal(b.encKey) {

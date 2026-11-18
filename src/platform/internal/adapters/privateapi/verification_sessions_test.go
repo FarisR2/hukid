@@ -2,13 +2,16 @@ package privateapi
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
 
+	"hukid.local/platform/internal/adapters/oid4vphttp"
 	a "hukid.local/platform/internal/authentication"
 	"hukid.local/platform/internal/oid4vp"
 	"hukid.local/platform/internal/tenancy"
@@ -119,6 +122,42 @@ func TestStartVerificationSessionCreatesOnlyForAuthorizedRoles(t *testing.T) {
 		if rec.Header().Get("Cache-Control") != "no-store" {
 			t.Fatal("response must not be cacheable")
 		}
+	}
+}
+
+func TestStartVerificationSessionExpiresBeforeThePersistedRow(t *testing.T) {
+	_, _, sessions, mux := vsRig(t, 4)
+	rec := vsPost(mux, "admin", "valid", "")
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status %d body %s", rec.Code, rec.Body)
+	}
+	var body struct {
+		LaunchURI string `json:"launchUri"`
+		ExpiresAt string `json:"expiresAt"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	parsed, err := url.Parse(body.LaunchURI)
+	if err != nil {
+		t.Fatal(err)
+	}
+	requestURI, err := url.Parse(parsed.Query().Get("request_uri"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	session, err := sessions.Get(strings.TrimPrefix(requestURI.Path, oid4vphttp.RequestPathPrefix))
+	if err != nil {
+		t.Fatal(err)
+	}
+	row, err := time.Parse(time.RFC3339, body.ExpiresAt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The row expires at 12:05:00; a response in the last margin must be refused
+	// here, before the anti-replay consumes the request.
+	if want := row.Add(-verificationExpiryMargin); !session.ExpiresAt().Equal(want) {
+		t.Fatalf("session expires at %v, want %v (row %v)", session.ExpiresAt(), want, row)
 	}
 }
 

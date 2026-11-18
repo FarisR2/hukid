@@ -72,6 +72,10 @@ type Config struct {
 	// package and empty in the laboratory mount.
 	SessionID string
 	TenantID  string
+	// NotAfter, when set, caps the session expiry: the session never outlives
+	// the persisted row it mirrors, whatever the TTL. A value that is not after
+	// the creation time is rejected.
+	NotAfter time.Time
 }
 
 func (c Config) normalized() (Config, error) {
@@ -140,7 +144,16 @@ func NewSession(cfg Config, now time.Time, random io.Reader) (*Session, error) {
 		return nil, ErrConfig
 	}
 	now = now.UTC()
-	return &Session{cfg: cfg, nonce: nonce, state: state, kid: kid, encKey: key, issuedAt: now, expiresAt: now.Add(cfg.TTL)}, nil
+	expiresAt := now.Add(cfg.TTL)
+	if !cfg.NotAfter.IsZero() {
+		if !cfg.NotAfter.After(now) {
+			return nil, ErrConfig
+		}
+		if cfg.NotAfter.Before(expiresAt) {
+			expiresAt = cfg.NotAfter.UTC()
+		}
+	}
+	return &Session{cfg: cfg, nonce: nonce, state: state, kid: kid, encKey: key, issuedAt: now, expiresAt: expiresAt}, nil
 }
 
 // SessionID is the persisted session this request belongs to, or "".

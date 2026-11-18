@@ -39,29 +39,50 @@ func failedCheck(report Report) (Check, bool) {
 	return Check{}, false
 }
 
+// firstFailureOf returns the name and code of the first failed check, or empty
+// values when nothing failed. It keeps the branching out of the tests.
+func firstFailureOf(report Report) (CheckName, Code) {
+	if c, any := failedCheck(report); any {
+		return c.Name, c.Code
+	}
+	return "", ""
+}
+
 func TestVerifierMatchesEveryVector(t *testing.T) {
 	file := loadVectors(t)
 	for _, vec := range file.Vectors {
 		t.Run(vec.ID, func(t *testing.T) {
-			report, err := newTestVerifier(t, file, at(t, vec.EvaluationTime), 0).Verify(vec.JWS)
+			// Arrange
+			verifier := newTestVerifier(t, file, at(t, vec.EvaluationTime), 0)
+
+			// Act
+			report, err := verifier.Verify(vec.JWS)
 			if err != nil {
 				t.Fatal(err)
 			}
+			failedName, failedCode := firstFailureOf(report)
+
+			// Assert
 			if report.TechnicalResult != vec.Expected.TechnicalResult {
 				t.Fatalf("technicalResult = %q, want %q: %+v", report.TechnicalResult, vec.Expected.TechnicalResult, report.Checks)
 			}
-			failed, any := failedCheck(report)
-			if vec.Expected.TechnicalResult == Valid {
-				if any {
-					t.Fatalf("unexpected failure %+v", failed)
-				}
-				return
-			}
-			if !any || failed.Name != vec.Expected.FailedCheck || failed.Code != vec.Expected.Code {
-				t.Fatalf("expected %s/%s, got %+v", vec.Expected.FailedCheck, vec.Expected.Code, report.Checks)
+			if failedName != vec.Expected.FailedCheck || failedCode != vec.Expected.Code {
+				t.Fatalf("first failure = %s/%s, want %s/%s: %+v", failedName, failedCode, vec.Expected.FailedCheck, vec.Expected.Code, report.Checks)
 			}
 		})
 	}
+}
+
+// validityOutcome returns the validity failure code, "" when the credential is
+// valid, and a marker when the report is invalid for a reason other than validity.
+func validityOutcome(report Report) Code {
+	if c := checkByName(report.Checks, CheckValidity); c.Result == Fail {
+		return c.Code
+	}
+	if report.TechnicalResult != Valid {
+		return Code("invalid-for-another-reason")
+	}
+	return ""
 }
 
 func TestValidityWindowBoundaries(t *testing.T) {
@@ -89,19 +110,18 @@ func TestValidityWindowBoundaries(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			report, err := newTestVerifier(t, file, tc.now, tc.skew).Verify(jws)
+			// Arrange
+			verifier := newTestVerifier(t, file, tc.now, tc.skew)
+
+			// Act
+			report, err := verifier.Verify(jws)
 			if err != nil {
 				t.Fatal(err)
 			}
-			failed, any := failedCheck(report)
-			if tc.want == "" {
-				if any || report.TechnicalResult != Valid {
-					t.Fatalf("expected valid, got %+v", report.Checks)
-				}
-				return
-			}
-			if !any || failed.Name != CheckValidity || failed.Code != tc.want {
-				t.Fatalf("expected validity/%s, got %+v", tc.want, report.Checks)
+
+			// Assert
+			if got := validityOutcome(report); got != tc.want {
+				t.Fatalf("validity outcome = %q, want %q: %+v", got, tc.want, report.Checks)
 			}
 		})
 	}

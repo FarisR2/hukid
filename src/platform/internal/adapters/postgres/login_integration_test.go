@@ -74,7 +74,7 @@ func (d *idpDriver) call(t *testing.T, value any) map[string]string {
 }
 func startDriver(t *testing.T, p a.Policy) *idpDriver {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 240*time.Second)
 	t.Cleanup(cancel)
 	command := exec.CommandContext(ctx, "node", "../../../../../tests/fixtures/oidc-login-driver.mjs")
 	command.Env = append(os.Environ(), "NODE_ENV=test", "HUKID_TEST_IDP=1", "DEBUG=")

@@ -5,8 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"math"
+	"reflect"
+	"regexp"
 	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
 )
 
@@ -51,16 +54,53 @@ func parseCredentialSchemaEntries(raw json.RawMessage) ([]rawSchemaEntry, bool) 
 }
 
 type jsonSchemaNode struct {
+	Schema               string                     `json:"$schema"`
+	ID                   string                     `json:"$id"`
 	Type                 string                     `json:"type"`
 	Properties           map[string]*jsonSchemaNode `json:"properties"`
 	Required             []string                   `json:"required"`
 	AdditionalProperties *bool                      `json:"additionalProperties"`
 	MinLength            *int                       `json:"minLength"`
 	MaxLength            *int                       `json:"maxLength"`
+	Pattern              string                     `json:"pattern"`
+	Format               string                     `json:"format"`
 	Minimum              *float64                   `json:"minimum"`
 	Maximum              *float64                   `json:"maximum"`
+	ExclusiveMinimum     *float64                   `json:"exclusiveMinimum"`
+	ExclusiveMaximum     *float64                   `json:"exclusiveMaximum"`
 	Enum                 []any                      `json:"enum"`
+	Const                json.RawMessage            `json:"const"`
 	Items                *jsonSchemaNode            `json:"items"`
+	MinItems             *int                       `json:"minItems"`
+	MaxItems             *int                       `json:"maxItems"`
+	UniqueItems          bool                       `json:"uniqueItems"`
+	AllOf                []*jsonSchemaNode          `json:"allOf"`
+	AnyOf                []*jsonSchemaNode          `json:"anyOf"`
+	OneOf                []*jsonSchemaNode          `json:"oneOf"`
+	compiledPattern      *regexp.Regexp
+	constValue           any
+	hasConst             bool
+}
+
+var (
+	uuidPattern  = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
+	emailPattern = regexp.MustCompile(`^[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+$`)
+	uriPattern   = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9+.-]*:(//[^\s/$.?#].[^\s]*|[^\s/][^\s]*)$`)
+)
+
+func isSupportedSchemaDialect(dialect string) bool {
+	switch dialect {
+	case "",
+		"https://json-schema.org/draft/2020-12/schema",
+		"https://json-schema.org/draft/2020-12/schema#",
+		"https://json-schema.org/draft/2019-09/schema",
+		"https://json-schema.org/draft/2019-09/schema#",
+		"http://json-schema.org/draft-07/schema#",
+		"https://json-schema.org/draft-07/schema#":
+		return true
+	default:
+		return false
+	}
 }
 
 func parseJSONSchemaDoc(raw []byte) (*jsonSchemaNode, bool) {
@@ -78,7 +118,7 @@ func parseJSONSchemaDoc(raw []byte) (*jsonSchemaNode, bool) {
 	if dec.Decode(&trailing) == nil {
 		return nil, false
 	}
-	if !validateSchemaNodeShape(&doc) || doc.Type != "object" {
+	if !isSupportedSchemaDialect(doc.Schema) || !validateSchemaNodeShape(&doc) || (doc.Type != "object" && len(doc.AllOf) == 0 && len(doc.AnyOf) == 0 && len(doc.OneOf) == 0) {
 		return nil, false
 	}
 	return &doc, true
@@ -88,8 +128,21 @@ func validateSchemaNodeShape(node *jsonSchemaNode) bool {
 	if node == nil {
 		return false
 	}
+	hasCombinators := len(node.AllOf) > 0 || len(node.AnyOf) > 0 || len(node.OneOf) > 0
+	if len(bytes.TrimSpace(node.Const)) > 0 {
+		dec := json.NewDecoder(bytes.NewReader(node.Const))
+		dec.UseNumber()
+		if err := dec.Decode(&node.constValue); err != nil {
+			return false
+		}
+		node.hasConst = true
+	}
 	switch node.Type {
 	case "string", "number", "integer", "boolean", "object", "array":
+	case "":
+		if !hasCombinators && !node.hasConst && len(node.Enum) == 0 {
+			return false
+		}
 	default:
 		return false
 	}
@@ -102,7 +155,26 @@ func validateSchemaNodeShape(node *jsonSchemaNode) bool {
 	if node.MinLength != nil && node.MaxLength != nil && *node.MinLength > *node.MaxLength {
 		return false
 	}
+	if node.Pattern != "" {
+		if len(node.Pattern) > 256 {
+			return false
+		}
+		re, err := regexp.Compile(node.Pattern)
+		if err != nil {
+			return false
+		}
+		node.compiledPattern = re
+	}
 	if node.Minimum != nil && node.Maximum != nil && *node.Minimum > *node.Maximum {
+		return false
+	}
+	if node.MinItems != nil && *node.MinItems < 0 {
+		return false
+	}
+	if node.MaxItems != nil && *node.MaxItems < 0 {
+		return false
+	}
+	if node.MinItems != nil && node.MaxItems != nil && *node.MinItems > *node.MaxItems {
 		return false
 	}
 	for _, prop := range node.Properties {
@@ -112,6 +184,21 @@ func validateSchemaNodeShape(node *jsonSchemaNode) bool {
 	}
 	if node.Items != nil && !validateSchemaNodeShape(node.Items) {
 		return false
+	}
+	for _, sub := range node.AllOf {
+		if !validateSchemaNodeShape(sub) {
+			return false
+		}
+	}
+	for _, sub := range node.AnyOf {
+		if !validateSchemaNodeShape(sub) {
+			return false
+		}
+	}
+	for _, sub := range node.OneOf {
+		if !validateSchemaNodeShape(sub) {
+			return false
+		}
 	}
 	return true
 }
@@ -170,7 +257,40 @@ func validateAgainstSchema(node *jsonSchemaNode, val any) bool {
 	if node == nil {
 		return true
 	}
+	if node.hasConst && !jsonValuesEqual(val, node.constValue) {
+		return false
+	}
+	for _, sub := range node.AllOf {
+		if !validateAgainstSchema(sub, val) {
+			return false
+		}
+	}
+	if len(node.AnyOf) > 0 {
+		matched := false
+		for _, sub := range node.AnyOf {
+			if validateAgainstSchema(sub, val) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return false
+		}
+	}
+	if len(node.OneOf) > 0 {
+		matches := 0
+		for _, sub := range node.OneOf {
+			if validateAgainstSchema(sub, val) {
+				matches++
+			}
+		}
+		if matches != 1 {
+			return false
+		}
+	}
 	switch node.Type {
+	case "":
+		return matchesEnumAny(val, node.Enum)
 	case "string":
 		s, ok := val.(string)
 		if !ok {
@@ -183,6 +303,12 @@ func validateAgainstSchema(node *jsonSchemaNode, val any) bool {
 		if node.MaxLength != nil && runes > *node.MaxLength {
 			return false
 		}
+		if node.compiledPattern != nil && !node.compiledPattern.MatchString(s) {
+			return false
+		}
+		if !matchesStringFormat(s, node.Format) {
+			return false
+		}
 		return matchesEnum(s, node.Enum)
 	case "number":
 		f, ok := toFloat64(val)
@@ -193,6 +319,12 @@ func validateAgainstSchema(node *jsonSchemaNode, val any) bool {
 			return false
 		}
 		if node.Maximum != nil && f > *node.Maximum {
+			return false
+		}
+		if node.ExclusiveMinimum != nil && f <= *node.ExclusiveMinimum {
+			return false
+		}
+		if node.ExclusiveMaximum != nil && f >= *node.ExclusiveMaximum {
 			return false
 		}
 		return matchesNumberEnum(f, node.Enum)
@@ -212,6 +344,12 @@ func validateAgainstSchema(node *jsonSchemaNode, val any) bool {
 		if node.Maximum != nil && f > *node.Maximum {
 			return false
 		}
+		if node.ExclusiveMinimum != nil && f <= *node.ExclusiveMinimum {
+			return false
+		}
+		if node.ExclusiveMaximum != nil && f >= *node.ExclusiveMaximum {
+			return false
+		}
 		return matchesNumberEnum(f, node.Enum)
 	case "boolean":
 		b, ok := val.(bool)
@@ -223,6 +361,21 @@ func validateAgainstSchema(node *jsonSchemaNode, val any) bool {
 		arr, ok := val.([]any)
 		if !ok {
 			return false
+		}
+		if node.MinItems != nil && len(arr) < *node.MinItems {
+			return false
+		}
+		if node.MaxItems != nil && len(arr) > *node.MaxItems {
+			return false
+		}
+		if node.UniqueItems {
+			for i := 0; i < len(arr); i++ {
+				for j := i + 1; j < len(arr); j++ {
+					if jsonValuesEqual(arr[i], arr[j]) {
+						return false
+					}
+				}
+			}
 		}
 		if node.Items != nil {
 			for _, elem := range arr {
@@ -294,4 +447,50 @@ func matchesNumberEnum(val float64, enum []any) bool {
 		}
 	}
 	return false
+}
+
+func matchesEnumAny(val any, enum []any) bool {
+	if len(enum) == 0 {
+		return true
+	}
+	for _, candidate := range enum {
+		if jsonValuesEqual(val, candidate) {
+			return true
+		}
+	}
+	return false
+}
+
+func jsonValuesEqual(a, b any) bool {
+	if fa, oka := toFloat64(a); oka {
+		if fb, okb := toFloat64(b); okb {
+			return fa == fb
+		}
+		return false
+	}
+	return reflect.DeepEqual(a, b)
+}
+
+func matchesStringFormat(s, format string) bool {
+	switch format {
+	case "":
+		return true
+	case "date-time":
+		if _, err := time.Parse(time.RFC3339Nano, s); err == nil {
+			return true
+		}
+		_, err := time.Parse(time.RFC3339, s)
+		return err == nil
+	case "date":
+		_, err := time.Parse("2006-01-02", s)
+		return err == nil
+	case "email":
+		return emailPattern.MatchString(s)
+	case "uri":
+		return uriPattern.MatchString(s)
+	case "uuid":
+		return uuidPattern.MatchString(s)
+	default:
+		return true
+	}
 }

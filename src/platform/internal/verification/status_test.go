@@ -200,4 +200,26 @@ func TestVerifierChecksBitstringStatusLists(t *testing.T) {
 	if blob, _ := json.Marshal(outOfBoundsRep); strings.Contains(string(blob), "holder-jkt-123") {
 		t.Fatalf("status failure report leaked holder material: %s", blob)
 	}
+
+	// 9. DefaultStatusPolicy enforces freshness and explicit validUntil.
+	defPolicy := DefaultStatusPolicy()
+	if defPolicy.MaxStaleness != DefaultMaxStatusStaleness || !defPolicy.RequireValidUntil {
+		t.Fatalf("unexpected DefaultStatusPolicy: %+v", defPolicy)
+	}
+	vDef, _ := NewVerifier(resolver, fixedClock(now), DefaultLimits, 0)
+	vDef = vDef.WithStatusResolver(mapStatusResolver{lists: map[string]string{
+		revURL:  buildTestStatusListVC(t, key, issuer, kid, revURL, "revocation", now.Add(-2*time.Minute), now.Add(time.Hour), encodeTestBitstring(t, 64)),
+		suspURL: buildTestStatusListVC(t, key, issuer, kid, suspURL, "suspension", now.Add(-2*time.Minute), now.Add(time.Hour), encodeTestBitstring(t, 64)),
+	}}, defPolicy)
+	if rep, err := vDef.Verify(vc); err != nil || rep.TechnicalResult != Valid {
+		t.Fatalf("expected fresh list with validUntil to pass DefaultStatusPolicy, got %+v err=%v", rep, err)
+	}
+	vMissingExp, _ := NewVerifier(resolver, fixedClock(now), DefaultLimits, 0)
+	vMissingExp = vMissingExp.WithStatusResolver(mapStatusResolver{lists: map[string]string{
+		revURL:  buildTestStatusListVC(t, key, issuer, kid, revURL, "revocation", now.Add(-2*time.Minute), time.Time{}, encodeTestBitstring(t, 64)),
+		suspURL: buildTestStatusListVC(t, key, issuer, kid, suspURL, "suspension", now.Add(-2*time.Minute), now.Add(time.Hour), encodeTestBitstring(t, 64)),
+	}}, defPolicy)
+	if rep, err := vMissingExp.Verify(vc); err != nil || rep.TechnicalResult != Invalid {
+		t.Fatalf("expected missing validUntil to fail DefaultStatusPolicy, got %+v err=%v", rep, err)
+	}
 }

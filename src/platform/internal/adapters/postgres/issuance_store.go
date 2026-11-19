@@ -3,7 +3,9 @@ package postgres
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"slices"
@@ -35,6 +37,37 @@ func NewIssuanceBackend(pool *pgxpool.Pool) (*IssuanceBackend, error) {
 		return nil, issuance.ErrInvalidFoundationInput
 	}
 	return &IssuanceBackend{pool: pool}, nil
+}
+
+// TryWithTenantAdvisoryLock acquires a non-blocking session advisory lock scoped
+// to namespace and tenantID, executes fn while holding it, and releases it before
+// returning the connection to the pool.
+func TryWithTenantAdvisoryLock(ctx context.Context, pool *pgxpool.Pool, namespace, tenantID string, fn func() error) (bool, error) {
+	if pool == nil || strings.TrimSpace(namespace) == "" || strings.TrimSpace(tenantID) == "" || fn == nil {
+		return false, errors.New("invalid advisory lock arguments")
+	}
+	sum := sha256.Sum256([]byte(namespace + "|" + tenantID))
+	lockKey := int64(binary.BigEndian.Uint64(sum[:8]))
+
+	conn, err := pool.Acquire(ctx)
+	if err != nil {
+		return false, err
+	}
+	defer conn.Release()
+
+	var acquired bool
+	if err := conn.QueryRow(ctx, "SELECT pg_try_advisory_lock($1)", lockKey).Scan(&acquired); err != nil {
+		return false, err
+	}
+	if !acquired {
+		return false, nil
+	}
+	defer func() {
+		unlockCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_, _ = conn.Exec(unlockCtx, "SELECT pg_advisory_unlock($1)", lockKey)
+	}()
+	return true, fn()
 }
 
 func (b *IssuanceBackend) opCtx() (context.Context, context.CancelFunc) {
@@ -570,7 +603,8 @@ func (t *postgresIssuanceTx) ListPendingDeferredRequestIDs(limit int, now time.T
 	rows, err := t.tx.Query(t.ctx,
 		`SELECT request_id FROM issuance.deferred_transactions
 		 WHERE status='pending' AND expires_at>$1
-		 ORDER BY created_at,request_id LIMIT $2`, now.UTC(), limit)
+		 ORDER BY created_at,request_id LIMIT $2
+		 FOR UPDATE SKIP LOCKED`, now.UTC(), limit)
 	if err != nil {
 		return nil, err
 	}

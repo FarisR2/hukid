@@ -41,7 +41,7 @@ if (command === 'migrate:test') run(['run', './cmd/testdb', 'migrate']);
 if (command === 'invalidate-auth:test') run(['run', './cmd/testdb', 'invalidate-auth']);
 if (command === 'bootstrap:test') run(['run', './cmd/testdb', 'bootstrap']);
 if (command === 'test:postgres') run(['test', '-tags=integration', '-count=1', '-timeout=120s', './internal/adapters/postgres']);
-if (command === 'test:browser') run(['test', '-tags=integration,browser', '-run=^TestConsoleBrowser$', '-count=1', '-timeout=240s', './internal/adapters/postgres']);
+if (command === 'test:browser') run(['test', '-tags=integration,browser', `-run=${process.env.HUKID_BROWSER_TEST || '^TestConsoleBrowser$'}`, '-count=1', '-timeout=240s', './internal/adapters/postgres']);
 if (command === 'check') {
   const goroot = run(['env', 'GOROOT'], true).trim();
   const gofmt = path.join(goroot, 'bin', process.platform === 'win32' ? 'gofmt.exe' : 'gofmt');

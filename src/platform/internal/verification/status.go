@@ -22,10 +22,25 @@ type StatusResolver interface {
 	ResolveStatusList(credentialURL string) (string, error)
 }
 
-// StatusPolicy controls list freshness checks for VER-T09. Resolution failures
-// fail closed by default (returning ErrStatusResolution).
+// DefaultMaxStatusStaleness is the default production/staging freshness bound
+// for BitstringStatusListCredential documents under VER-T09.
+const DefaultMaxStatusStaleness = 15 * time.Minute
+
+// StatusPolicy controls list freshness and trust checks for VER-T09. Resolution
+// failures fail closed by default (returning ErrStatusResolution).
 type StatusPolicy struct {
-	MaxStaleness time.Duration
+	MaxStaleness      time.Duration
+	RequireValidUntil bool
+}
+
+// DefaultStatusPolicy returns the recommended production/staging VER-T09 policy:
+// status lists must be published within DefaultMaxStatusStaleness and carry an
+// explicit expiration (validUntil / exp).
+func DefaultStatusPolicy() StatusPolicy {
+	return StatusPolicy{
+		MaxStaleness:      DefaultMaxStatusStaleness,
+		RequireValidUntil: true,
+	}
 }
 
 type rawStatusEntry struct {
@@ -189,6 +204,9 @@ func (v *Verifier) fetchAndVerifyStatusList(credURL, expectedIssuer string, now 
 		return verifiedStatusList{}, CodeStatusInvalid, nil
 	}
 	if validity := checkValidity(listParsed, now, v.clockSkew); validity.Result != Pass {
+		return verifiedStatusList{}, CodeStatusInvalid, nil
+	}
+	if v.statusPolicy.RequireValidUntil && listParsed.ValidUntilAt == nil {
 		return verifiedStatusList{}, CodeStatusInvalid, nil
 	}
 	if v.statusPolicy.MaxStaleness > 0 {

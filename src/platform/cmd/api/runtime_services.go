@@ -403,7 +403,7 @@ func configureOID4VPRuntime(out io.Writer, now func() time.Time) (func(*http.Ser
 		return nil, errOID4VPRuntimeConfig
 	}
 	verifier = verifier.
-		WithStatusResolver(httpResolver, verification.StatusPolicy{}).
+		WithStatusResolver(httpResolver, verification.DefaultStatusPolicy()).
 		WithSchemaResolver(httpResolver)
 
 	replay, err := oid4vp.NewScopedReplayStore("oid4vp-runtime", oid4vp.MaxTTL, 1024, now)

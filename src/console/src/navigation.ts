@@ -8,8 +8,10 @@ export interface ViewItem {
   label: string;
   group: string;
   icon: 'grid' | 'activity' | 'users' | 'mail' | 'building' | 'file' | 'inbox' | 'shield' | 'sliders';
-  /** Capability that shows the item. Absent for the "Pronto" exploration sections. */
+  /** Capability that shows the item. Absent for exploration or role-gated sections. */
   capabilities?: string[];
+  /** Explicit roles that grant access when the view is gated by role. */
+  roles?: string[];
   soon?: true;
 }
 
@@ -27,7 +29,7 @@ export const navigation: { group: string; items: ViewItem[] }[] = [
     { id: 'solicitudes', label: 'Solicitudes', group: 'Emisión', icon: 'inbox', capabilities: ['issuance:read'] },
     { id: 'credenciales', label: 'Credenciales', group: 'Emisión', icon: 'shield', capabilities: ['issuance:read'] }] },
   { group: 'Organización', items: [
-    { id: 'ajustes', label: 'Ajustes', group: 'Organización', icon: 'sliders', soon: true }] },
+    { id: 'ajustes', label: 'Ajustes', group: 'Organización', icon: 'sliders', roles: ['tenant_admin'] }] },
 ];
 
 export const views: ViewItem[] = navigation.flatMap(group => group.items);
@@ -40,11 +42,12 @@ export function isSectionHash(hash: string): boolean {
   return viewFromHash(hash) !== undefined;
 }
 
-// Exploration sections are listed only for tenant administrators. Live issuer views
-// require their explicit capability and are checked again by the Management API.
+// Exploration and role-gated sections are listed for the authorized roles. Live issuer views
+// require their explicit capability and are checked again by the Management API/BFF.
 export function isAvailable(view: ViewItem, capabilities: string[], roles: string[] = []): boolean {
   if (view.soon) return roles.includes('tenant_admin');
   if ((view.id === 'emisores' || view.id === 'definiciones') && roles.includes('issuer_operator')) return true;
+  if (view.roles?.some(role => roles.includes(role))) return true;
   return (view.capabilities ?? []).some(capability => capabilities.includes(capability));
 }
 

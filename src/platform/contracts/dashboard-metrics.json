@@ -48,7 +48,6 @@
   "reservedCapabilities": [
     "issuer:read",
     "definition:read",
-    "issuance:read",
     "status:read"
   ],
   "activity": {

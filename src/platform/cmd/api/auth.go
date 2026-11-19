@@ -221,7 +221,8 @@ func configureHandler(ctx context.Context, address string) (http.Handler, func()
 	if vciRuntime != nil {
 		labRoutes = append(labRoutes, vciRuntime)
 	}
+	settings := &consolehttp.SettingsHandler{Auth: me, IssuanceRuntimeEnabled: vciRuntime != nil}
 	commands := consolehttp.NewSessions(&authentication.SessionLifecycle{Sessions: sessions, Store: store, OIDC: provider, Random: rand.Reader})
 	stopCleanup := store.StartSessionCleanup(context.Background())
-	return audithttp.Wrap(bootstrap.Handler(append([]func(*http.ServeMux){consolehttp.New(service).Register, management.Register, me.Register, commands.Register, protectedCommands.Register, registerDirectory, registerDashboard}, labRoutes...)...), store, slog.Default()), func() { stopCleanup(); closeDashboard(); closeDirectory(); closePools() }, nil
+	return audithttp.Wrap(bootstrap.Handler(append([]func(*http.ServeMux){consolehttp.New(service).Register, management.Register, me.Register, settings.Register, commands.Register, protectedCommands.Register, registerDirectory, registerDashboard}, labRoutes...)...), store, slog.Default()), func() { stopCleanup(); closeDashboard(); closeDirectory(); closePools() }, nil
 }

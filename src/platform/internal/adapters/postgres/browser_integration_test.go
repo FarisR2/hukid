@@ -5,14 +5,20 @@ package postgres
 import (
 	"bufio"
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -21,8 +27,105 @@ import (
 	"hukid.local/platform/internal/tenancy"
 )
 
+func startBrowserVaultServer(t *testing.T, token string) *httptest.Server {
+	t.Helper()
+	var mu sync.Mutex
+	keys := map[string]*ecdsa.PrivateKey{}
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-Vault-Token") != token {
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
+		switch {
+		case r.Method == http.MethodPost && strings.HasPrefix(r.URL.Path, "/v1/transit/keys/"):
+			name := strings.TrimPrefix(r.URL.Path, "/v1/transit/keys/")
+			mu.Lock()
+			if _, ok := keys[name]; !ok {
+				k, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+				if err != nil {
+					mu.Unlock()
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+				keys[name] = k
+			}
+			mu.Unlock()
+			w.WriteHeader(http.StatusNoContent)
+		case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/v1/transit/keys/"):
+			name := strings.TrimPrefix(r.URL.Path, "/v1/transit/keys/")
+			mu.Lock()
+			k, ok := keys[name]
+			mu.Unlock()
+			if !ok {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			spki, err := x509.MarshalPKIXPublicKey(&k.PublicKey)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			pubPEM := string(pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: spki}))
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"data": map[string]any{
+					"type":           "ecdsa-p256",
+					"exportable":     false,
+					"latest_version": 1,
+					"keys": map[string]any{
+						"1": map[string]any{"public_key": pubPEM},
+					},
+				},
+			})
+		case r.Method == http.MethodPost && strings.HasPrefix(r.URL.Path, "/v1/transit/sign/"):
+			name := strings.TrimPrefix(r.URL.Path, "/v1/transit/sign/")
+			mu.Lock()
+			k, ok := keys[name]
+			mu.Unlock()
+			if !ok {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			var req struct {
+				Input string `json:"input"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			digest, err := base64.StdEncoding.DecodeString(req.Input)
+			if err != nil || len(digest) != 32 {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			der, err := ecdsa.SignASN1(rand.Reader, k, digest)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"data": map[string]any{"signature": "vault:v1:" + base64.StdEncoding.EncodeToString(der)},
+			})
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+}
+
 // The browser suite owns every service and database. No existing app is used.
 func TestConsoleBrowser(t *testing.T) {
+	runConsoleBrowserSuite(t, "authentication.py", true)
+}
+
+// TestConsoleIssuanceBrowser exercises Emisores, Definiciones and Clientes end-to-end
+// in headless Chromium against PostgreSQL, Vault Transit and the Go BFF.
+func TestConsoleIssuanceBrowser(t *testing.T) {
+	runConsoleBrowserSuite(t, "issuance.py", false)
+}
+
+func runConsoleBrowserSuite(t *testing.T, script string, assertFullAuthEvents bool) {
+	t.Helper()
 	db := newTestDatabase(t)
 	mustMigrate(t, db)
 	pool := db.pool(t, "hukid_session_runtime")
@@ -30,6 +133,7 @@ func TestConsoleBrowser(t *testing.T) {
 	tenantPool := db.pool(t, "hukid_tenant_runtime")
 	membersPool := db.pool(t, "hukid_members_runtime")
 	dashboardPool := db.pool(t, "hukid_dashboard_runtime")
+	issuancePool := db.pool(t, "hukid_issuance_runtime")
 	f, err := os.Open("../../../config/auth.test.json")
 	if err != nil {
 		t.Fatal(err)
@@ -66,9 +170,16 @@ func TestConsoleBrowser(t *testing.T) {
 	membersPolicyPath := filepath.Join(root, "src", "platform", "config", "user-management.test.json")
 	dashboardPolicyPath := filepath.Join(root, "src", "platform", "config", "dashboard.test.json")
 	dashboardKey := make([]byte, 32)
-	if _, err := rand.Read(dashboardKey); err != nil {
-		t.Fatal(err)
+	issuanceClaimsKey := make([]byte, 32)
+	vaultSecret := make([]byte, 24)
+	for _, material := range [][]byte{dashboardKey, issuanceClaimsKey, vaultSecret} {
+		if _, err := rand.Read(material); err != nil {
+			t.Fatal(err)
+		}
 	}
+	vaultToken := "hvs.browser-" + base64.RawURLEncoding.EncodeToString(vaultSecret)
+	vaultSrv := startBrowserVaultServer(t, vaultToken)
+	t.Cleanup(vaultSrv.Close)
 	membersFile, err := os.Open(membersPolicyPath)
 	if err != nil {
 		t.Fatal(err)
@@ -99,7 +210,14 @@ func TestConsoleBrowser(t *testing.T) {
 		"HUKID_INVITATION_HMAC_KEY="+base64.StdEncoding.EncodeToString(macKey))
 	apiLogs := &capturedLogs{}
 	api.Env = append(api.Env, "HUKID_DASHBOARD_DATABASE_URL="+dashboardPool.Config().ConnString(),
-		"HUKID_DASHBOARD_POLICY="+dashboardPolicyPath, "HUKID_DASHBOARD_CURSOR_KEY="+base64.StdEncoding.EncodeToString(dashboardKey))
+		"HUKID_DASHBOARD_POLICY="+dashboardPolicyPath, "HUKID_DASHBOARD_CURSOR_KEY="+base64.StdEncoding.EncodeToString(dashboardKey),
+		"HUKID_ISSUANCE_DATABASE_URL="+issuancePool.Config().ConnString(),
+		"HUKID_ISSUANCE_AUTH_SERVER=http://"+listen,
+		"HUKID_ISSUANCE_CLAIMS_KEY="+base64.StdEncoding.EncodeToString(issuanceClaimsKey),
+		"HUKID_ISSUANCE_CLAIMS_KEY_VERSION=browser-issuance",
+		"HUKID_VAULT_ADDR="+vaultSrv.URL,
+		"HUKID_VAULT_TOKEN="+vaultToken,
+		"HUKID_VAULT_MOUNT=transit")
 	api.Stdout, api.Stderr = apiLogs, apiLogs
 	for _, proxyOrigin := range []string{"", "http://127.0.0.1:1"} {
 		rejected := exec.Command(binary)
@@ -144,8 +262,13 @@ func TestConsoleBrowser(t *testing.T) {
 		if os.PathSeparator == '\\' {
 			python = filepath.Join(root, ".cache", "browser-venv", "Scripts", "python.exe")
 		}
+		if _, statErr := os.Stat(python); statErr != nil {
+			if lookedUp, lookErr := exec.LookPath("python"); lookErr == nil {
+				python = lookedUp
+			}
+		}
 	}
-	cmd := exec.Command(python, filepath.Join(root, "tests", "browser", "authentication.py"))
+	cmd := exec.Command(python, filepath.Join(root, "tests", "browser", script))
 	cmd.Dir = root
 	cmd.Env = append(os.Environ(), "PYTHONDONTWRITEBYTECODE=1")
 	input, _ := cmd.StdinPipe()
@@ -222,13 +345,15 @@ func TestConsoleBrowser(t *testing.T) {
 	if err := cmd.Wait(); err != nil {
 		t.Fatal("browser acceptance failed")
 	}
-	assertAuthEvents(t, db)
+	if assertFullAuthEvents {
+		assertAuthEvents(t, db)
+	}
 	var stored string
 	if err := db.admin.QueryRow(testContext, `SELECT COALESCE(string_agg(row_to_json(a)::text,''),'') FROM platform.audit_events a`).Scan(&stored); err != nil {
 		t.Fatal(err)
 	}
 	privateValues = append(privateValues, secrets["clientSecret"], secrets["interactionKey"], base64.StdEncoding.EncodeToString(key), base64.StdEncoding.EncodeToString(invitationKey), base64.StdEncoding.EncodeToString(macKey))
-	privateValues = append(privateValues, base64.StdEncoding.EncodeToString(dashboardKey), base64.StdEncoding.EncodeToString(cursorKey))
+	privateValues = append(privateValues, base64.StdEncoding.EncodeToString(dashboardKey), base64.StdEncoding.EncodeToString(cursorKey), base64.StdEncoding.EncodeToString(issuanceClaimsKey), vaultToken)
 	for _, secret := range privateValues {
 		if secret != "" && (strings.Contains(apiLogs.String(), secret) || strings.Contains(stored, secret)) {
 			t.Fatal("browser secret leaked to audit/logs")

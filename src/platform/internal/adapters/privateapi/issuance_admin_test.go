@@ -174,10 +174,26 @@ func TestIssuanceAdminLifecycleAuthStepUpETagAndAudit(t *testing.T) {
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("expected 404 cross-tenant, got %d", w.Code)
 	}
-	for _, token := range []string{"admin-tok", "issuer-op-tok"} {
-		w = doAdminReq(mux, http.MethodGet, "/v1/operator/tenants/tenant-a/issuance-requests?limit=10", token, "", "", nil)
+	for _, path := range []string{"/v1/operator/tenants/tenant-a/issuance-requests?limit=10", "/v1/operator/tenants/tenant-a/credentials?limit=10"} {
+		w = doAdminReq(mux, http.MethodGet, path, "sec-tok", "", "", nil)
 		if w.Code != http.StatusForbidden {
-			t.Fatalf("expected reserved issuance:read to deny %s, got %d %s", token, w.Code, w.Body.String())
+			t.Fatalf("expected security_admin to be denied on %s, got %d %s", path, w.Code, w.Body.String())
+		}
+		w = doAdminReq(mux, http.MethodGet, path, "issuer-op-tok", "", "", nil)
+		if w.Code != http.StatusForbidden {
+			t.Fatalf("expected issuer_operator without issuerId filter to be denied on %s, got %d %s", path, w.Code, w.Body.String())
+		}
+		w = doAdminReq(mux, http.MethodGet, path+"&issuerId=99999999-9999-4999-8999-999999999999", "issuer-op-tok", "", "", nil)
+		if w.Code != http.StatusForbidden {
+			t.Fatalf("expected issuer_operator with unassigned issuerId to be denied on %s, got %d %s", path, w.Code, w.Body.String())
+		}
+		w = doAdminReq(mux, http.MethodGet, path+"&issuerId="+issuerID, "issuer-op-tok", "", "", nil)
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected issuer_operator scoped read to succeed on %s, got %d %s", path, w.Code, w.Body.String())
+		}
+		w = doAdminReq(mux, http.MethodGet, path, "admin-tok", "", "", nil)
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected tenant_admin read to succeed on %s, got %d %s", path, w.Code, w.Body.String())
 		}
 	}
 

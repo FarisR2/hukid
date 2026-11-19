@@ -4,7 +4,6 @@
   "reserved": [
     "issuer:read",
     "definition:read",
-    "issuance:read",
     "status:read"
   ],
   "roles": {
@@ -19,7 +18,8 @@
       "audit:read",
       "issuers:manage",
       "definitions:manage",
-      "clients:manage"
+      "clients:manage",
+      "issuance:read"
     ],
     "security_admin": [
       "dashboard:read",
@@ -27,7 +27,8 @@
       "audit:read"
     ],
     "issuer_operator": [
-      "dashboard:read"
+      "dashboard:read",
+      "issuance:read"
     ],
     "support_readonly": [
       "dashboard:read"

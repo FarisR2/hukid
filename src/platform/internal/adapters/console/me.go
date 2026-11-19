@@ -23,12 +23,11 @@ type consoleMe struct {
 }
 
 func (h *MeHandler) Register(mux *http.ServeMux) { mux.HandleFunc("/console/api/me", h.serve) }
-func (h *MeHandler) serve(w http.ResponseWriter, r *http.Request) {
-	if !privateapi.Prepare(w, r) {
-		return
+
+func (h *MeHandler) authenticate(ctx context.Context, r *http.Request) (string, authentication.SessionView, tenancy.Identity, error) {
+	if h == nil || h.Sessions == nil || h.Verifier == nil || h.Tenancy == nil {
+		return "", authentication.SessionView{}, tenancy.Identity{}, authentication.ErrDependency
 	}
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-	defer cancel()
 	var cookie string
 	count := 0
 	for _, c := range r.Cookies() {
@@ -38,27 +37,36 @@ func (h *MeHandler) serve(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if count != 1 {
-		privateapi.Problem(w, authentication.ErrSession, false)
-		return
+		return "", authentication.SessionView{}, tenancy.Identity{}, authentication.ErrSession
 	}
 	session, err := h.Sessions.Read(ctx, cookie)
 	if err != nil {
-		privateapi.Problem(w, err, false)
-		return
+		return "", authentication.SessionView{}, tenancy.Identity{}, err
 	}
 	// The in-process Management port performs exactly the same token validation.
 	operator, err := h.Verifier.VerifyOperator(ctx, session.AccessToken)
 	if err != nil {
-		privateapi.Problem(w, err, false)
-		return
+		return "", authentication.SessionView{}, tenancy.Identity{}, err
 	}
 	identity, err := h.Tenancy.Me(ctx, operator)
 	if err != nil {
-		privateapi.Problem(w, err, false)
-		return
+		return "", authentication.SessionView{}, tenancy.Identity{}, err
 	}
 	if identity.ActorID != session.ActorID {
-		privateapi.Problem(w, authentication.ErrSession, false)
+		return "", authentication.SessionView{}, tenancy.Identity{}, authentication.ErrSession
+	}
+	return cookie, session, identity, nil
+}
+
+func (h *MeHandler) serve(w http.ResponseWriter, r *http.Request) {
+	if !privateapi.Prepare(w, r) {
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+	cookie, session, identity, err := h.authenticate(ctx, r)
+	if err != nil {
+		privateapi.Problem(w, err, false)
 		return
 	}
 	result := consoleMe{Me: privateapi.IdentityDTO(identity), CSRFToken: session.CSRF}

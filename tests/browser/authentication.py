@@ -266,6 +266,9 @@ with sync_playwright() as playwright:
 
         # Settle dashboard/context reads before expiring the session out of band;
         # otherwise an earlier 401 can remove the user menu before the click.
+        expect(page.locator('[aria-busy="true"]')).to_have_count(0)
+        expect(page.get_by_role('region', name='Resumen operativo')).to_contain_text('Generado:')
+        expect(page.get_by_role('region', name='Actividad reciente')).to_contain_text('Datos al')
         page.wait_for_load_state('networkidle')
         database('expire')
         expired = session_cookie(context)

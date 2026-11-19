@@ -26,7 +26,8 @@ def run_dashboard(page, context, config, database, heading, login, artifacts):
     expect(metric.locator('.metric-value')).to_have_text('1')
     expect(metric.get_by_text('Disponible', exact=True)).to_be_visible()
     shows_role(page, 'Administración de organización')
-    expect(dashboard.get_by_text('Sin permiso', exact=True)).to_have_count(5)
+    expect(dashboard.get_by_text('Sin permiso', exact=True)).to_have_count(3)
+    expect(dashboard.get_by_text('Fuente no disponible', exact=True)).to_have_count(2)
     # The overview only previews the latest five events and links to the full feed.
     assert len(preview_feed.value.json()['items']) == 5
     expect(page.get_by_role('region', name='Actividad reciente').get_by_role('link', name='Ver toda la actividad')).to_be_visible()

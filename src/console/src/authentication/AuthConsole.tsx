@@ -7,6 +7,7 @@ import { AuthError, navigate, readIdentity, request } from './client';
 import type { Identity } from './client';
 import { MemberManagement } from '../user-management/MemberManagement';
 import { IssuanceManagement } from '../issuance/IssuanceManagement';
+import { SettingsView } from '../settings/SettingsView';
 import { Acceptance, FormDialog } from '../user-management/forms';
 import { discardInvitation, takeInvitation } from '../user-management/client';
 import { restoreSection } from '../navigation';
@@ -266,6 +267,8 @@ export function AuthConsole() {
           identity={identity} kind={current.id === 'miembros' ? 'memberships' : 'invitations'} onChanged={() => void updateContext()} />}
         {(current.id === 'emisores' || current.id === 'definiciones' || current.id === 'clientes' || current.id === 'solicitudes' || current.id === 'credenciales') &&
           <IssuanceManagement key={`${key}:${current.id}`} identity={identity} kind={current.id} />}
+        {current.id === 'ajustes' &&
+          <SettingsView key={key} identity={identity} onStepUp={() => void run('step-up')} onAccessError={accessError} />}
         {accepting && <FormDialog label="Aceptar una invitación" onClose={closeAcceptance}>
           <Acceptance key={identity.actorId} identity={identity} initialToken={invitation} onDone={() => { setInvitation(''); void updateContext(); }} /></FormDialog>}
       </>}

@@ -23,6 +23,7 @@ const descriptions: Record<string, string> = {
   clientes: 'Administra los sistemas autorizados para solicitar emisiones.',
   solicitudes: 'Consulta solicitudes de emisión con referencias y estados operativos.',
   credenciales: 'Consulta credenciales emitidas y la propagación de su estado.',
+  ajustes: 'Parámetros de organización, seguridad de sesión y alcance administrativo en solo lectura.',
 };
 
 const soon: Record<string, { summary: string; includes: string[]; indicator: string | null }> = {
@@ -30,8 +31,6 @@ const soon: Record<string, { summary: string; includes: string[]; indicator: str
     includes: ['Bandeja con filtros por estado', 'Detalle de cada solicitud', 'Seguimiento de la oferta y su canje por la wallet'], indicator: 'Solicitudes creadas' },
   credenciales: { summary: 'Credenciales emitidas y su estado.',
     includes: ['Búsqueda por referencia o por titular', 'Historial de estado de cada credencial', 'Suspender, reactivar o revocar (definitivo)'], indicator: 'Credenciales emitidas' },
-  ajustes: { summary: 'Datos institucionales y políticas de acceso.',
-    includes: ['Datos institucionales y logotipo', 'Política de sesión y verificación TOTP', 'Zona de peligro'], indicator: null },
 };
 
 const initials = (value: string) => value.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]!.toUpperCase()).join('') || '?';

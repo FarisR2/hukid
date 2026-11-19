@@ -62,8 +62,15 @@ func TestDashboardOverviewIsolationLivePermissionsAndNoWrites(t *testing.T) {
 			t.Fatal("wrong tenant aggregate", section)
 		}
 		for name, section := range o.Sections {
-			if name != "activeMembers" && (section.State != "notAuthorized" || section.Value != nil || section.AsOf != nil) {
-				t.Fatal("future permission leaked", name)
+			if name == "activeMembers" {
+				continue
+			}
+			wantState := "notAuthorized"
+			if name == "createdRequests" || name == "issuedCredentials" {
+				wantState = "unavailable"
+			}
+			if section.State != wantState || section.Value != nil || section.AsOf != nil {
+				t.Fatal("unexpected dashboard metric state", name, section)
 			}
 		}
 		assertCleared(t, pool)

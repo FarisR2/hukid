@@ -158,6 +158,11 @@ func Problem(w http.ResponseWriter, err error, bearer bool) {
 		writeProblem(w, 503, "dependency_unavailable", "Dependencia no disponible")
 	}
 }
+
+// WriteProblem writes an RFC 9457 Problem Details payload for console and private API adapters.
+func WriteProblem(w http.ResponseWriter, status int, code, title string) {
+	writeProblem(w, status, code, title)
+}
 func writeProblem(w http.ResponseWriter, status int, code, title string) {
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(status)

@@ -49,6 +49,13 @@ func loadAuthConfiguration() (*authConfig, error) {
 	if memberErr != nil {
 		return nil, memberErr
 	}
+	verificationCfg, verificationErr := loadVerificationConfiguration()
+	if verificationCfg != nil {
+		clear(verificationCfg.Key)
+	}
+	if verificationErr != nil {
+		return nil, verificationErr
+	}
 	path, environment := os.Getenv("HUKID_AUTH_POLICY"), os.Getenv("HUKID_ENV")
 	values := []string{os.Getenv("HUKID_SESSION_DATABASE_URL"), os.Getenv("HUKID_OIDC_CLIENT_SECRET"), os.Getenv("HUKID_AUTH_KEY"), os.Getenv("HUKID_AUTH_KEY_VERSION"), os.Getenv("HUKID_CONTEXT_DATABASE_URL"), os.Getenv("HUKID_TENANT_DATABASE_URL")}
 	configured := path != "" || environment != ""
@@ -221,8 +228,27 @@ func configureHandler(ctx context.Context, address string) (http.Handler, func()
 	if vciRuntime != nil {
 		labRoutes = append(labRoutes, vciRuntime)
 	}
+	registerVerification, closeVerification, err := configureVerification(ctx, management, lab != nil)
+	if err != nil {
+		if vciRuntimeCleanup != nil {
+			vciRuntimeCleanup()
+		}
+		closeDashboard()
+		closeDirectory()
+		closePools()
+		return nil, nil, err
+	}
 	settings := &consolehttp.SettingsHandler{Auth: me, IssuanceRuntimeEnabled: vciRuntime != nil}
 	commands := consolehttp.NewSessions(&authentication.SessionLifecycle{Sessions: sessions, Store: store, OIDC: provider, Random: rand.Reader})
 	stopCleanup := store.StartSessionCleanup(context.Background())
-	return audithttp.Wrap(bootstrap.Handler(append([]func(*http.ServeMux){consolehttp.New(service).Register, management.Register, me.Register, settings.Register, commands.Register, protectedCommands.Register, registerDirectory, registerDashboard}, labRoutes...)...), store, slog.Default()), func() { stopCleanup(); closeDashboard(); closeDirectory(); closePools() }, nil
+	return audithttp.Wrap(bootstrap.Handler(append([]func(*http.ServeMux){consolehttp.New(service).Register, management.Register, me.Register, settings.Register, commands.Register, protectedCommands.Register, registerDirectory, registerDashboard, registerVerification}, labRoutes...)...), store, slog.Default()), func() {
+		stopCleanup()
+		closeVerification()
+		if vciRuntimeCleanup != nil {
+			vciRuntimeCleanup()
+		}
+		closeDashboard()
+		closeDirectory()
+		closePools()
+	}, nil
 }

@@ -44,6 +44,9 @@ const (
 var (
 	// ErrConfig reports an invalid session configuration.
 	ErrConfig = errors.New("invalid oid4vp configuration")
+	// ErrNoSigningKey reports that no request-signing key is available for a
+	// session: it is unknown, finished or expired, or its tenant has no key.
+	ErrNoSigningKey = errors.New("no request signing key for session")
 	// ErrSessionExpired reports a response that arrived after the request expired.
 	ErrSessionExpired = errors.New("presentation request expired")
 	// ErrResponseInvalid reports a response that could not be authenticated as
@@ -64,6 +67,15 @@ type Config struct {
 	CredentialQueryID string
 	// TTL bounds the session. Zero means DefaultTTL; above MaxTTL is rejected.
 	TTL time.Duration
+	// SessionID and TenantID bind the request to the persisted verification
+	// session of an authorized tenant (ADR-0033). They are opaque to this
+	// package and empty in the laboratory mount.
+	SessionID string
+	TenantID  string
+	// NotAfter, when set, caps the session expiry: the session never outlives
+	// the persisted row it mirrors, whatever the TTL. A value that is not after
+	// the creation time is rejected.
+	NotAfter time.Time
 }
 
 func (c Config) normalized() (Config, error) {
@@ -132,8 +144,23 @@ func NewSession(cfg Config, now time.Time, random io.Reader) (*Session, error) {
 		return nil, ErrConfig
 	}
 	now = now.UTC()
-	return &Session{cfg: cfg, nonce: nonce, state: state, kid: kid, encKey: key, issuedAt: now, expiresAt: now.Add(cfg.TTL)}, nil
+	expiresAt := now.Add(cfg.TTL)
+	if !cfg.NotAfter.IsZero() {
+		if !cfg.NotAfter.After(now) {
+			return nil, ErrConfig
+		}
+		if cfg.NotAfter.Before(expiresAt) {
+			expiresAt = cfg.NotAfter.UTC()
+		}
+	}
+	return &Session{cfg: cfg, nonce: nonce, state: state, kid: kid, encKey: key, issuedAt: now, expiresAt: expiresAt}, nil
 }
+
+// SessionID is the persisted session this request belongs to, or "".
+func (s *Session) SessionID() string { return s.cfg.SessionID }
+
+// TenantID is the tenant that started this request, or "".
+func (s *Session) TenantID() string { return s.cfg.TenantID }
 
 // ExpiresAt is when the request stops accepting responses.
 func (s *Session) ExpiresAt() time.Time { return s.expiresAt }
@@ -178,8 +205,9 @@ func (s *Session) RequestObjectClaims() (map[string]any, error) {
 
 // SignRequestObject signs the request object with ES256. chain is the verifier
 // certificate chain (leaf first, DER) placed in x5c for the x509_san_dns
-// client identifier prefix; it may be empty in the laboratory.
-func (s *Session) SignRequestObject(key *ecdsa.PrivateKey, chain [][]byte) (string, error) {
+// client identifier prefix; it may be empty in the laboratory. kid, when not
+// empty, is the id of the custodied key and goes in the JWS header.
+func (s *Session) SignRequestObject(key *ecdsa.PrivateKey, kid string, chain [][]byte) (string, error) {
 	if key == nil || key.Curve != elliptic.P256() {
 		return "", ErrConfig
 	}
@@ -199,7 +227,11 @@ func (s *Session) SignRequestObject(key *ecdsa.PrivateKey, chain [][]byte) (stri
 		}
 		options = options.WithHeader("x5c", encoded)
 	}
-	signer, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.ES256, Key: key}, options)
+	signingKey := jose.SigningKey{Algorithm: jose.ES256, Key: key}
+	if kid != "" {
+		signingKey.Key = jose.JSONWebKey{Key: key, KeyID: kid, Algorithm: string(jose.ES256), Use: "sig"}
+	}
+	signer, err := jose.NewSigner(signingKey, options)
 	if err != nil {
 		return "", ErrConfig
 	}

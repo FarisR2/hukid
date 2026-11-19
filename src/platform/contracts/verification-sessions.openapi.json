@@ -1,0 +1,251 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "HukID verification sessions — VER-T11-a contract baseline",
+    "version": "0.1.0-draft",
+    "description": "Own contract for the per-tenant Verifier-as-a-Service (ADR-0033). Draft: only the start operation has a handler (VER-T11-c2), and it is not mounted in cmd/api yet; the read operation is not implemented. verification:start and verification:read are declared in capabilities.json (VER-T11-c1) for tenant_admin and security_admin; only the start handler consumes verification:start. Responses never carry the JWS, claims, vp_token, nonce or state (VER-FR08)."
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:8080",
+      "description": "Isolated loopback test profile"
+    }
+  ],
+  "security": [],
+  "paths": {
+    "/v1/operator/tenants/{tenantId}/verification-sessions": {
+      "post": {
+        "operationId": "operatorStartVerificationSession",
+        "summary": "Start a verification session for the tenant (proposed capability verification:start, fresh MFA required)",
+        "security": [
+          {
+            "operatorBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantId"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "ttlSeconds": {
+                    "type": "integer",
+                    "minimum": 60,
+                    "maximum": 900,
+                    "description": "Proposed default 300; the module cap is 15 minutes."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Session created. The launch URI is the only handle; nonce, state and keys are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerificationSessionCreated"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/operator/tenants/{tenantId}/verification-sessions/{sessionId}": {
+      "get": {
+        "operationId": "operatorGetVerificationSession",
+        "summary": "Read the state and result of a session (proposed capability verification:read)",
+        "security": [
+          {
+            "operatorBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantId"
+          },
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Public session identifier, unrelated to the OpenID4VP state."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session state; result fields are present only once the session is completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerificationSession"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "operatorBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Operator token. Capabilities come from the local membership, never from token roles."
+      }
+    },
+    "parameters": {
+      "TenantId": {
+        "name": "tenantId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "description": "Resource selector; the server validates active tenant membership."
+      }
+    },
+    "responses": {
+      "Error": {
+        "description": "Generic error without remote or internal detail.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "VerificationSessionCreated": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "sessionId",
+          "launchUri",
+          "expiresAt"
+        ],
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "launchUri": {
+            "type": "string",
+            "description": "openid4vp launch URI for the wallet."
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "VerificationSession": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "sessionId",
+          "status",
+          "createdAt",
+          "expiresAt"
+        ],
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "completed",
+              "expired"
+            ]
+          },
+          "result": {
+            "type": "string",
+            "enum": [
+              "pass",
+              "fail"
+            ],
+            "description": "Only when status is completed."
+          },
+          "codes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Failure codes from the closed set (CodesVersion 2). Only when status is completed."
+          },
+          "reportDigest": {
+            "type": "string",
+            "description": "Digest of the report; never the JWS or claims. Only when status is completed."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "completedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

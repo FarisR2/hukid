@@ -2653,7 +2653,9 @@
                 "members:read",
                 "members:revoke",
                 "members:update",
-                "status:read"
+                "status:read",
+                "verification:read",
+                "verification:start"
               ]
             }
           },

@@ -19,12 +19,16 @@
       "issuers:manage",
       "definitions:manage",
       "clients:manage",
-      "issuance:read"
+      "issuance:read",
+      "verification:start",
+      "verification:read"
     ],
     "security_admin": [
       "dashboard:read",
       "members:read",
-      "audit:read"
+      "audit:read",
+      "verification:start",
+      "verification:read"
     ],
     "issuer_operator": [
       "dashboard:read",
@@ -41,7 +45,8 @@
     "invitations:revoke",
     "issuers:manage",
     "definitions:manage",
-    "clients:manage"
+    "clients:manage",
+    "verification:start"
   ],
   "restrictions": {
     "issuer_operator": "Only assigned issuerIds; no member directory or claims by default.",
@@ -49,5 +54,5 @@
     "security_admin": "Tenant-authorized security events; no membership mutations.",
     "tenant_admin": "No global authority; issuer operations require their own domain policy."
   },
-  "note": "USR-T01 materializes these unchanged tenant-local capabilities in console-members.openapi.json. operator:read only establishes token eligibility; local authorization and fresh MFA govern admin writes. Acceptance instead requires the same verified identity/email and a valid invitation; no directory access. Handlers remain pending USR-T03–T07."
+  "note": "USR-T01 materializes these unchanged tenant-local capabilities in console-members.openapi.json. operator:read only establishes token eligibility; local authorization and fresh MFA govern admin writes. Acceptance instead requires the same verified identity/email and a valid invitation; no directory access. Handlers remain pending USR-T03–T07. verification:start and verification:read (ADR-0033, VER-T11-c1) go to tenant_admin and security_admin only; start requires fresh MFA. Only the start handler (VER-T11-c2) consumes verification:start."
 }
